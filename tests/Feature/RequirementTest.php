@@ -71,4 +71,38 @@ class RequirementTest extends TestCase
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['implementation_status']);
     }
+
+    #[Test]
+    public function it_can_fetch_project_progress_and_metrics()
+    {
+        $project = Project::create(['name' => 'Test Project']);
+
+        Requirement::create([
+            'project_id' => $project->id,
+            'requirement_code' => 'SRS-001',
+            'description' => 'First task',
+            'implementation_status' => 'Ongoing'
+        ]);
+
+        Requirement::create([
+            'project_id' => $project->id,
+            'requirement_code' => 'SRS-002',
+            'description' => 'Second task',
+            'implementation_status' => 'Pending'
+        ]);
+
+        $response = $this->getJson("/api/projects/{$project->id}/progress");
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'project_id' => $project->id,
+                'overall_progress' => '25%',
+                'metrics' => [
+                    'total_requirements' => 2,
+                    'completed' => 0,
+                    'ongoing' => 1,
+                    'pending' => 1,
+                ]
+            ]);
+    }
 }

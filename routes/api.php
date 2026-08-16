@@ -14,3 +14,4 @@ use App\Http\Controllers\ImplementationActivityController;
 Route::get('/projects/{projectId}/requirements', [RequirementController::class, 'index']);
 Route::post('/requirements', [RequirementController::class, 'store']);
 Route::patch('/requirements/{id}/status', [RequirementController::class, 'updateStatus']);
+Route::get('/projects/{project}/progress', [RequirementController::class, 'getProjectProgress']);

@@ -35,6 +35,30 @@ class RequirementController extends Controller
         ], 201);
     }
 
+    // Get overall progress for a specific project
+    public function getProjectProgress($project)
+    {
+        $requirements = Requirement::where('project_id', $project)->get();
+
+        $total = $requirements->count();
+        $completed = $requirements->where('implementation_status', 'Completed')->count();
+        $ongoing = $requirements->where('implementation_status', 'Ongoing')->count();
+        $pending = $requirements->where('implementation_status', 'Pending')->count();
+
+        $overallProgress = ProgressCalculator::calculateProjectProgress($project);
+
+        return response()->json([
+            'project_id' => (int) $project,
+            'overall_progress' => $overallProgress . '%',
+            'metrics' => [
+                'total_requirements' => $total,
+                'completed' => $completed,
+                'ongoing' => $ongoing,
+                'pending' => $pending,
+            ]
+        ]);
+    }
+
     // Update status and test results, then return calculated project progress
     public function updateStatus(Request $request, $id)
     {
