@@ -10,10 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ant-design/cssinjs": "^2.1.2",
     "@ant-design/icons": "^6.3.2",
     "antd": "^6.6.0",
     "axios": "^1.19.0",
     "dayjs": "^1.11.21",
+    "html2pdf.js": "^0.14.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
