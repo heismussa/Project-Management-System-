@@ -13,10 +13,10 @@ class UserSeeder extends Seeder
     {
         // 1. Create Project Reviewer (Process 1 Lead)
         $reviewer = User::firstOrCreate(
-            ['email' => 'reviewer@system.com'],
+            ['email' => 'luquman2004tajir@gmail.com'],
             [
-                'name' => 'John Reviewer',
-                'password' => Hash::make('password123'),
+                'name' => 'project reviewer',
+                'password' => Hash::make('password1234'),
             ]
         );
         $reviewerRole = Role::where('name', 'Project Reviewer')->first();
@@ -26,7 +26,7 @@ class UserSeeder extends Seeder
 
         // 2. Create System Administrator
         $admin = User::firstOrCreate(
-            ['email' => 'admin@system.com'],
+            ['email' => 'mussasaid@gmail.com'],
             [
                 'name' => 'System Admin',
                 'password' => Hash::make('password123'),

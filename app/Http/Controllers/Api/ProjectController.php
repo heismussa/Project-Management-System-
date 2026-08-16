@@ -3,44 +3,39 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\RegisterProjectRequest;
+use App\Http\Requests\StoreProjectRequest;
 use App\Models\Project;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ProjectController extends Controller
 {
-    public function store(RegisterProjectRequest $request)
+    public function store(StoreProjectRequest $request): JsonResponse
     {
-        $data = $request->validated();
+        // Validation and Authorization are automatically handled by StoreProjectRequest
+        $validated = $request->validated();
+        $validated['reviewer_id'] = $request->user()->id;
+        $validated['status'] = 'Initiated';
+        $validated['phase'] = 'Registration';
 
-        // Business Logic: Auto Status Determination
-        $data['status'] = !empty($data['planned_start_date']) ? 'ongoing' : 'not_started';
-        $data['phase'] = 'initiation';
-        $data['reviewer_id'] = $request->user()->id;
-
-        $project = Project::create($data);
+        $project = Project::create($validated);
 
         return response()->json([
-            'success' => true,
-            'message' => 'Project registered successfully under Process 1.',
-            'data' => $project->load(['reviewer', 'planner'])
+            'message' => 'Project successfully registered in Process 1.',
+            'data'    => $project,
         ], 201);
     }
 
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        if (!$request->user()->hasPermissionTo('projects.view_all')) {
-            return response()->json(['message' => 'Unauthorized action.'], 403);
+        if (!$request->user()->hasPermission('projects.view_all')) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
         }
 
-        $projects = Project::with(['reviewer', 'planner'])
-            ->when($request->category, fn($q) => $q->where('category', $request->category))
-            ->when($request->status, fn($q) => $q->where('status', $request->status))
-            ->paginate(15);
+        $projects = Project::with(['reviewer', 'planner', 'coordinator'])->latest()->get();
 
         return response()->json([
-            'success' => true,
-            'data' => $projects
-        ]);
+            'data' => $projects,
+        ], 200);
     }
 }

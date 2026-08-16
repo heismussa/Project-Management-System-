@@ -8,6 +8,9 @@ use App\Models\UserPermission;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property-read \Illuminate\Database\Eloquent\Collection $roles
+ */
 trait HasPermissions
 {
     public function roles(): BelongsToMany
@@ -40,12 +43,21 @@ trait HasPermissions
         }
 
         // Rule 2: Fallback to Role-Based Permissions
-        foreach ($this->roles as $role) {
+        /** @var \App\Models\Role $role */
+        foreach ($this->roles()->get() as $role) {
             if ($role->permissions->contains('id', $permission->id)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Alias method for hasPermissionTo to maintain compatibility with FormRequests.
+     */
+    public function hasPermission(string $permissionCode): bool
+    {
+        return $this->hasPermissionTo($permissionCode);
     }
 }
