@@ -1,3 +1,4 @@
+{/*
 import { List, Button, Typography, Popconfirm } from 'antd'
 import {
   FilePdfOutlined,
@@ -69,3 +70,4 @@ function DocumentList({ documents, onDelete }) {
 }
 
 export default DocumentList
+}

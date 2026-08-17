@@ -1,8 +1,8 @@
 export const STATUS = {
-  not_started: { label: 'Not Started', color: 'default', score: 0 },
-  pending: { label: 'Pending', color: 'default', score: 0 },
-  ongoing: { label: 'Ongoing', color: '#ffc20a', score: 50 },
-  completed: { label: 'Completed', color: '#068737', score: 100 },
+  not_started: { label: 'Not Started', bg: '#F2F3F5', text: '#555F6D', score: 0 },
+  pending: { label: 'Pending', bg: '#F2F3F5', text: '#555F6D', score: 0 },
+  ongoing: { label: 'Ongoing', bg: '#FFF4D8', text: '#B97900', score: 50 },
+  completed: { label: 'Completed', bg: '#E8F6EC', text: '#278A45', score: 100 },
 }
 
 // no actual start -> not_started, an actual start with no actual end ->

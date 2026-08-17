@@ -1,3 +1,4 @@
+{/*}
 import { Table, Segmented } from 'antd'
 import { REQUIREMENT_STATUSES, TEST_RESULTS } from './status'
 import ProgressGauge from './ProgressGauge'

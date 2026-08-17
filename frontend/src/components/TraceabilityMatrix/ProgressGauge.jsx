@@ -1,4 +1,5 @@
-import { Progress, Typography } from 'antd'
+{/*
+  import { Progress, Typography } from 'antd'
 
 const { Text } = Typography
 
@@ -18,3 +19,4 @@ function ProgressGauge({ requirements }) {
 }
 
 export default ProgressGauge
+}

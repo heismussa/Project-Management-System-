@@ -1,3 +1,4 @@
+{/*
 import { useState } from 'react'
 import { Modal, Upload, Typography, message } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
@@ -57,3 +58,4 @@ function UploadModal({ open, onCancel, onUpload }) {
 }
 
 export default UploadModal
+}

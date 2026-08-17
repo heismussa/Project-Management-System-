@@ -1,3 +1,5 @@
+{/*
+
 import { useState } from 'react'
 import { Button } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
@@ -43,3 +45,4 @@ function DocumentManager() {
 }
 
 export default DocumentManager
+}
