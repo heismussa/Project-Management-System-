@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use app\Models\Project;
-use app\Models\Document;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ImplementationActivity extends Model
 {
@@ -13,12 +13,17 @@ class ImplementationActivity extends Model
 
     protected $guarded = [];
 
-    public function project()
+    public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
     }
 
-    public function documents()
+    public function responsiblePerson(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'responsible_person_id');
+    }
+
+    public function documents(): HasMany
     {
         return $this->hasMany(Document::class, 'activity_id');
     }

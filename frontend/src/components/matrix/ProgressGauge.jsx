@@ -10,12 +10,15 @@ function getGaugeColor(score) {
   return '#ffc20a' // brand amber
 }
 
-function ProgressGauge({ requirements, progressUpdates }) {
+function ProgressGauge({ requirements, progressUpdates, overallProgress }) {
   const scoredItems = requirements.map((requirement) => ({
     ...requirement,
-    implementation_status: getRequirementStatus(requirement.id, progressUpdates),
+    implementation_status: requirement.ui_status ?? getRequirementStatus(requirement.id, progressUpdates),
   }))
-  const score = Math.round(calcScore(scoredItems))
+  const score =
+    overallProgress != null
+      ? Math.round(Number(String(overallProgress).replace('%', '')))
+      : Math.round(calcScore(scoredItems))
 
   return (
     <div className="flex flex-col items-center gap-2">

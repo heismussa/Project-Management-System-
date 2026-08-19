@@ -28,10 +28,6 @@ class ProjectController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        if (!$request->user()->hasPermission('projects.view_all')) {
-            return response()->json(['message' => 'Unauthorized access.'], 403);
-        }
-
         $projects = Project::with(['reviewer', 'planner', 'coordinator'])->latest()->get();
 
         return response()->json([

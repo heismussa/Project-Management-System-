@@ -86,4 +86,14 @@ public function login(Request $request)
             'data' => $request->user(),
         ], 200);
     }
+
+    public function users(): JsonResponse
+    {
+        $users = User::query()
+            ->select('id', 'name', 'email')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json(['data' => $users]);
+    }
 }
