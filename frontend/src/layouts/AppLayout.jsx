@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useLocation, Navigate } from 'react-router-dom'
 import { Drawer } from 'antd'
 import { Menu } from 'lucide-react'
 import MainHeader from './components/MainHeader'
 import Sidebar from './components/Sidebar'
 import BreadCrumb from './components/BreadCrumb'
 import { SidebarProvider, useSidebar } from './SidebarContext'
-import { getBreadcrumbCrumbs } from './nav'
+import { getBreadcrumbCrumbs, pathAllowedForRole } from './nav'
+import { useAuth } from '../context/AuthContext'
 import './app-shell.css'
 
 const SIDEBAR_WIDTH = 288
@@ -27,6 +28,7 @@ function useIsDesktop() {
 
 function AppLayoutShell() {
   const location = useLocation()
+  const { activeRole } = useAuth()
   const { sideBarShown } = useSidebar()
   const isDesktop = useIsDesktop()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -72,7 +74,7 @@ function AppLayoutShell() {
             )}
             <BreadCrumb crumbs={crumbs} />
           </div>
-          <Outlet />
+          {pathAllowedForRole(location.pathname, activeRole?.name) ? <Outlet /> : <Navigate to="/" replace />}
         </div>
       </div>
 

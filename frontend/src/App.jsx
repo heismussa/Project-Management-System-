@@ -20,7 +20,7 @@ import UserManagementPage from './pages/UserManagementPage'
 
 // Layouts
 import AppLayout from './layouts/AppLayout'
-import { canManageUsers } from './layouts/nav'
+import { pathAllowedForRole } from './layouts/nav'
 
 function ProtectedRoute({ children }) {
   const { user, isLoadingAuth } = useAuth()
@@ -30,9 +30,9 @@ function ProtectedRoute({ children }) {
 }
 
 function IctSupportRoute({ children }) {
-  const { user, isLoadingAuth } = useAuth()
+  const { activeRole, isLoadingAuth } = useAuth()
   if (isLoadingAuth) return null
-  if (!canManageUsers(user)) return <Navigate to="/" replace />
+  if (!pathAllowedForRole('/user-management', activeRole?.name)) return <Navigate to="/" replace />
   return children
 }
 

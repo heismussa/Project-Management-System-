@@ -1,7 +1,37 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../lib/axios'
+import { getAssignedRoles } from '../layouts/nav'
 
 const AuthContext = createContext(null)
+const STORAGE_ROLE_ID = 'currentRole'
+const STORAGE_ROLE_CODES = 'roleCodes'
+
+function readStoredRoleId() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_ROLE_ID)
+    if (raw == null || raw === 'undefined') return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+function persistActiveRole(role) {
+  if (!role) {
+    sessionStorage.removeItem(STORAGE_ROLE_ID)
+    sessionStorage.removeItem(STORAGE_ROLE_CODES)
+    return
+  }
+  sessionStorage.setItem(STORAGE_ROLE_ID, JSON.stringify(role.id ?? role.name))
+  sessionStorage.setItem(STORAGE_ROLE_CODES, JSON.stringify([role.name]))
+}
+
+function resolveActiveRole(user) {
+  const assigned = getAssignedRoles(user)
+  if (!assigned.length) return null
+  const storedId = readStoredRoleId()
+  return assigned.find((role) => String(role.id) === String(storedId) || role.name === storedId) ?? assigned[0]
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
@@ -10,6 +40,14 @@ export const AuthProvider = ({ children }) => {
   })
   const [token, setToken] = useState(() => localStorage.getItem('auth_token') || null)
   const [isLoadingAuth, setIsLoadingAuth] = useState(() => Boolean(localStorage.getItem('auth_token')))
+  const [activeRole, setActiveRole] = useState(() => {
+    try {
+      const raw = localStorage.getItem('user_data')
+      return resolveActiveRole(raw ? JSON.parse(raw) : null)
+    } catch {
+      return null
+    }
+  })
 
   useEffect(() => {
     const hasToken = Boolean(localStorage.getItem('auth_token'))
@@ -29,7 +67,9 @@ export const AuthProvider = ({ children }) => {
         setToken(localStorage.getItem('auth_token'))
         localStorage.setItem('user_data', JSON.stringify(meUser))
       } catch (e) {
+        persistActiveRole(null)
         localStorage.clear()
+        setActiveRole(null)
         setUser(null)
         setToken(null)
       } finally {
@@ -38,6 +78,12 @@ export const AuthProvider = ({ children }) => {
     })()
   }, [])
 
+  useEffect(() => {
+    const next = resolveActiveRole(user)
+    setActiveRole(next)
+    persistActiveRole(next)
+  }, [user])
+
   const login = (userData, authToken) => {
     setUser(userData)
     setToken(authToken)
@@ -45,12 +91,20 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('auth_token', authToken)
   }
 
+  const switchRole = useCallback((role) => {
+    if (!role?.name) return
+    persistActiveRole(role)
+    setActiveRole(role)
+  }, [])
+
   const logout = async () => {
     try {
       await api.post('/logout')
     } catch {
       // Even if server logout fails, clear the client session.
     } finally {
+      persistActiveRole(null)
+      setActiveRole(null)
       setUser(null)
       setToken(null)
       localStorage.clear()
@@ -58,10 +112,21 @@ export const AuthProvider = ({ children }) => {
   }
 
   const isAuthenticated = Boolean(token)
+  const assignedRoles = useMemo(() => getAssignedRoles(user), [user])
 
   const value = useMemo(
-    () => ({ user, token, login, logout, isLoadingAuth, isAuthenticated }),
-    [user, token, isLoadingAuth, isAuthenticated],
+    () => ({
+      user,
+      token,
+      login,
+      logout,
+      switchRole,
+      activeRole,
+      assignedRoles,
+      isLoadingAuth,
+      isAuthenticated,
+    }),
+    [user, token, switchRole, activeRole, assignedRoles, isLoadingAuth, isAuthenticated],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

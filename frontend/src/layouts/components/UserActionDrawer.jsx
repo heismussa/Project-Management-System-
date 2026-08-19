@@ -10,7 +10,7 @@ function getInitial(name) {
 }
 
 export default function UserActionDrawer({ open, onClose }) {
-  const { user, logout } = useAuth()
+  const { user, logout, activeRole } = useAuth()
   const navigate = useNavigate()
   const displayName = user?.full_name ?? user?.name ?? 'Guest'
 
@@ -28,7 +28,7 @@ export default function UserActionDrawer({ open, onClose }) {
             <div className="avatar">{getInitial(displayName)}</div>
             <p className="avatar-name text-center capitalize">{displayName}</p>
             <p className="avatar-email">{user?.email ?? ''}</p>
-            <p className="text-sm text-gray-500">{formatUserRoles(user)}</p>
+            <p className="text-sm text-gray-500">{formatUserRoles(user, activeRole)}</p>
           </div>
 
           <ul role="list" className="mb-4 flex flex-1 flex-col gap-y-2.5">

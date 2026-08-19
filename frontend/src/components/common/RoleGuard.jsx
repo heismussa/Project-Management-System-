@@ -1,11 +1,10 @@
 import { useAuth } from '../../context/AuthContext'
-import { getUserRoleNames } from '../../layouts/nav'
 
 function RoleGuard({ allow = [], children }) {
-  const { user } = useAuth()
-  const roleNames = getUserRoleNames(user)
+  const { user, activeRole } = useAuth()
+  const activeName = activeRole?.name ?? user?.role
 
-  if (!user || !allow.some((role) => roleNames.includes(role) || user.role === role)) return null
+  if (!user || !allow.some((role) => role === activeName)) return null
 
   return children
 }
