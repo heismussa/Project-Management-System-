@@ -20,6 +20,7 @@ Route::get('/projects/{project}/progress', [RequirementController::class, 'getPr
 
 
 // Public Authentication Route
+Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
 // Protected API Routes (Requires Sanctum Token)

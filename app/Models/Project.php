@@ -5,23 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Project extends Model
 {
     use HasFactory;
 
-    protected $guarded = [];
-
-    public function requirements()
-    {
-        return $this->hasMany(Requirement::class);
-    }
-
-    public function implementationActivities()
-    {
-        return $this->hasMany(ImplementationActivity::class);
-    }
-}
     protected $fillable = [
         'annual_plan_reference',
         'category',
@@ -42,6 +31,16 @@ class Project extends Model
         'actual_end_date',
         'overall_implementation_score',
     ];
+
+    public function requirements(): HasMany
+    {
+        return $this->hasMany(Requirement::class);
+    }
+
+    public function implementationActivities(): HasMany
+    {
+        return $this->hasMany(ImplementationActivity::class);
+    }
 
     public function reviewer(): BelongsTo
     {

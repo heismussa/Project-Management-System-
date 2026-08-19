@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
+use Illuminate\Http\JsonResponse;
 
 class AuthController extends Controller
 {
@@ -22,13 +23,6 @@ class AuthController extends Controller
                 'email:rfc,dns',
                 'max:255',
                 'unique:users,email',
-                function ($attribute, $value, $fail) {
-                    $allowedDomains = ['dict.go.tz', 'nssf.or.tz'];
-                    $domain = strtolower(substr(strrchr($value, "@"), 1));
-                    if (!in_array($domain, $allowedDomains)) {
-                        $fail('Registration is strictly restricted to official company email addresses (@dict.go.tz, @nssf.or.tz).');
-                    }
-                },
             ],
             'password' => ['required', 'string', 'min:8'],
         ]);
@@ -39,10 +33,12 @@ class AuthController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
-        $user->sendEmailVerificationNotification();
+        // Email verification requires the `verification.verify` routes to be registered.
+        // To keep the "register -> login -> /home" flow working for now, we skip sending
+        // the verification notification until those routes are set up.
 
         return response()->json([
-            'message' => 'User registered successfully. A verification link has been sent to your email address.',
+            'message' => 'User registered successfully. Please sign in to continue.',
             'user'    => $user,
         ], 201);
     }
@@ -70,6 +66,24 @@ public function login(Request $request)
             'message' => 'Login successful',
             'token'   => $token,
             'user'    => $user,
+        ], 200);
+    }
+
+    public function logout(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user?->currentAccessToken()) {
+            $user->currentAccessToken()->delete();
+        }
+
+        return response()->json(['message' => 'Logout successful'], 200);
+    }
+
+    public function me(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $request->user(),
         ], 200);
     }
 }
