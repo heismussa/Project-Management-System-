@@ -19,14 +19,14 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password1234'),
             ]
         );
-        $reviewerRole = Role::where('name', 'Project Reviewer')->first();
+        $reviewerRole = Role::where('name', 'project reviewer')->first();
         if ($reviewerRole) {
             $reviewer->roles()->sync([$reviewerRole->id]);
         }
 
         // 2. Create System Administrator
         $admin = User::firstOrCreate(
-            ['email' => 'mussasaid@gmail.com'],
+            ['email' => 'sms.mussasaid@gmail.com'],
             [
                 'name' => 'System Admin',
                 'password' => Hash::make('password123'),
