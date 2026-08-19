@@ -9,17 +9,12 @@ export const AuthProvider = ({ children }) => {
     return raw ? JSON.parse(raw) : null
   })
   const [token, setToken] = useState(() => localStorage.getItem('auth_token') || null)
-  const [isLoadingAuth, setIsLoadingAuth] = useState(() => {
-    const hasToken = Boolean(localStorage.getItem('auth_token'))
-    const hasUser = Boolean(localStorage.getItem('user_data'))
-    return hasToken && !hasUser
-  })
+  const [isLoadingAuth, setIsLoadingAuth] = useState(() => Boolean(localStorage.getItem('auth_token')))
 
   useEffect(() => {
     const hasToken = Boolean(localStorage.getItem('auth_token'))
-    const hasUser = Boolean(localStorage.getItem('user_data'))
 
-    if (!hasToken || hasUser) {
+    if (!hasToken) {
       setIsLoadingAuth(false)
       return
     }

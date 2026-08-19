@@ -31,4 +31,25 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
         ];
     }
+
+    public function toAuthArray(): array
+    {
+        $this->loadMissing('activeRoles');
+
+        $roles = $this->activeRoles
+            ->map(fn (Role $role) => [
+                'id' => $role->id,
+                'name' => $role->name,
+            ])
+            ->values();
+
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'email' => $this->email,
+            'role' => data_get($roles->first(), 'name'),
+            'roles' => $roles,
+            'permissions' => $this->permissionCodes(),
+        ];
+    }
 }

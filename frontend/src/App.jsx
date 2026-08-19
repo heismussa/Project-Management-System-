@@ -16,14 +16,23 @@ import TraceabilityMatrixPage from './pages/TraceabilityMatrixPage'
 import DocumentsPage from './pages/DocumentsPage'
 import ReviewsPage from './pages/ReviewsPage'
 import SettingsPage from './pages/SettingsPage'
+import UserManagementPage from './pages/UserManagementPage'
 
 // Layouts
 import AppLayout from './layouts/AppLayout'
+import { canManageUsers } from './layouts/nav'
 
 function ProtectedRoute({ children }) {
   const { user, isLoadingAuth } = useAuth()
   if (isLoadingAuth) return null
   if (!user) return <Navigate to="/login" replace />
+  return children
+}
+
+function IctSupportRoute({ children }) {
+  const { user, isLoadingAuth } = useAuth()
+  if (isLoadingAuth) return null
+  if (!canManageUsers(user)) return <Navigate to="/" replace />
   return children
 }
 
@@ -53,6 +62,14 @@ export default function App() {
             <Route path="/documents" element={<DocumentsPage />} />
             <Route path="/reviews" element={<ReviewsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route
+              path="/user-management"
+              element={
+                <IctSupportRoute>
+                  <UserManagementPage />
+                </IctSupportRoute>
+              }
+            />
           </Route>
 
           {/* Default Fallback */}

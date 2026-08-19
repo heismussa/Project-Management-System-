@@ -20,7 +20,7 @@ class AuthController extends Controller
             'email' => [
                 'required',
                 'string',
-                'email:rfc,dns',
+                'email:rfc',
                 'max:255',
                 'unique:users,email',
             ],
@@ -65,7 +65,7 @@ public function login(Request $request)
         return response()->json([
             'message' => 'Login successful',
             'token'   => $token,
-            'user'    => $user,
+            'user'    => $user->toAuthArray(),
         ], 200);
     }
 
@@ -83,7 +83,7 @@ public function login(Request $request)
     public function me(Request $request): JsonResponse
     {
         return response()->json([
-            'data' => $request->user(),
+            'data' => $request->user()->toAuthArray(),
         ], 200);
     }
 

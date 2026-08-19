@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\RequirementController;
 use App\Http\Controllers\ImplementationActivityController;
 
@@ -18,6 +19,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/users', [AuthController::class, 'users']);
+
+    Route::middleware('manage.users')->prefix('admin')->group(function () {
+        Route::get('/users', [UserManagementController::class, 'index']);
+        Route::post('/users', [UserManagementController::class, 'store']);
+        Route::put('/users/{user}/roles', [UserManagementController::class, 'syncRoles']);
+        Route::get('/roles', [UserManagementController::class, 'roles']);
+    });
 
     Route::post('/projects', [ProjectController::class, 'store']);
     Route::get('/projects', [ProjectController::class, 'index']);

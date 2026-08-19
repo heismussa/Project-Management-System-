@@ -16,13 +16,28 @@ trait HasPermissions
     public function roles(): BelongsToMany
     {
         return $this->belongsToMany(Role::class, 'user_roles')
+                    ->withPivot('assigned_at', 'expires_at', 'is_active')
+                    ->withTimestamps();
+    }
+
+    public function activeRoles(): BelongsToMany
+    {
+        return $this->roles()
                     ->wherePivot('is_active', true)
-                    ->withPivot('assigned_at', 'expires_at');
+                    ->where(function ($query) {
+                        $query->whereNull('user_roles.expires_at')
+                              ->orWhere('user_roles.expires_at', '>', now());
+                    });
     }
 
     public function directPermissions(): HasMany
     {
         return $this->hasMany(UserPermission::class);
+    }
+
+    public function hasRole(string $roleName): bool
+    {
+        return $this->activeRoles()->where('roles.name', $roleName)->exists();
     }
 
     public function hasPermissionTo(string $permissionCode): bool
@@ -44,7 +59,7 @@ trait HasPermissions
 
         // Rule 2: Fallback to Role-Based Permissions
         /** @var \App\Models\Role $role */
-        foreach ($this->roles()->get() as $role) {
+        foreach ($this->activeRoles()->with('permissions')->get() as $role) {
             if ($role->permissions->contains('id', $permission->id)) {
                 return true;
             }
@@ -59,5 +74,33 @@ trait HasPermissions
     public function hasPermission(string $permissionCode): bool
     {
         return $this->hasPermissionTo($permissionCode);
+    }
+
+    public function permissionCodes(): array
+    {
+        $codes = [];
+
+        foreach ($this->activeRoles()->with('permissions')->get() as $role) {
+            foreach ($role->permissions as $permission) {
+                if ($permission->code) {
+                    $codes[$permission->code] = true;
+                }
+            }
+        }
+
+        foreach ($this->directPermissions()->with('permission')->get() as $override) {
+            $code = $override->permission?->code;
+            if (!$code) {
+                continue;
+            }
+
+            if ($override->is_granted) {
+                $codes[$code] = true;
+            } else {
+                unset($codes[$code]);
+            }
+        }
+
+        return array_keys($codes);
     }
 }
