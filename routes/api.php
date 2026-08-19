@@ -12,11 +12,21 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+    ->middleware(['signed'])
+    ->name('verification.verify');
+
+Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/email/verification-notification', [AuthController::class, 'resendVerification'])
+        ->middleware(['throttle:6,1'])
+        ->name('verification.send');
+});
+
+Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/users', [AuthController::class, 'users']);
 
@@ -29,6 +39,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/projects', [ProjectController::class, 'store']);
     Route::get('/projects', [ProjectController::class, 'index']);
+    Route::get('/projects/{id}', [ProjectController::class, 'show'])->whereNumber('id');
+    Route::put('/projects/{id}/reassign', [ProjectController::class, 'reassign'])->whereNumber('id');
 
     Route::get('/projects/{projectId}/activities', [ImplementationActivityController::class, 'index']);
     Route::post('/activities', [ImplementationActivityController::class, 'store']);

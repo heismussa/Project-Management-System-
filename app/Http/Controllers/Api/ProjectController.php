@@ -34,4 +34,33 @@ class ProjectController extends Controller
             'data' => $projects,
         ], 200);
     }
+
+    public function show($id): JsonResponse
+    {
+        $project = Project::with(['reviewer', 'planner', 'coordinator'])->findOrFail($id);
+
+        return response()->json([
+            'data' => $project,
+        ], 200);
+    }
+
+    public function reassign(Request $request, $id): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user->hasPermission('projects.assign_planner') && ! $user->hasPermission('projects.reassign_planner')) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $validated = $request->validate([
+            'planner_id' => ['required', 'exists:users,id'],
+        ]);
+
+        $project = Project::findOrFail($id);
+        $project->update(['planner_id' => $validated['planner_id']]);
+
+        return response()->json([
+            'message' => 'Project planner reassigned.',
+            'data' => $project->fresh(['reviewer', 'planner', 'coordinator']),
+        ], 200);
+    }
 }
