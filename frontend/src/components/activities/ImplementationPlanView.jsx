@@ -8,7 +8,11 @@ const td = 'border border-gray-300 p-2'
 
 const ImplementationPlanView = forwardRef(function ImplementationPlanView({ activities }, ref) {
   return (
-    <div ref={ref} className="fixed left-[-10000px] top-0 w-[950px] bg-white p-8 text-gray-900">
+    <div
+      ref={ref}
+      className="fixed left-0 top-0 -z-50 w-[950px] bg-white p-8 text-gray-900"
+      style={{ pointerEvents: 'none' }}
+    >
       <div className="border-b-4 border-primary pb-4">
         <h1 className="text-2xl font-bold text-primary">Project Management Plan</h1>
         <p className="mt-1 text-sm text-gray-500">Generated {dayjs().format('MMMM D, YYYY h:mm A')}</p>

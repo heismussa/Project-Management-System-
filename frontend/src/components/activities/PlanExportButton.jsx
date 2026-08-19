@@ -34,6 +34,10 @@ function PlanExportButton({ activities }) {
         element: planRef.current,
         filename: `project-management-plan-${todayISO()}.pdf`,
       })
+      message.success('PDF file downloaded')
+    } catch (error) {
+      console.error(error)
+      message.error('Failed to export PDF')
     } finally {
       setExportingPdf(false)
     }

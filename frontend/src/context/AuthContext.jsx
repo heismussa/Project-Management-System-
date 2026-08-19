@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../lib/axios'
 
-const AuthContext = createContext()
+const AuthContext = createContext(null)
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
@@ -52,11 +52,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      // If the backend endpoint exists, revoke the current token.
-      // (Axios interceptor attaches Authorization using localStorage auth_token.)
       await api.post('/logout')
     } catch {
-      // Even if server logout fails, clear the client session so you can continue.
+      // Even if server logout fails, clear the client session.
     } finally {
       setUser(null)
       setToken(null)
@@ -64,9 +62,20 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const value = useMemo(() => ({ user, token, login, logout, isLoadingAuth }), [user, token, isLoadingAuth])
+  const isAuthenticated = Boolean(token)
+
+  const value = useMemo(
+    () => ({ user, token, login, logout, isLoadingAuth, isAuthenticated }),
+    [user, token, isLoadingAuth, isAuthenticated],
+  )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-export const useAuth = () => useContext(AuthContext)
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}
