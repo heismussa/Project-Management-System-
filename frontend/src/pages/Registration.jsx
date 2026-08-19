@@ -73,7 +73,7 @@ export default function Registration() {
           {error && (
             <div 
               className="p-3 text-sm text-white rounded-lg font-medium shadow-sm"
-              style={{ backgroundColor: '#962c30' }}
+              style={{ backgroundColor: '#068737' }}
             >
               {error}
             </div>
@@ -144,7 +144,7 @@ export default function Registration() {
               type="submit"
               disabled={loading}
               className="w-full text-white font-bold py-3 rounded-lg shadow-md transition-all duration-200 mt-2 flex items-center justify-center hover:opacity-90"
-              style={{ backgroundColor: '#068737' }}
+              style={{ backgroundColor: '#962c30' }}
             >
               {loading ? 'Registering...' : 'Complete Registration'}
             </button>

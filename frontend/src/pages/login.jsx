@@ -41,7 +41,7 @@ export default function Login() {
             alt="NSSF Logo"
             className="mx-auto mb-3 h-20 w-auto rounded-lg"
           />
-          
+          <h1 className="text-2xl font-bold tracking-wide">National Social Security Fund</h1>
           <p className="text-xs mt-1 uppercase tracking-widest font-bold" style={{ color: '#ffc20a' }}>
             Project Management System
           </p>
@@ -52,7 +52,7 @@ export default function Login() {
           {errorMessage && (
             <div 
               className="p-3 text-sm text-white rounded-lg font-medium shadow-sm"
-              style={{ backgroundColor: '#962c30' }}
+              style={{ backgroundColor: '#068737' }}
             >
               {errorMessage}
             </div>
