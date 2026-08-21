@@ -55,6 +55,15 @@ function WorkflowBar({ projectId, workflow, onUpdated }) {
         <Alert type="warning" showIcon message="Reviewer comment" description={workflow.plan_review_comment} />
       )}
 
+      {workflow.plan_pending_reapproval && (
+        <Alert
+          type="info"
+          showIcon
+          message="Edits after return are pending re-approval"
+          description="Submit the plan again so the reviewer can approve the latest activities."
+        />
+      )}
+
       {blockers.length > 0 && (
         <Alert
           type="error"

@@ -19,11 +19,7 @@ class ProgressCalculator
 
         $totalScore = 0;
         foreach ($requirements as $requirement) {
-            if ($requirement->implementation_status === 'Completed') {
-                $totalScore += 100;
-            } elseif ($requirement->implementation_status === 'Ongoing') {
-                $totalScore += 50;
-            } // 'Pending' counts as 0
+            $totalScore += Requirement::scoreFor($requirement->implementation_status);
         }
 
         return round($totalScore / $requirements->count(), 2);

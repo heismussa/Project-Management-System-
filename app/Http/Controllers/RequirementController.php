@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\Requirement;
 use App\Models\Review;
 use App\Services\ProgressCalculator;
+use App\Support\ProgressDateRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -59,6 +60,12 @@ class RequirementController extends Controller
         return response()->json([
             'project_id' => (int) $project,
             'overall_progress' => $overallProgress.'%',
+            'score' => $overallProgress,
+            'scoring' => [
+                'Pending' => 0,
+                'Ongoing' => 50,
+                'Completed' => 100,
+            ],
             'metrics' => [
                 'total_requirements' => $total,
                 'completed' => $completed,
@@ -70,15 +77,16 @@ class RequirementController extends Controller
 
     public function updateStatus(Request $request, $id): JsonResponse
     {
-        $requirement = Requirement::findOrFail($id);
+        $requirement = Requirement::with('project')->findOrFail($id);
+        $dateRules = ProgressDateRules::actual(
+            optional($requirement->project?->planned_start_date)->toDateString()
+        );
 
-        $validated = $request->validate([
+        $validated = $request->validate(array_merge([
             'implementation_status' => 'nullable|in:Pending,Ongoing,Completed',
             'test_result' => 'nullable|in:Pass,Fail',
             'remarks' => 'nullable|string',
-            'actual_start_date' => 'nullable|date',
-            'actual_end_date' => 'nullable|date|after_or_equal:actual_start_date',
-        ]);
+        ], $dateRules));
 
         if (! empty($validated['actual_end_date'])) {
             $validated['implementation_status'] = 'Completed';
@@ -114,14 +122,35 @@ class RequirementController extends Controller
 
     public function review(Request $request, $id): JsonResponse
     {
-        $requirement = Requirement::findOrFail($id);
+        $requirement = Requirement::with('project')->findOrFail($id);
+        $dateRules = ProgressDateRules::actual(
+            optional($requirement->project?->planned_start_date)->toDateString()
+        );
 
-        $validated = $request->validate([
+        $validated = $request->validate(array_merge([
             'review_decision' => 'required|in:approved,rejected,needs_revision',
             'comment' => 'nullable|string',
-        ]);
+            'implementation_status' => 'nullable|in:Pending,Ongoing,Completed',
+            'test_result' => 'nullable|in:Pass,Fail',
+            'remarks' => 'nullable|string',
+        ], $dateRules));
 
-        $requirement->update(['review_decision' => $validated['review_decision']]);
+        $requirement->fill(collect($validated)->only([
+            'review_decision',
+            'implementation_status',
+            'test_result',
+            'remarks',
+            'actual_start_date',
+            'actual_end_date',
+        ])->filter(fn ($value) => $value !== null)->all());
+
+        if (! empty($validated['actual_end_date'])) {
+            $requirement->implementation_status = 'Completed';
+        } elseif (! empty($validated['actual_start_date']) && ! $requirement->implementation_status) {
+            $requirement->implementation_status = 'Ongoing';
+        }
+
+        $requirement->save();
 
         Review::create([
             'project_id' => $requirement->project_id,

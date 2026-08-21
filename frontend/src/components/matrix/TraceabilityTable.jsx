@@ -239,6 +239,13 @@ function TraceabilityTable() {
       render: (_, record) => <StatusBadge status={record.ui_status || 'pending'} />,
     },
     {
+      title: 'Score',
+      dataIndex: 'score_percent',
+      key: 'score_percent',
+      width: 90,
+      render: (value) => `${value ?? 0}%`,
+    },
+    {
       title: 'Review decision',
       key: 'review_decision',
       width: 150,
@@ -315,7 +322,7 @@ function TraceabilityTable() {
       {error && <Alert className="mb-4" type="error" showIcon message={error} />}
 
       <div className="mb-6 flex justify-center">
-        <ProgressGauge requirements={requirements} progressUpdates={[]} overallProgress={overallProgress} />
+        <ProgressGauge overallProgress={overallProgress} />
       </div>
 
       {matrixReturn && (
@@ -344,6 +351,7 @@ function TraceabilityTable() {
       <RequirementProgressModal
         open={progressTarget !== null}
         requirement={progressTarget}
+        plannedStartDate={projects.find((project) => project.id === projectId)?.planned_start_date}
         history={(progressTarget?.progress_updates || []).map((entry) => ({
           ...entry,
           remark: entry.remark,

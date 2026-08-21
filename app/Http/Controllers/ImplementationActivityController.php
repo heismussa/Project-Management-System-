@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ImplementationActivity;
 use App\Models\ProgressUpdate;
 use App\Services\ProjectWorkflowService;
+use App\Support\ProgressDateRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -45,6 +46,7 @@ class ImplementationActivityController extends Controller
 
         $validated['status'] = 'not_started';
         $activity = ImplementationActivity::create($validated)->load('responsiblePerson:id,name,email');
+        $activity->project?->markEditedAfterReturn();
 
         return response()->json([
             'message' => 'Activity created',
@@ -56,18 +58,22 @@ class ImplementationActivityController extends Controller
     {
         $activity = ImplementationActivity::with('project')->findOrFail($id);
 
-        $validated = $request->validate([
+        $dateRules = ProgressDateRules::actual(
+            optional($activity->planned_start_date)->toDateString()
+        );
+        $dateRules['actual_start_date'] = array_merge(['sometimes'], $dateRules['actual_start_date']);
+        $dateRules['actual_end_date'] = array_merge(['sometimes'], $dateRules['actual_end_date']);
+
+        $validated = $request->validate(array_merge([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'phase' => ['sometimes', 'nullable', 'string', 'max:100'],
             'expected_deliverable' => ['sometimes', 'required', 'string'],
             'planned_start_date' => ['sometimes', 'required', 'date'],
             'planned_end_date' => ['sometimes', 'required', 'date', 'after_or_equal:planned_start_date'],
             'responsible_person_id' => ['sometimes', 'required', 'exists:users,id'],
-            'actual_start_date' => ['sometimes', 'nullable', 'date'],
-            'actual_end_date' => ['sometimes', 'nullable', 'date', 'after_or_equal:actual_start_date'],
             'status' => ['sometimes', 'nullable', 'string', 'max:50'],
             'remark' => ['sometimes', 'nullable', 'string'],
-        ]);
+        ], $dateRules));
 
         $planning = array_intersect_key($validated, array_flip(self::PLANNING_FIELDS));
         $progress = array_intersect_key($validated, array_flip(['actual_start_date', 'actual_end_date', 'status']));
@@ -84,6 +90,7 @@ class ImplementationActivityController extends Controller
             ]);
         } elseif ($planning !== []) {
             $activity->update($planning);
+            $activity->project?->markEditedAfterReturn();
         }
 
         if ($progress !== []) {
@@ -116,7 +123,9 @@ class ImplementationActivityController extends Controller
     public function destroy($id): JsonResponse
     {
         $activity = ImplementationActivity::findOrFail($id);
+        $project = $activity->project;
         $activity->delete();
+        $project?->markEditedAfterReturn();
 
         return response()->json(['message' => 'Activity deleted']);
     }

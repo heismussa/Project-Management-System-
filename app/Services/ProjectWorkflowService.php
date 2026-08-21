@@ -220,6 +220,7 @@ class ProjectWorkflowService
         return [
             'plan_review_status' => $project->plan_review_status,
             'plan_review_comment' => $project->plan_review_comment,
+            'plan_pending_reapproval' => (bool) $project->plan_pending_reapproval,
             'phase' => $project->phase,
             'status' => $project->status,
             'category' => $project->category,

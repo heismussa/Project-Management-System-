@@ -5,7 +5,7 @@ import { disabledActualStartDate, disabledActualEndDate } from '../../lib/valida
 
 const { Text } = Typography
 
-function RequirementProgressModal({ open, requirement, history, onCancel, onSave }) {
+function RequirementProgressModal({ open, requirement, history, plannedStartDate, onCancel, onSave }) {
   const [form] = Form.useForm()
   const actualStart = Form.useWatch('actual_start_date', form)
 
@@ -55,7 +55,7 @@ function RequirementProgressModal({ open, requirement, history, onCancel, onSave
         <Form.Item name="actual_start_date" label="Actual start">
           <DatePicker
             className="w-full"
-            disabledDate={disabledActualStartDate(undefined)}
+            disabledDate={disabledActualStartDate(plannedStartDate)}
             onChange={(value) => {
               if (!value) form.setFieldValue('actual_end_date', null)
             }}

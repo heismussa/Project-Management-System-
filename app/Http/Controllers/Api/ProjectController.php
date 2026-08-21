@@ -95,6 +95,12 @@ class ProjectController extends Controller
     {
         $this->guardOpen($project);
 
+        if (! in_array($project->plan_review_status, ['draft', 'changes_requested'], true)) {
+            throw ValidationException::withMessages([
+                'plan' => ['This plan is already in review or approved. Wait for a return before submitting again.'],
+            ]);
+        }
+
         if ($project->implementationActivities()->count() === 0) {
             throw ValidationException::withMessages([
                 'plan' => ['Add at least one activity before submitting the plan for review.'],
@@ -106,6 +112,7 @@ class ProjectController extends Controller
             'phase' => 'Plan Review',
             'status' => 'Plan Submitted',
             'plan_review_comment' => null,
+            'plan_pending_reapproval' => false,
         ]);
 
         Review::create([
@@ -160,6 +167,7 @@ class ProjectController extends Controller
                 'plan_review_status' => 'changes_requested',
                 'plan_review_comment' => $validated['comment'],
                 'plan_reviewed_at' => now(),
+                'plan_pending_reapproval' => false,
                 'phase' => 'Planning',
                 'status' => 'Plan Returned',
             ]);

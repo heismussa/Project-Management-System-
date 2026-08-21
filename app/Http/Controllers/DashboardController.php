@@ -20,7 +20,8 @@ class DashboardController extends Controller
         $metrics = Project::getReviewerMetrics();
 
         if (in_array($role, ['Project Planner', 'Project Administrator'], true)) {
-            $metrics = array_merge($metrics, Project::getPlannerMetrics());
+            $plannerId = $role === 'Project Planner' ? $user->id : null;
+            $metrics = array_merge($metrics, Project::getPlannerMetrics($plannerId));
             $pendingActions[] = [
                 'label' => 'Open implementation plan',
                 'path' => '/implementation-plan',

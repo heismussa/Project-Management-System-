@@ -10,6 +10,7 @@ import SummaryCards from '../components/activities/SummaryCards'
 import ActivitiesTable from '../components/activities/ActivitiesTable'
 import WorkflowBar from '../components/activities/WorkflowBar'
 import ActivityDocumentsModal from '../components/activities/ActivityDocumentsModal'
+import ProgressGauge from '../components/matrix/ProgressGauge'
 import ProjectPicker from '../components/common/ProjectPicker'
 import api from '../lib/axios'
 import {
@@ -36,6 +37,7 @@ function ImplementationPlanPage() {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [overallProgress, setOverallProgress] = useState(null)
   const [formTarget, setFormTarget] = useState(null)
   const [progressTarget, setProgressTarget] = useState(null)
   const [progressHistory, setProgressHistory] = useState([])
@@ -80,6 +82,7 @@ function ImplementationPlanPage() {
   const loadActivities = useCallback(async (id) => {
     if (!id) {
       setActivities([])
+      setOverallProgress(null)
       return
     }
     setLoading(true)
@@ -88,6 +91,12 @@ function ImplementationPlanPage() {
       const response = await api.get(`/projects/${id}/activities`)
       setActivities(unwrapList(response.data))
       await loadWorkflow(id)
+      try {
+        const progressRes = await api.get(`/projects/${id}/progress`)
+        setOverallProgress(progressRes.data?.overall_progress ?? progressRes.data?.score ?? '0%')
+      } catch {
+        setOverallProgress('0%')
+      }
     } catch (err) {
       setActivities([])
       setError(err.response?.data?.message || 'Could not load activities.')
@@ -234,6 +243,10 @@ function ImplementationPlanPage() {
           loadActivities(projectId)
         }}
       />
+
+      <div className="flex justify-center">
+        <ProgressGauge overallProgress={overallProgress} />
+      </div>
 
       {error && <Alert type="error" showIcon message={error} />}
 

@@ -23,10 +23,34 @@ class Requirement extends Model
         'remarks',
     ];
 
+    protected $appends = ['score_percent'];
+
     protected $casts = [
         'actual_start_date' => 'date:Y-m-d',
         'actual_end_date' => 'date:Y-m-d',
     ];
+
+    public function scopeIncomplete($query)
+    {
+        return $query->where(function ($inner) {
+            $inner->whereIn('implementation_status', ['Pending', 'Ongoing'])
+                ->orWhereNull('implementation_status');
+        });
+    }
+
+    public function getScorePercentAttribute(): int
+    {
+        return self::scoreFor($this->implementation_status);
+    }
+
+    public static function scoreFor(?string $status): int
+    {
+        return match ($status) {
+            'Completed' => 100,
+            'Ongoing' => 50,
+            default => 0,
+        };
+    }
 
     public function project(): BelongsTo
     {

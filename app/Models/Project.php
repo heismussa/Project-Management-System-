@@ -31,6 +31,7 @@ class Project extends Model
         'plan_review_status',
         'plan_review_comment',
         'plan_reviewed_at',
+        'plan_pending_reapproval',
         'recommended_at',
         'execution_started_at',
         'execution_approved_at',
@@ -50,12 +51,17 @@ class Project extends Model
 
     protected $casts = [
         'plan_reviewed_at' => 'datetime',
+        'plan_pending_reapproval' => 'boolean',
         'recommended_at' => 'datetime',
         'execution_started_at' => 'datetime',
         'execution_approved_at' => 'datetime',
         'matrix_returned_at' => 'datetime',
         'closed_at' => 'datetime',
         'budget' => 'float',
+        'planned_start_date' => 'date',
+        'planned_end_date' => 'date',
+        'actual_start_date' => 'date',
+        'actual_end_date' => 'date',
     ];
 
     public function requirements(): HasMany
@@ -135,17 +141,30 @@ class Project extends Model
     /**
      * Person 3 contract consumed by Person 1 dashboard.
      */
-    public static function getPlannerMetrics(): array
+    public function scopeAssignedToPlanner($query, ?int $plannerId = null)
     {
+        $query->whereNotNull('planner_id')->whereNull('closed_at');
+
+        if ($plannerId) {
+            $query->where('planner_id', $plannerId);
+        }
+
+        return $query;
+    }
+
+    public static function getPlannerMetrics(?int $plannerId = null): array
+    {
+        $projects = static::query()->assignedToPlanner($plannerId);
+        $projectIds = (clone $projects)->pluck('id');
+
         return [
-            'assigned_projects' => static::query()->whereNotNull('planner_id')->whereNull('closed_at')->count(),
-            'active_activities' => ImplementationActivity::query()->count(),
+            'assigned_projects' => (clone $projects)->count(),
+            'active_activities' => ImplementationActivity::query()->whereIn('project_id', $projectIds)->count(),
             'pending_matrix_items' => Requirement::query()
-                ->where(function ($query) {
-                    $query->whereIn('implementation_status', ['Pending', 'Ongoing'])
-                        ->orWhereNull('implementation_status');
-                })
+                ->whereIn('project_id', $projectIds)
+                ->incomplete()
                 ->count(),
+            'plans_returned' => (clone $projects)->where('plan_review_status', 'changes_requested')->count(),
         ];
     }
 
@@ -169,36 +188,45 @@ class Project extends Model
      */
     public function hasCompletedAllActivities(): bool
     {
-        $activities = $this->implementationActivities;
-        if ($activities->isEmpty()) {
+        if ($this->implementationActivities()->doesntExist()) {
             return false;
         }
 
-        return $activities->every(function (ImplementationActivity $activity) {
-            if ($activity->actual_end_date) {
-                return true;
-            }
-
-            return in_array(strtolower((string) $activity->status), ['completed'], true);
-        });
+        return $this->implementationActivities()
+            ->whereNull('actual_end_date')
+            ->where(function ($query) {
+                $query->whereNull('status')
+                    ->orWhereRaw('LOWER(status) <> ?', ['completed']);
+            })
+            ->doesntExist();
     }
 
     /**
-     * Person 3 contract — every matrix item has UAT Pass/Fail and none are open.
+     * Person 3 contract — every matrix item is Completed with Pass/Fail.
      */
     public function hasPassedAllUAT(): bool
     {
-        $requirements = $this->requirements;
-        if ($requirements->isEmpty()) {
+        if ($this->requirements()->doesntExist()) {
             return false;
         }
 
-        return $requirements->every(function (Requirement $requirement) {
-            $status = $requirement->implementation_status ?: 'Pending';
-            $result = $requirement->test_result;
+        if ($this->requirements()->incomplete()->exists()) {
+            return false;
+        }
 
-            return $status === 'Completed' && in_array($result, ['Pass', 'Fail'], true);
-        });
+        return $this->requirements()
+            ->where(function ($query) {
+                $query->whereNull('test_result')
+                    ->orWhereNotIn('test_result', ['Pass', 'Fail']);
+            })
+            ->doesntExist();
+    }
+
+    public function markEditedAfterReturn(): void
+    {
+        if ($this->plan_review_status === 'changes_requested' && ! $this->plan_pending_reapproval) {
+            $this->update(['plan_pending_reapproval' => true]);
+        }
     }
 
     /**
