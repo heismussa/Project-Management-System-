@@ -3,6 +3,8 @@ import { Tag } from 'antd'
 const TEST_RESULT = {
   pass: { label: 'Pass', color: '#068737' },
   fail: { label: 'Fail', color: 'red' },
+  Pass: { label: 'Pass', color: '#068737' },
+  Fail: { label: 'Fail', color: 'red' },
   not_tested: { label: 'Not Tested', color: 'default' },
 }
 

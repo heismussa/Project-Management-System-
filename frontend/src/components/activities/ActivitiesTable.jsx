@@ -7,6 +7,10 @@ import { getPersonName, getPersonRole } from '../../data/people'
 import StatusBadge from '../common/StatusBadge'
 import ActivityActions from './ActivityActions'
 
+function personLookup(people, id) {
+  return people?.find((person) => person.id === id)
+}
+
 function formatDate(value) {
   return value ? dayjs(value).format('MMM D, YYYY') : '—'
 }
@@ -38,6 +42,7 @@ function ActivitiesTable({
   onEdit,
   onUpdateProgress,
   onDelete,
+  people = [],
 }) {
   const [selectedRowId, setSelectedRowId] = useState(null)
 
@@ -111,14 +116,14 @@ function ActivitiesTable({
       dataIndex: 'responsible_person_id',
       key: 'responsible_person_id',
       width: 150,
-      render: getPersonName,
+      render: (id) => personLookup(people, id)?.name ?? getPersonName(id),
     },
     {
       title: 'Assigned role',
       dataIndex: 'responsible_person_id',
       key: 'assigned_role',
       width: 150,
-      render: getPersonRole,
+      render: (id) => personLookup(people, id)?.role ?? getPersonRole(id),
     },
     {
       title: 'Status',

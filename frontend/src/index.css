@@ -1,9 +1,39 @@
 /* Color Variables */
 :root {
+<<<<<<< HEAD
   --color-primary: #962c30;   /* Deep Red / Maroon */
   --color-secondary: #ffc20a; /* Amber / Gold */
   --color-green: #068737;     /* Green Accent */
   --bg-light: #f8f9fa;
+=======
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
+  --code-bg: #f4f3ec;
+  --accent: #aa3bff;
+  --accent-bg: rgba(170, 59, 255, 0.1);
+  --accent-border: rgba(170, 59, 255, 0.5);
+  --social-bg: rgba(244, 243, 236, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+
+  --sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: 'Lora', Georgia, serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0.18px;
+  color-scheme: light;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+>>>>>>> origin/Updated-Version
 }
 
 body {
@@ -84,6 +114,7 @@ body {
   box-sizing: border-box;
 }
 
+<<<<<<< HEAD
 .sidebar-user-role {
   color: var(--color-secondary);
   font-weight: bold;
@@ -131,3 +162,102 @@ body {
 .modal-body {
   padding: 20px;
 }
+=======
+.nav-link.active {
+  background-color: #962c30;
+  color: #fff;
+}
+
+.nav-link.active .nav-icon {
+  color: #fff;
+}
+
+.navbar-drawer-item {
+  display: flex;
+  width: 100%;
+  border-radius: 0.375rem;
+  border: 1px solid #e5e7eb;
+  padding: 0.25rem 0.75rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+  color: #962c30;
+}
+
+.navbar-drawer-item:hover {
+  background-color: #962c30;
+  color: #fff;
+}
+
+html.dark {
+  background-color: #111827;
+}
+
+.dark body,
+.dark #root {
+  background-color: #111827;
+  color: #e5e7eb;
+}
+
+.page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.page-shell-card {
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+  background-color: #ffffff;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.dark .page-shell-card {
+  border-color: #374151;
+  background-color: #1f2937;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 61.5px;
+  border: 3px solid #ffffff;
+  background-color: rgb(172, 0, 0);
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.avatar-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 40px);
+  margin: 8px 0 4px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.avatar-email {
+  font-size: 12px;
+  line-height: 1.33;
+  font-weight: 400;
+  color: rgb(57, 58, 61);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 40px);
+  margin: 0 0 12px;
+}
+
+.dark .avatar-email {
+  color: #9ca3af;
+}
+>>>>>>> origin/Updated-Version

@@ -1,25 +1,19 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { StyleProvider } from '@ant-design/cssinjs'
-import { ConfigProvider } from 'antd'
 import './index.css'
 import App from './App.jsx'
-
-const theme = {
-  token: {
-    colorPrimary: '#962c30', // deep red / maroon
-    colorSuccess: '#068737', // green accent
-    colorWarning: '#ffc20a', // amber / gold
-    colorInfo: '#ffc20a', // amber / gold — used for "processing" badges (e.g. Ongoing)
-  },
-}
+import { ThemeProvider } from './theme/ThemeProvider'
+import AppProviders from './theme/AppProviders'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <StyleProvider layer>
-      <ConfigProvider theme={theme}>
-        <App />
-      </ConfigProvider>
-    </StyleProvider>
+    <ThemeProvider>
+      <StyleProvider layer>
+        <AppProviders>
+          <App />
+        </AppProviders>
+      </StyleProvider>
+    </ThemeProvider>
   </StrictMode>,
 )

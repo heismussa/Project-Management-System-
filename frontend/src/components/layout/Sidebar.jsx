@@ -1,61 +1,70 @@
 import { useState } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { Drawer } from 'antd'
 import {
   Menu,
+  Home,
   ClipboardList,
-  Calendar,
-  CalendarCheck,
-  PlayCircle,
-  StopCircle,
-  User,
-  Briefcase,
-  Activity as ActivityIcon,
-  MoreHorizontal,
+  LogOut,
 } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 const NAV_ITEMS = [
-  { key: 'activity', label: 'Activity', Icon: ClipboardList },
-  { key: 'planned_start', label: 'Planned Start', Icon: Calendar },
-  { key: 'planned_end', label: 'Planned End', Icon: CalendarCheck },
-  { key: 'actual_start', label: 'Actual Start', Icon: PlayCircle },
-  { key: 'actual_end', label: 'Actual End', Icon: StopCircle },
-  { key: 'responsible', label: 'Responsible', Icon: User },
-  { key: 'assigned_role', label: 'Assigned Role', Icon: Briefcase },
-  { key: 'status', label: 'Status', Icon: ActivityIcon },
-  { key: 'actions', label: 'Actions', Icon: MoreHorizontal },
+  { path: '/home', label: 'Home', Icon: Home },
+  { path: '/implementation-plan', label: 'Implementation Plan', Icon: ClipboardList },
 ]
 
 const SIDEBAR_GRADIENT = 'linear-gradient(180deg, #650018 0%, #78081E 55%, #590014 100%)'
 
-function SidebarNav({ active, onSelect, alwaysShowLabel }) {
+function SidebarNav({ alwaysShowLabel, onItemClick }) {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login')
+    if (onItemClick) onItemClick()
+  }
+
   return (
-    <nav className="flex flex-col gap-1 px-3">
-      {NAV_ITEMS.map(({ key, label, Icon }) => {
-        const isActive = active === key
-        return (
-          <button
-            key={key}
-            type="button"
-            title={label}
-            onClick={() => onSelect(key)}
-            className={[
-              'flex h-12 items-center gap-[14px] rounded-lg px-5 text-left text-sm text-white/90 transition-colors',
-              isActive
-                ? 'border-l-[3px] border-gold-500 bg-white/[.12]'
-                : 'border-l-[3px] border-transparent hover:bg-white/[.08]',
-            ].join(' ')}
+    <div className="flex h-full flex-col justify-between pb-6">
+      <nav className="flex flex-col gap-1 px-3">
+        {NAV_ITEMS.map(({ path, label, Icon }) => (
+          <NavLink
+            key={path}
+            to={path}
+            onClick={onItemClick}
+            className={({ isActive }) =>
+              [
+                'flex h-12 items-center gap-[14px] rounded-lg px-5 text-left text-sm text-white/90 transition-colors',
+                isActive
+                  ? 'border-l-[3px] border-amber-400 bg-white/[.12] font-semibold text-white'
+                  : 'border-l-[3px] border-transparent hover:bg-white/[.08]',
+              ].join(' ')
+            }
           >
             <Icon size={18} strokeWidth={1.75} className="shrink-0" />
             <span className={alwaysShowLabel ? '' : 'hidden lg:inline'}>{label}</span>
-          </button>
-        )
-      })}
-    </nav>
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* Logout Button */}
+      <div className="px-3 border-t border-white/10 pt-4">
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex h-12 w-full items-center gap-[14px] rounded-lg border-l-[3px] border-transparent px-5 text-left text-sm text-white/80 hover:bg-red-500/20 hover:text-white transition-colors"
+        >
+          <LogOut size={18} strokeWidth={1.75} className="shrink-0" />
+          <span className={alwaysShowLabel ? '' : 'hidden lg:inline'}>Logout</span>
+        </button>
+      </div>
+    </div>
   )
 }
 
-function Sidebar() {
-  const [active, setActive] = useState('activity')
+export default function Sidebar() {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   return (
@@ -66,19 +75,19 @@ function Sidebar() {
           type="button"
           onClick={() => setDrawerOpen(true)}
           aria-label="Open menu"
-          className="text-maroon-900"
+          className="text-red-900"
         >
           <Menu size={22} />
         </button>
-        <span className="font-serif text-base font-bold text-maroon-900">Implementation Plan</span>
+        <span className="font-serif text-base font-bold text-red-900">Project Management</span>
       </div>
 
       {/* Desktop / tablet sidebar */}
       <aside
-        className="hidden shrink-0 flex-col pt-12 md:flex md:w-[72px] lg:w-[180px]"
+        className="hidden shrink-0 flex-col pt-12 md:flex md:w-[72px] lg:w-[180px] min-h-screen"
         style={{ background: SIDEBAR_GRADIENT }}
       >
-        <SidebarNav active={active} onSelect={setActive} />
+        <SidebarNav />
       </aside>
 
       {/* Mobile drawer */}
@@ -87,22 +96,16 @@ function Sidebar() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         closable={false}
-        size={220}
+        width={220}
         styles={{ body: { padding: 0, background: SIDEBAR_GRADIENT } }}
       >
-        <div className="pt-8">
+        <div className="pt-8 h-full">
           <SidebarNav
-            active={active}
-            onSelect={(key) => {
-              setActive(key)
-              setDrawerOpen(false)
-            }}
             alwaysShowLabel
+            onItemClick={() => setDrawerOpen(false)}
           />
         </div>
       </Drawer>
     </>
   )
 }
-
-export default Sidebar
