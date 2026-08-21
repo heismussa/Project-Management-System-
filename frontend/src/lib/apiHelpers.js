@@ -56,3 +56,17 @@ export function datesToImplementationStatus({ actual_start_date, actual_end_date
   if (actual_start_date) return 'Ongoing'
   return 'Pending'
 }
+
+export function documentFileUrl(documentId) {
+  return `http://localhost:8000/api/documents/${documentId}/file`
+}
+
+export async function fetchAuthorizedFileUrl(documentId) {
+  const token = localStorage.getItem('auth_token')
+  const response = await fetch(documentFileUrl(documentId), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!response.ok) throw new Error('Could not load file')
+  const blob = await response.blob()
+  return URL.createObjectURL(blob)
+}

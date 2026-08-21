@@ -11,82 +11,36 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Existing Project Reviewer Account
-        $reviewer = User::firstOrCreate(
-            ['email' => 'luquman2004tajir@gmail.com'],
-            [
-                'name' => 'project reviewer',
-                'password' => Hash::make('password1234'),
-                'email_verified_at' => now(),
-                'is_active' => true,
-            ]
-        );
+        $accounts = [
+            ['email' => 'luquman2004tajir@gmail.com', 'name' => 'Project Reviewer', 'password' => 'password1234', 'role' => 'Project Reviewer'],
+            ['email' => 'mussasaid@gmail.com', 'name' => 'System Admin', 'password' => 'password123', 'role' => 'Project Administrator'],
+            ['email' => 'sms.mussasaid@gmail.com', 'name' => 'System Admin', 'password' => 'password123', 'role' => 'Project Administrator'],
+            ['email' => 'ictsupport@nssf.go.tz', 'name' => 'ICT Support', 'password' => 'password123', 'role' => 'ICT Support'],
+            ['email' => 'planner@nssf.or.tz', 'name' => 'Project Planner', 'password' => 'password123', 'role' => 'Project Planner'],
+            ['email' => 'coordinator@nssf.or.tz', 'name' => 'Project Coordinator', 'password' => 'password123', 'role' => 'Project Coordinator'],
+            ['email' => 'approver@nssf.or.tz', 'name' => 'Project Approver', 'password' => 'password123', 'role' => 'Project Approver'],
+            ['email' => 'implementor@nssf.or.tz', 'name' => 'Project Implementor', 'password' => 'password123', 'role' => 'Project Implementor'],
+            ['email' => 'viewonly@nssf.or.tz', 'name' => 'Project ViewOnly', 'password' => 'password123', 'role' => 'Project ViewOnly'],
+        ];
 
-        $reviewerRole = Role::where('name', 'Project Reviewer')->first();
-        if ($reviewerRole) {
-            $reviewer->roles()->sync([
-                $reviewerRole->id => ['is_active' => true, 'assigned_at' => now()],
-            ]);
-        }
-
-        // 2. Existing System Administrator Accounts
-        $adminEmails = ['mussasaid@gmail.com', 'sms.mussasaid@gmail.com'];
-        $adminRole = Role::where('name', 'Project Administrator')->first();
-
-        foreach ($adminEmails as $adminEmail) {
-            $admin = User::firstOrCreate(
-                ['email' => $adminEmail],
-                [
-                    'name' => 'System Admin',
-                    'password' => Hash::make('password123'),
-                    'email_verified_at' => now(),
-                    'is_active' => true,
-                ]
-            );
-
-            if ($adminRole) {
-                $admin->roles()->sync([
-                    $adminRole->id => ['is_active' => true, 'assigned_at' => now()],
-                ]);
-            }
-        }
-
-        // 3. Existing ICT Support Account
-        $ictSupport = User::firstOrCreate(
-            ['email' => 'ictsupport@nssf.go.tz'],
-            [
-                'name' => 'ICT Support',
-                'password' => Hash::make('password123'),
-                'email_verified_at' => now(),
-                'is_active' => true,
-            ]
-        );
-
-        $ictSupportRole = Role::where('name', 'ICT Support')->first();
-        if ($ictSupportRole) {
-            $ictSupport->roles()->sync([
-                $ictSupportRole->id => ['is_active' => true, 'assigned_at' => now()],
-            ]);
-        }
-
-        // 4. Additional Generic Role Test Accounts
-        $extraRoles = ['Planner', 'Implementor', 'Coordinator', 'Approver', 'ViewOnly'];
-
-        foreach ($extraRoles as $roleName) {
-            $role = Role::firstOrCreate(['name' => $roleName]);
-
+        foreach ($accounts as $account) {
             $user = User::firstOrCreate(
-                ['email' => strtolower(str_replace(' ', '.', $roleName)) . '@example.com'],
+                ['email' => $account['email']],
                 [
-                    'name' => "{$roleName} User",
-                    'password' => Hash::make('Password123!'),
+                    'name' => $account['name'],
+                    'password' => Hash::make($account['password']),
                     'email_verified_at' => now(),
                     'is_active' => true,
                 ]
             );
 
+            if (! $user->email_verified_at) {
+                $user->forceFill(['email_verified_at' => now(), 'is_active' => true])->save();
+            }
+
+            $role = Role::where('name', $account['role'])->first();
             if ($role) {
-                $user->roles()->syncWithoutDetaching([
+                $user->roles()->sync([
                     $role->id => ['is_active' => true, 'assigned_at' => now()],
                 ]);
             }

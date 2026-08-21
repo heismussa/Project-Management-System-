@@ -1,11 +1,27 @@
-/* Color Variables */
+/*
+ * Cascade layer order: unlayered rules (this file's own selectors below,
+ * plus Tailwind's `components`/`utilities` output) always win over anything
+ * layered, regardless of specificity. Within the layered tier, `antd`
+ * outranks `reset` — so AntD's component CSS overrides Tailwind's preflight
+ * reset instead of the other way around. AntD's cssinjs runtime (see
+ * `<StyleProvider layer>` in main.jsx) injects its styles into this same
+ * `antd` layer at runtime.
+ *
+ * The layer is named `reset`, not `base` — Tailwind v3 reserves the literal
+ * name `base` (and `components`/`utilities`) for its own `@layer base {}`
+ * customization syntax and silently drops a nested `@tailwind base;`
+ * directive inside a block with that reserved name.
+ */
+@layer reset, antd;
+
+@layer reset {
+  @tailwind base;
+}
+
+@tailwind components;
+@tailwind utilities;
+
 :root {
-<<<<<<< HEAD
-  --color-primary: #962c30;   /* Deep Red / Maroon */
-  --color-secondary: #ffc20a; /* Amber / Gold */
-  --color-green: #068737;     /* Green Accent */
-  --bg-light: #f8f9fa;
-=======
   --text: #6b6375;
   --text-h: #08060d;
   --bg: #fff;
@@ -33,136 +49,40 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
->>>>>>> origin/Updated-Version
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: var(--bg-light);
 }
 
-/* 1. Login View Styling */
-.login-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
+#root {
+  min-height: 100svh;
 }
 
-.login-card {
-  width: 360px;
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  overflow: hidden;
-}
-
-.login-header {
-  background-color: var(--color-primary);
-  color: #ffffff;
-  text-align: center;
-  padding: 18px;
-  font-weight: bold;
-  font-size: 1.2rem;
-  letter-spacing: 1px;
-}
-
-.login-body {
-  padding: 24px;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  color: var(--color-secondary);
+/* Implementation Plan table (see ConfigProvider in ActivitiesTable.jsx for
+   the color/hover tokens this complements — header bg/color, row hover,
+   and cell horizontal padding are handled there). This covers the pixel
+   dimensions AntD doesn't expose as tokens. */
+.plan-table .ant-table-thead > tr > th {
+  height: 54px;
   font-weight: 600;
-  margin-bottom: 6px;
-  font-size: 0.9rem;
 }
 
-.form-group input, .form-group select, .form-group textarea {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-sizing: border-box;
+.plan-table .ant-table-tbody > tr > td {
+  min-height: 82px;
+  border-bottom: 1px solid #eceff2;
+  vertical-align: middle;
 }
 
-.btn-primary {
-  width: 100%;
-  padding: 12px;
-  background-color: var(--color-primary);
-  color: #ffffff;
-  border: none;
-  border-radius: 4px;
-  font-weight: bold;
-  cursor: pointer;
-  margin-top: 10px;
+.plan-table .ant-table-tbody > tr.selected-row > td {
+  background: linear-gradient(90deg, #fff4d8 0%, #fff9eb 100%);
+  border-bottom-color: #fff4d8;
 }
 
-/* 2. Navigation Shell Styling */
-.sidebar {
-  width: 240px;
-  background-color: var(--color-primary);
-  color: #ffffff;
-  min-height: 100vh;
-  padding: 20px;
-  box-sizing: border-box;
+.plan-table .ant-table-tbody > tr.selected-row > td:first-child {
+  box-shadow: inset 3px 0 0 #d9a323;
 }
 
-<<<<<<< HEAD
-.sidebar-user-role {
-  color: var(--color-secondary);
-  font-weight: bold;
-}
-
-.btn-green {
-  width: 100%;
-  padding: 10px;
-  background-color: var(--color-green);
-  color: #ffffff;
-  border: none;
-  border-radius: 4px;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-/* 3. Modal Overlay Styling */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal-card {
-  width: 450px;
-  background: #ffffff;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-}
-
-.modal-header {
-  background-color: var(--color-primary);
-  color: #ffffff;
-  padding: 16px;
-  text-align: center;
-  font-size: 1.1rem;
-  font-weight: bold;
-}
-
-.modal-body {
-  padding: 20px;
-}
-=======
 .nav-link.active {
   background-color: #962c30;
   color: #fff;
@@ -260,4 +180,3 @@ html.dark {
 .dark .avatar-email {
   color: #9ca3af;
 }
->>>>>>> origin/Updated-Version

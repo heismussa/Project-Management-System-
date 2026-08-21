@@ -25,9 +25,11 @@ function UserManagementPage() {
   const [search, setSearch] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [assignTarget, setAssignTarget] = useState(null)
+  const [passwordTarget, setPasswordTarget] = useState(null)
   const [saving, setSaving] = useState(false)
   const [createForm] = Form.useForm()
   const [assignForm] = Form.useForm()
+  const [passwordForm] = Form.useForm()
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -83,6 +85,42 @@ function UserManagementPage() {
     }
   }
 
+  const handleToggle = async (user) => {
+    setSaving(true)
+    try {
+      await api.post(`/admin/users/${user.id}/toggle-status`)
+      message.success(user.is_active ? 'User disabled.' : 'User enabled.')
+      await loadData()
+    } catch (err) {
+      const firstError = err.response?.data?.errors
+        ? Object.values(err.response.data.errors).flat()[0]
+        : null
+      message.error(firstError || err.response?.data?.message || 'Could not update status.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handlePassword = async (values) => {
+    if (!passwordTarget) return
+    setSaving(true)
+    try {
+      await api.post(`/admin/users/${passwordTarget.id}/password`, {
+        password: values.password,
+        password_confirmation: values.password_confirmation,
+      })
+      message.success('Password updated.')
+      setPasswordTarget(null)
+      passwordForm.resetFields()
+    } catch (err) {
+      const firstError = err.response?.data?.errors
+        ? Object.values(err.response.data.errors).flat()[0]
+        : null
+      message.error(firstError || err.response?.data?.message || 'Could not update password.')
+    } finally {
+      setSaving(false)
+    }
+  }
   const handleAssign = async (values) => {
     if (!assignTarget) return
     setSaving(true)
@@ -134,13 +172,28 @@ function UserManagementPage() {
         ),
     },
     {
+      title: 'Status',
+      dataIndex: 'is_active',
+      key: 'is_active',
+      width: 110,
+      render: (active) => (
+        <Tag color={active === false ? 'default' : 'green'}>{active === false ? 'Disabled' : 'Active'}</Tag>
+      ),
+    },
+    {
       title: 'Action',
       key: 'action',
-      width: 140,
+      width: 280,
       render: (_, record) => (
-        <Button type="primary" onClick={() => openAssign(record)}>
-          Assign Roles
-        </Button>
+        <Space wrap>
+          <Button type="primary" onClick={() => openAssign(record)}>
+            Assign Roles
+          </Button>
+          <Button onClick={() => setPasswordTarget(record)}>Reset password</Button>
+          <Button danger={record.is_active !== false} onClick={() => handleToggle(record)}>
+            {record.is_active === false ? 'Enable' : 'Disable'}
+          </Button>
+        </Space>
       ),
     },
   ]
@@ -209,10 +262,13 @@ function UserManagementPage() {
           >
             <Input.Password placeholder="Temporary password" />
           </Form.Item>
-          <Form.Item name="role_ids" label="Roles">
+          <Form.Item
+            name="role_ids"
+            label="Roles"
+            rules={[{ required: true, type: 'array', min: 1, message: 'Assign at least one role' }]}
+          >
             <Select
               mode="multiple"
-              allowClear
               placeholder="Assign one or more roles"
               options={roles.map((role) => ({
                 value: role.id,
@@ -251,6 +307,46 @@ function UserManagementPage() {
                 label: role.description ? `${role.name} — ${role.description}` : role.name,
               }))}
             />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={passwordTarget ? `Reset password — ${passwordTarget.name}` : 'Reset password'}
+        open={Boolean(passwordTarget)}
+        onCancel={() => {
+          setPasswordTarget(null)
+          passwordForm.resetFields()
+        }}
+        onOk={() => passwordForm.submit()}
+        okText="Update"
+        cancelText="Close"
+        confirmLoading={saving}
+        destroyOnHidden
+      >
+        <Form form={passwordForm} layout="vertical" onFinish={handlePassword} className="pt-2">
+          <Form.Item
+            name="password"
+            label="New password"
+            rules={[{ required: true, min: 8, message: 'Password must be at least 8 characters' }]}
+          >
+            <Input.Password />
+          </Form.Item>
+          <Form.Item
+            name="password_confirmation"
+            label="Confirm password"
+            dependencies={['password']}
+            rules={[
+              { required: true, message: 'Confirm the password' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('password') === value) return Promise.resolve()
+                  return Promise.reject(new Error('Passwords do not match'))
+                },
+              }),
+            ]}
+          >
+            <Input.Password />
           </Form.Item>
         </Form>
       </Modal>

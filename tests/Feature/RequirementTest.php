@@ -3,14 +3,22 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 use App\Models\Project;
 use App\Models\Requirement;
+use App\Models\User;
 
 class RequirementTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Sanctum::actingAs(User::factory()->create());
+    }
 
     #[Test]
     public function it_can_successfully_update_requirement_status_and_remarks()
@@ -48,6 +56,12 @@ class RequirementTest extends TestCase
             'implementation_status' => 'Ongoing',
             'test_result' => 'Pass',
             'remarks' => 'Initial phase verified',
+        ]);
+
+        $this->assertDatabaseHas('progress_updates', [
+            'entity_type' => 'requirement',
+            'entity_id' => $requirement->id,
+            'remark' => 'Initial phase verified',
         ]);
     }
 

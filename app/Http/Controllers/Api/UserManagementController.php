@@ -10,7 +10,6 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class UserManagementController extends Controller
@@ -55,8 +54,9 @@ class UserManagementController extends Controller
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
-                'password' => Hash::make($validated['password']),
+                'password' => $validated['password'],
                 'is_active' => true,
+                'email_verified_at' => now(),
             ]);
 
             $this->syncUserRoles($user, $roleIds);
@@ -91,15 +91,14 @@ class UserManagementController extends Controller
     /**
      * Update user password (Person 1 Requirement)
      */
-    public function updatePassword(Request $request, $id): JsonResponse
+    public function updatePassword(Request $request, User $user): JsonResponse
     {
         $validated = $request->validate([
             'password' => 'required|string|min:8|confirmed',
         ]);
 
-        $user = User::findOrFail($id);
         $user->update([
-            'password' => Hash::make($validated['password']),
+            'password' => $validated['password'],
         ]);
 
         return response()->json(['message' => 'Password updated successfully.']);
@@ -108,15 +107,18 @@ class UserManagementController extends Controller
     /**
      * Toggle account active status (Person 1 Requirement)
      */
-    public function toggleStatus($id): JsonResponse
+    public function toggleStatus(User $user): JsonResponse
     {
-        $user = User::findOrFail($id);
-        $user->is_active = !$user->is_active;
+        if ($user->is_active) {
+            $this->guardLastIctSupport($user, []);
+        }
+
+        $user->is_active = ! $user->is_active;
         $user->save();
 
         return response()->json([
-            'message' => 'User status updated successfully.',
-            'is_active' => $user->is_active,
+            'message' => $user->is_active ? 'User enabled.' : 'User disabled.',
+            'data' => $this->serializeUser($user->load('activeRoles')),
         ]);
     }
 

@@ -33,13 +33,13 @@ export default function Project() {
     {
       label: 'Traceability Matrix',
       url: '/traceability-matrix',
-      roles: [ROLES.PPL, ROLES.PRV, ROLES.PIM, ROLES.PAD],
+      roles: [ROLES.PPL, ROLES.PRV, ROLES.PIM, ROLES.PCO, ROLES.PAP, ROLES.PVO, ROLES.PAD],
       icon: Network,
     },
     {
       label: 'Documents',
       url: '/documents',
-      roles: [ROLES.PRV, ROLES.PPL, ROLES.PIM, ROLES.PVO, ROLES.PAD],
+      roles: [ROLES.PRV, ROLES.PPL, ROLES.PIM, ROLES.PCO, ROLES.PAP, ROLES.PVO, ROLES.PAD],
       icon: FileText,
     },
     {

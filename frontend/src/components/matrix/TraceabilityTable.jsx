@@ -13,6 +13,7 @@ import { STATUS } from '../../lib/status'
 import StatusBadge from '../common/StatusBadge'
 import TestResultBadge from '../common/TestResultBadge'
 import ProjectPicker from '../common/ProjectPicker'
+import { isSpecReadOnlyRole, useActiveRoleName } from '../common/RoleGuard'
 import { getRequirementStatus } from './requirementStatus'
 import RequirementProgressModal from './RequirementProgressModal'
 import TestScoreModal from './TestScoreModal'
@@ -51,16 +52,18 @@ function normalizeRequirement(requirement) {
 }
 
 function TraceabilityTable() {
+  const roleName = useActiveRoleName()
+  const readOnly = isSpecReadOnlyRole(roleName)
   const [projects, setProjects] = useState([])
   const [projectId, setProjectId] = useState(getStoredProjectId)
   const [requirements, setRequirements] = useState([])
   const [overallProgress, setOverallProgress] = useState(null)
+  const [matrixReturn, setMatrixReturn] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [progressTarget, setProgressTarget] = useState(null)
   const [testTarget, setTestTarget] = useState(null)
   const [returnModalOpen, setReturnModalOpen] = useState(false)
-  const [matrixReturn, setMatrixReturn] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
   const [returnForm] = Form.useForm()
   const [addForm] = Form.useForm()
@@ -90,12 +93,19 @@ function TraceabilityTable() {
     setLoading(true)
     setError('')
     try {
-      const [reqRes, progressRes] = await Promise.all([
+      const [reqRes, progressRes, workflowRes] = await Promise.all([
         api.get(`/projects/${id}/requirements`),
         api.get(`/projects/${id}/progress`),
+        api.get(`/projects/${id}/workflow`),
       ])
       setRequirements(unwrapList(reqRes.data).map(normalizeRequirement))
       setOverallProgress(progressRes.data?.overall_progress ?? null)
+      const workflow = workflowRes.data?.data
+      if (workflow?.matrix_return_comment) {
+        setMatrixReturn({ comment: workflow.matrix_return_comment, date: workflow.matrix_returned_at })
+      } else {
+        setMatrixReturn(null)
+      }
     } catch (err) {
       setRequirements([])
       setError(err.response?.data?.message || 'Could not load requirements.')
@@ -118,15 +128,24 @@ function TraceabilityTable() {
     if (score != null) setOverallProgress(score)
   }
 
-  const handleDecision = (id, review_decision) => {
-    setRequirements((prev) =>
-      prev.map((requirement) => (requirement.id === id ? { ...requirement, review_decision } : requirement)),
-    )
+  const handleDecision = async (id, review_decision) => {
+    try {
+      const response = await api.patch(`/requirements/${id}/review`, { review_decision })
+      const updated = unwrapItem(response.data)
+      setRequirements((prev) =>
+        prev.map((requirement) => (requirement.id === updated.id ? { ...requirement, ...normalizeRequirement(updated) } : requirement)),
+      )
+      message.success(review_decision === 'approved' ? 'Requirement approved' : 'Requirement rejected')
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not save review decision.')
+    }
   }
 
   const handleSaveProgress = async ({ actual_start_date, actual_end_date, remark }) => {
     try {
       const response = await api.patch(`/requirements/${progressTarget.id}/status`, {
+        actual_start_date,
+        actual_end_date,
         implementation_status: datesToImplementationStatus({ actual_start_date, actual_end_date }),
         remarks: remark,
       })
@@ -154,11 +173,26 @@ function TraceabilityTable() {
   }
 
   const handleReturnMatrix = () => {
-    returnForm.validateFields().then((values) => {
-      setRequirements((prev) => prev.map((requirement) => ({ ...requirement, review_decision: 'needs_revision' })))
-      setMatrixReturn({ comment: values.comment.trim(), date: new Date().toISOString() })
-      returnForm.resetFields()
-      setReturnModalOpen(false)
+    returnForm.validateFields().then(async (values) => {
+      try {
+        const response = await api.post(`/projects/${projectId}/matrix/return`, {
+          comment: values.comment.trim(),
+        })
+        const returned = unwrapList(response.data?.data?.requirements).map(normalizeRequirement)
+        if (returned.length) setRequirements(returned)
+        else {
+          setRequirements((prev) => prev.map((requirement) => ({ ...requirement, review_decision: 'needs_revision' })))
+        }
+        setMatrixReturn({
+          comment: response.data?.data?.comment || values.comment.trim(),
+          date: response.data?.data?.returned_at || new Date().toISOString(),
+        })
+        returnForm.resetFields()
+        setReturnModalOpen(false)
+        message.success('Matrix returned to planner')
+      } catch (err) {
+        message.error(err.response?.data?.message || 'Could not return matrix.')
+      }
     })
   }
 
@@ -226,7 +260,10 @@ function TraceabilityTable() {
       key: 'actions',
       fixed: 'right',
       width: 200,
-      render: (_, record) => (
+      render: (_, record) =>
+        readOnly ? (
+          <span className="text-gray-400">View only</span>
+        ) : (
         <Space>
           <Tooltip title="Approve">
             <Button
@@ -252,7 +289,7 @@ function TraceabilityTable() {
             <Button type="text" icon={<ExperimentOutlined />} onClick={() => setTestTarget(record)} />
           </Tooltip>
         </Space>
-      ),
+        ),
     },
   ]
 
@@ -262,12 +299,16 @@ function TraceabilityTable() {
         <h2 className="text-lg font-semibold text-gray-800">SRS Traceability Matrix</h2>
         <Space wrap>
           <ProjectPicker projects={projects} value={projectId} onChange={(id) => { storeProjectId(id); setProjectId(id) }} />
+          {!readOnly && (
+            <>
           <Button type="primary" icon={<PlusOutlined />} disabled={!projectId} onClick={() => setAddOpen(true)}>
             Add requirement
           </Button>
           <Button icon={<RollbackOutlined />} onClick={() => setReturnModalOpen(true)}>
             Return matrix with comments
           </Button>
+            </>
+          )}
         </Space>
       </div>
 
@@ -303,7 +344,10 @@ function TraceabilityTable() {
       <RequirementProgressModal
         open={progressTarget !== null}
         requirement={progressTarget}
-        history={[]}
+        history={(progressTarget?.progress_updates || []).map((entry) => ({
+          ...entry,
+          remark: entry.remark,
+        }))}
         onCancel={() => setProgressTarget(null)}
         onSave={handleSaveProgress}
       />

@@ -17,6 +17,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'password',
+        'is_active',
+        'email_verified_at',
     ];
 
     protected $hidden = [
@@ -29,12 +31,15 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
         ];
     }
 
     public function toAuthArray(): array
     {
-        $this->loadMissing('activeRoles');
+        $this->reactivateAssignedRolesIfNeeded();
+        $this->unsetRelation('activeRoles');
+        $this->load('activeRoles');
 
         $roles = $this->activeRoles
             ->map(fn (Role $role) => [
@@ -47,9 +52,20 @@ class User extends Authenticatable implements MustVerifyEmail
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
+            'is_active' => (bool) ($this->is_active ?? true),
             'role' => data_get($roles->first(), 'name'),
             'roles' => $roles,
             'permissions' => $this->permissionCodes(),
         ];
+    }
+
+    /**
+     * Older sync() calls stored is_active=0, which hid every role from the UI.
+     */
+    public function reactivateAssignedRolesIfNeeded(): void
+    {
+        if ($this->roles()->exists() && ! $this->activeRoles()->exists()) {
+            $this->roles()->newPivotQuery()->update(['is_active' => true]);
+        }
     }
 }

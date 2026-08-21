@@ -8,6 +8,8 @@ import PlanExportButton from '../components/activities/PlanExportButton'
 import PageHeader from '../components/activities/PageHeader'
 import SummaryCards from '../components/activities/SummaryCards'
 import ActivitiesTable from '../components/activities/ActivitiesTable'
+import WorkflowBar from '../components/activities/WorkflowBar'
+import ActivityDocumentsModal from '../components/activities/ActivityDocumentsModal'
 import ProjectPicker from '../components/common/ProjectPicker'
 import api from '../lib/axios'
 import {
@@ -30,11 +32,14 @@ function ImplementationPlanPage() {
   const [projects, setProjects] = useState([])
   const [users, setUsers] = useState([])
   const [projectId, setProjectId] = useState(getStoredProjectId)
+  const [workflow, setWorkflow] = useState(null)
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [formTarget, setFormTarget] = useState(null)
   const [progressTarget, setProgressTarget] = useState(null)
+  const [progressHistory, setProgressHistory] = useState([])
+  const [docsTarget, setDocsTarget] = useState(null)
   const [filteredInfo, setFilteredInfo] = useState({})
 
   const people = users.map((user) => ({
@@ -42,6 +47,15 @@ function ImplementationPlanPage() {
     name: user.name,
     role: user.email,
   }))
+
+  const loadWorkflow = useCallback(async (id) => {
+    if (!id) {
+      setWorkflow(null)
+      return
+    }
+    const response = await api.get(`/projects/${id}/workflow`)
+    setWorkflow(response.data?.data ?? null)
+  }, [])
 
   const loadProjectsAndUsers = useCallback(async () => {
     try {
@@ -73,13 +87,14 @@ function ImplementationPlanPage() {
     try {
       const response = await api.get(`/projects/${id}/activities`)
       setActivities(unwrapList(response.data))
+      await loadWorkflow(id)
     } catch (err) {
       setActivities([])
       setError(err.response?.data?.message || 'Could not load activities.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [loadWorkflow])
 
   useEffect(() => {
     loadProjectsAndUsers()
@@ -105,9 +120,10 @@ function ImplementationPlanPage() {
         const response = await api.put(`/activities/${formTarget.id}`, values)
         const updated = unwrapItem(response.data)
         setActivities((prev) => prev.map((activity) => (activity.id === updated.id ? updated : activity)))
-        message.success('Activity updated')
+        message.success(response.data?.message || 'Activity updated')
       }
       setFormTarget(null)
+      loadWorkflow(projectId)
     } catch (err) {
       message.error(err.response?.data?.message || 'Could not save activity.')
     }
@@ -127,20 +143,56 @@ function ImplementationPlanPage() {
     })
   }
 
-  const handleSaveProgress = async ({ actual_start_date, actual_end_date }) => {
+  const openProgress = async (activity) => {
+    setProgressTarget(activity)
+    try {
+      const response = await api.get(`/activities/${activity.id}/progress`)
+      setProgressHistory(unwrapList(response.data))
+    } catch {
+      setProgressHistory([])
+    }
+  }
+
+  const handleSaveProgress = async ({ actual_start_date, actual_end_date, remark }) => {
     try {
       const status = deriveStatus({ actual_start_date, actual_end_date })
       const response = await api.put(`/activities/${progressTarget.id}`, {
         actual_start_date,
         actual_end_date,
         status,
+        remark,
       })
       const updated = unwrapItem(response.data)
       setActivities((prev) => prev.map((activity) => (activity.id === updated.id ? updated : activity)))
       setProgressTarget(null)
+      setProgressHistory([])
       message.success('Progress updated')
     } catch (err) {
       message.error(err.response?.data?.message || 'Could not update progress.')
+    }
+  }
+
+  const handleApproveChange = async (activity) => {
+    try {
+      const response = await api.post(`/activities/${activity.id}/plan-changes/approve`)
+      const updated = unwrapItem(response.data)
+      setActivities((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      message.success('Plan change approved')
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not approve change.')
+    }
+  }
+
+  const handleRejectChange = async (activity) => {
+    try {
+      const response = await api.post(`/activities/${activity.id}/plan-changes/reject`, {
+        comment: 'Plan change rejected by reviewer',
+      })
+      const updated = unwrapItem(response.data)
+      setActivities((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      message.success('Plan change rejected')
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not reject change.')
     }
   }
 
@@ -166,18 +218,21 @@ function ImplementationPlanPage() {
               onClick={() => setFormTarget(BLANK_ACTIVITY)}
               className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
               style={{ background: '#7A0C22', height: 42, padding: '0 22px' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#650018'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#7A0C22'
-              }}
             >
               <Plus size={16} />
               Add activity
             </button>
           </>
         }
+      />
+
+      <WorkflowBar
+        projectId={projectId}
+        workflow={workflow}
+        onUpdated={(next) => {
+          setWorkflow(next)
+          loadActivities(projectId)
+        }}
       />
 
       {error && <Alert type="error" showIcon message={error} />}
@@ -191,8 +246,11 @@ function ImplementationPlanPage() {
           filteredInfo={filteredInfo}
           onTableChange={(_pagination, filters) => setFilteredInfo(filters)}
           onEdit={setFormTarget}
-          onUpdateProgress={setProgressTarget}
+          onUpdateProgress={openProgress}
           onDelete={handleDelete}
+          onDocuments={setDocsTarget}
+          onApproveChange={handleApproveChange}
+          onRejectChange={handleRejectChange}
           people={people}
         />
       </Spin>
@@ -207,9 +265,18 @@ function ImplementationPlanPage() {
       <ProgressUpdateModal
         open={progressTarget !== null}
         activity={progressTarget}
-        history={[]}
-        onCancel={() => setProgressTarget(null)}
+        history={progressHistory}
+        onCancel={() => {
+          setProgressTarget(null)
+          setProgressHistory([])
+        }}
         onSave={handleSaveProgress}
+      />
+      <ActivityDocumentsModal
+        open={docsTarget !== null}
+        activity={docsTarget}
+        projectId={projectId}
+        onCancel={() => setDocsTarget(null)}
       />
     </div>
   )

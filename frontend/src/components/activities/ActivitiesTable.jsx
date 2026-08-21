@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Table, Tooltip, ConfigProvider } from 'antd'
+import { Table, Tooltip, ConfigProvider, Tag } from 'antd'
 import { Info } from 'lucide-react'
 import dayjs from 'dayjs'
 import { STATUS, deriveStatus } from '../../lib/status'
@@ -42,6 +42,9 @@ function ActivitiesTable({
   onEdit,
   onUpdateProgress,
   onDelete,
+  onDocuments,
+  onApproveChange,
+  onRejectChange,
   people = [],
 }) {
   const [selectedRowId, setSelectedRowId] = useState(null)
@@ -69,6 +72,9 @@ function ActivitiesTable({
       render: (name, record) => (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
           <span style={{ fontWeight: 600, color: '#202020', lineHeight: 1.45 }}>{name}</span>
+          {record.plan_change_status === 'pending' && (
+            <Tag color="gold">Pending approval</Tag>
+          )}
           {record.validation_rule && (
             <Tooltip title={record.validation_rule}>
               <Info size={16} style={{ color: '#98A2B3', flexShrink: 0, marginTop: 3 }} />
@@ -143,6 +149,10 @@ function ActivitiesTable({
           onEdit={() => onEdit(record)}
           onUpdateProgress={() => onUpdateProgress(record)}
           onDelete={() => onDelete(record.id)}
+          onDocuments={() => onDocuments?.(record)}
+          onApproveChange={() => onApproveChange?.(record)}
+          onRejectChange={() => onRejectChange?.(record)}
+          hasPendingChange={record.plan_change_status === 'pending'}
         />
       ),
     },

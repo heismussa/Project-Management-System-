@@ -2,11 +2,9 @@ import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
-// Public pages
 import Login from './pages/login'
-import Registration from './pages/Registration'
+import UnassignedPage from './pages/UnassignedPage'
 
-// Protected pages
 import HomePage from './pages/HomePage'
 import ImplementationPlanPage from './pages/ImplementationPlanPage'
 import ProjectRegistration from './pages/ProjectRegistration'
@@ -18,15 +16,35 @@ import ReviewsPage from './pages/ReviewsPage'
 import SettingsPage from './pages/SettingsPage'
 import UserManagementPage from './pages/UserManagementPage'
 
-// Layouts
 import AppLayout from './layouts/AppLayout'
-import { pathAllowedForRole } from './layouts/nav'
+import { getAssignedRoles, pathAllowedForRole } from './layouts/nav'
+
+function hasAssignedRole(user) {
+  return getAssignedRoles(user).length > 0
+}
+
+function PublicOnly({ children }) {
+  const { user, isLoadingAuth } = useAuth()
+  if (isLoadingAuth) return null
+  if (user && hasAssignedRole(user)) return <Navigate to="/" replace />
+  if (user && !hasAssignedRole(user)) return <Navigate to="/unassigned" replace />
+  return children
+}
 
 function ProtectedRoute({ children }) {
   const { user, isLoadingAuth } = useAuth()
   if (isLoadingAuth) return null
   if (!user) return <Navigate to="/login" replace />
+  if (!hasAssignedRole(user)) return <Navigate to="/unassigned" replace />
   return children
+}
+
+function UnassignedRoute() {
+  const { user, isLoadingAuth } = useAuth()
+  if (isLoadingAuth) return null
+  if (!user) return <Navigate to="/login" replace />
+  if (hasAssignedRole(user)) return <Navigate to="/" replace />
+  return <UnassignedPage />
 }
 
 function IctSupportRoute({ children }) {
@@ -41,11 +59,16 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Public Authentication Routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Registration />} />
+          <Route
+            path="/login"
+            element={
+              <PublicOnly>
+                <Login />
+              </PublicOnly>
+            }
+          />
+          <Route path="/unassigned" element={<UnassignedRoute />} />
 
-          {/* Protected Routes inside AppLayout shell */}
           <Route
             element={
               <ProtectedRoute>
@@ -72,7 +95,6 @@ export default function App() {
             />
           </Route>
 
-          {/* Default Fallback */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>

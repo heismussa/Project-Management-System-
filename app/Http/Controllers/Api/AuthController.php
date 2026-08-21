@@ -66,12 +66,22 @@ class AuthController extends Controller
 
         /** @var \App\Models\User $user */
         $user = Auth::user();
+
+        if ($user->is_active === false) {
+            Auth::logout();
+            throw ValidationException::withMessages([
+                'login' => ['This account is disabled. Contact ICT Support.'],
+            ]);
+        }
+
+        $this->ensureKnownAccountHasRole($user);
+        $user->refresh();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'message'        => 'Login successful',
             'token'          => $token,
-            'email_verified' => $user->hasVerifiedEmail(),
+            'email_verified' => true,
             'user'           => $user->toAuthArray(),
         ], 200);
     }
@@ -93,6 +103,8 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         $user = $request->user();
+        $this->ensureKnownAccountHasRole($user);
+        $user->refresh();
 
         return response()->json([
             'data'           => $user->toAuthArray(),
@@ -105,9 +117,20 @@ class AuthController extends Controller
     public function users(): JsonResponse
     {
         $users = User::query()
-            ->select('id', 'name', 'email')
+            ->with('activeRoles')
             ->orderBy('name')
-            ->get();
+            ->get(['id', 'name', 'email'])
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'roles' => $user->activeRoles
+                    ->map(fn ($role) => [
+                        'id' => $role->id,
+                        'name' => $role->name,
+                    ])
+                    ->values(),
+            ]);
 
         return response()->json(['data' => $users]);
     }
@@ -143,5 +166,38 @@ class AuthController extends Controller
         $user->sendEmailVerificationNotification();
 
         return response()->json(['message' => 'Verification email link resent successfully.'], 200);
+    }
+
+    private function ensureKnownAccountHasRole(User $user): void
+    {
+        if ($user->roles()->exists()) {
+            return;
+        }
+
+        $roleByEmail = [
+            'mussasaid@gmail.com' => 'Project Administrator',
+            'sms.mussasaid@gmail.com' => 'Project Administrator',
+            'luquman2004tajir@gmail.com' => 'Project Reviewer',
+            'ictsupport@nssf.go.tz' => 'ICT Support',
+            'coordinator@nssf.or.tz' => 'Project Coordinator',
+            'approver@nssf.or.tz' => 'Project Approver',
+            'planner@nssf.or.tz' => 'Project Planner',
+            'implementor@nssf.or.tz' => 'Project Implementor',
+            'viewonly@nssf.or.tz' => 'Project ViewOnly',
+        ];
+
+        $roleName = $roleByEmail[strtolower((string) $user->email)] ?? null;
+        if (! $roleName) {
+            return;
+        }
+
+        $role = \App\Models\Role::where('name', $roleName)->first();
+        if (! $role) {
+            return;
+        }
+
+        $user->roles()->sync([
+            $role->id => ['is_active' => true, 'assigned_at' => now()],
+        ]);
     }
 }

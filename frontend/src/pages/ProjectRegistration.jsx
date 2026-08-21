@@ -1,194 +1,175 @@
-import React, { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Typography, message } from 'antd'
 import api from '../lib/axios'
+import { unwrapList } from '../lib/apiHelpers'
+import { useAuth } from '../context/AuthContext'
+import { ROLES } from '../utility/Config.jsx'
+import {
+  PROJECT_ACTIVITIES,
+  PROJECT_CATEGORIES,
+  PROJECT_TYPES,
+  REVIEW_TRACKS,
+  TEAM_TYPES,
+  optionsFrom,
+} from '../lib/projectCatalog'
+
+const { Text } = Typography
+
+function usersWithRole(users, roleName) {
+  const matched = users.filter((user) => (user.roles || []).some((role) => role.name === roleName))
+  return matched.length ? matched : users
+}
 
 export default function ProjectRegistration() {
-  const [formData, setFormData] = useState({
-    annual_plan_reference: '',
-    category: '',
-    project_type: '',
-    activity_name: '',
-    name: '',
-    description: '',
-    budget: '',
-  })
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [form] = Form.useForm()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const [users, setUsers] = useState([])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleChange = (e) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }))
-  }
+  useEffect(() => {
+    api
+      .get('/users')
+      .then((response) => setUsers(unwrapList(response.data)))
+      .catch(() => setError('Could not load users for planner assignment.'))
+  }, [])
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const planners = useMemo(() => usersWithRole(users, ROLES.PPL), [users])
+  const coordinators = useMemo(() => usersWithRole(users, ROLES.PCO), [users])
+  const approvers = useMemo(() => usersWithRole(users, ROLES.PAP), [users])
+
+  const userOptions = (list) =>
+    list.map((item) => ({
+      value: item.id,
+      label: `${item.name} (${item.email})`,
+    }))
+
+  const handleFinish = async (values) => {
+    setSaving(true)
     setError('')
-    setLoading(true)
-
     try {
       const payload = {
-        annual_plan_reference: formData.annual_plan_reference,
-        category: formData.category,
-        project_type: formData.project_type,
-        activity_name: formData.activity_name,
-        name: formData.name,
-        description: formData.description ? formData.description : undefined,
-        budget: formData.budget !== '' ? Number(formData.budget) : undefined,
+        ...values,
+        planned_start_date: values.planned_start_date?.format('YYYY-MM-DD'),
+        planned_end_date: values.planned_end_date?.format('YYYY-MM-DD'),
+        initiation_document_id: values.initiation_document_id || null,
       }
-
       await api.post('/projects', payload)
-      navigate('/home')
+      message.success('Project registered.')
+      navigate('/projects')
     } catch (err) {
       if (err.response?.status === 422) {
         const errors = err.response.data.errors || {}
         const firstKey = Object.keys(errors)[0]
         setError(errors[firstKey]?.[0] || 'Validation failed.')
+      } else if (err.response?.status === 403) {
+        setError('Only a Project Reviewer can register a project.')
       } else {
-        setError(err.response?.data?.message || 'Project registration failed. Please try again.')
+        setError(err.response?.data?.message || 'Project registration failed.')
       }
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-        <div className="p-6 text-white text-center" style={{ backgroundColor: '#962c30' }}>
-          <h2 className="text-2xl font-bold tracking-wide">Create Project</h2>
-          <p className="text-xs text-amber-200 mt-1 uppercase tracking-widest font-semibold">
-            Implementation Tracking - Process 1
-          </p>
-        </div>
-
-        <div className="p-8 space-y-5">
-          {error && (
-            <div className="p-3 text-sm text-white rounded-lg font-medium shadow-sm" style={{ backgroundColor: '#962c30' }}>
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Annual Plan Reference
-                </label>
-                <input
-                  type="text"
-                  name="annual_plan_reference"
-                  required
-                  placeholder="e.g. NSSF-2026-APR-001"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none transition-all text-sm"
-                  value={formData.annual_plan_reference}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Category
-                </label>
-                <input
-                  type="text"
-                  name="category"
-                  required
-                  placeholder="e.g. Operations"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none transition-all text-sm"
-                  value={formData.category}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Project Type
-                </label>
-                <input
-                  type="text"
-                  name="project_type"
-                  required
-                  placeholder="e.g. Software / Infrastructure"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none transition-all text-sm"
-                  value={formData.project_type}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Activity Name
-                </label>
-                <input
-                  type="text"
-                  name="activity_name"
-                  required
-                  placeholder="e.g. Documentation & Planning"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none transition-all text-sm"
-                  value={formData.activity_name}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Project Name
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  required
-                  placeholder="e.g. NSSF Portal Module A"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none transition-all text-sm"
-                  value={formData.name}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Description (optional)
-                </label>
-                <textarea
-                  name="description"
-                  rows={3}
-                  placeholder="Short description..."
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none transition-all text-sm"
-                  value={formData.description}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Budget (optional)
-                </label>
-                <input
-                  type="number"
-                  name="budget"
-                  min={0}
-                  step="0.01"
-                  placeholder="e.g. 250000"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none transition-all text-sm"
-                  value={formData.budget}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full text-white font-bold py-3 rounded-lg shadow-md transition-all duration-200 mt-2 flex items-center justify-center hover:opacity-90"
-              style={{ backgroundColor: '#068737' }}
-            >
-              {loading ? 'Submitting...' : 'Create Project'}
-            </button>
-          </form>
-        </div>
-
-        <div className="h-2 w-full" style={{ backgroundColor: '#ffc20a' }} />
+    <div className="mx-auto w-[80%] max-w-none">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold" style={{ color: '#650018' }}>
+          Register project
+        </h2>
+        <Text type="secondary">
+          Process 1 initiation. Assign a planner now. Initiation files can be linked later when the Documents API is live.
+        </Text>
       </div>
+
+      <Card>
+        {error && (
+          <Alert className="mb-4" type="error" showIcon message={error} />
+        )}
+        {!user?.permissions?.includes('projects.register') && (
+          <Alert
+            className="mb-4"
+            type="warning"
+            showIcon
+            message="Your active account is missing the projects.register permission."
+          />
+        )}
+
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleFinish}
+          initialValues={{
+            category: 'System',
+            project_type: 'New Implementation',
+            activity_name: PROJECT_ACTIVITIES[0],
+            team_type: 'Internal',
+            review_track: 'SDMM',
+          }}
+        >
+          <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+            <Form.Item
+              name="annual_plan_reference"
+              label="Annual plan reference"
+              rules={[{ required: true, message: 'APR reference is required' }]}
+            >
+              <Input placeholder="NSSF-2026-APR-001" />
+            </Form.Item>
+            <Form.Item name="name" label="Project name" rules={[{ required: true, message: 'Name is required' }]}>
+              <Input placeholder="Member Portal Upgrade" />
+            </Form.Item>
+            <Form.Item name="category" label="Category" rules={[{ required: true }]}>
+              <Select options={optionsFrom(PROJECT_CATEGORIES)} />
+            </Form.Item>
+            <Form.Item name="project_type" label="Project type" rules={[{ required: true }]}>
+              <Select options={optionsFrom(PROJECT_TYPES)} />
+            </Form.Item>
+            <Form.Item name="activity_name" label="Initial activity" rules={[{ required: true }]}>
+              <Select options={optionsFrom(PROJECT_ACTIVITIES)} />
+            </Form.Item>
+            <Form.Item name="review_track" label="Review track" rules={[{ required: true }]}>
+              <Select options={REVIEW_TRACKS} />
+            </Form.Item>
+            <Form.Item name="team_type" label="Team">
+              <Select options={optionsFrom(TEAM_TYPES)} allowClear />
+            </Form.Item>
+            <Form.Item name="planner_id" label="Planner" rules={[{ required: true, message: 'Assign a planner' }]}>
+              <Select showSearch optionFilterProp="label" options={userOptions(planners)} placeholder="Select planner" />
+            </Form.Item>
+            <Form.Item name="coordinator_id" label="Coordinator (optional)">
+              <Select showSearch allowClear optionFilterProp="label" options={userOptions(coordinators)} />
+            </Form.Item>
+            <Form.Item name="approver_id" label="Approver (optional)">
+              <Select showSearch allowClear optionFilterProp="label" options={userOptions(approvers)} />
+            </Form.Item>
+            <Form.Item name="planned_start_date" label="Planned start">
+              <DatePicker className="w-full" />
+            </Form.Item>
+            <Form.Item name="planned_end_date" label="Planned end">
+              <DatePicker className="w-full" />
+            </Form.Item>
+            <Form.Item name="budget" label="Budget (optional)">
+              <InputNumber className="w-full" min={0} />
+            </Form.Item>
+            <Form.Item
+              name="initiation_document_id"
+              label="Initiation document ID"
+              extra="Nullable until Person 4's Documents API is available. Store the id after upload."
+            >
+              <InputNumber className="w-full" min={1} placeholder="Optional" />
+            </Form.Item>
+          </div>
+          <Form.Item name="description" label="Description">
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" loading={saving}>
+            Register project
+          </Button>
+        </Form>
+      </Card>
     </div>
   )
 }

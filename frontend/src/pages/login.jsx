@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/axios';
 
@@ -18,10 +18,16 @@ export default function Login() {
 
     try {
       const response = await api.post('/login', { login: email, password });
-      login(response.data.user, response.data.token);
-      navigate('/home');
+      const user = response.data.user;
+      login(user, response.data.token);
+      const hasRole = (user?.roles || []).length > 0 || Boolean(user?.role);
+      navigate(hasRole ? '/' : '/unassigned');
     } catch (err) {
-      setErrorMessage(err.response?.data?.message || 'Invalid email or password');
+      setErrorMessage(
+        err.response?.data?.message
+          || err.response?.data?.errors?.login?.[0]
+          || 'Invalid email or password',
+      );
     } finally {
       setLoading(false);
     }
@@ -97,16 +103,10 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Registration Link */}
           <div className="pt-4 text-center border-t border-gray-100">
-            <p className="text-xs text-gray-500 mb-2">Don't have an account?</p>
-            <Link
-              to="/register"
-              className="inline-block w-full text-center border-2 font-bold py-2.5 rounded-lg text-sm transition-all hover:bg-gray-50"
-              style={{ borderColor: '#962c30', color: '#962c30' }}
-            >
-              Create New Account
-            </Link>
+            <p className="text-xs text-gray-500">
+              Accounts are created by ICT Support. Contact the help desk if you need access.
+            </p>
           </div>
         </div>
 

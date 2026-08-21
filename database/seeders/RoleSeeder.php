@@ -12,7 +12,7 @@ class RoleSeeder extends Seeder
     {
         $roles = [
             'ICT Support' => ['admin.manage_users', 'projects.view_all'],
-            'Project Reviewer' => ['projects.register', 'projects.review', 'projects.assign_planner', 'projects.reassign_planner', 'projects.view_all', 'documents.upload_initial'],
+            'Project Reviewer' => ['projects.register', 'projects.review', 'projects.assign_planner', 'projects.reassign_planner', 'projects.close', 'projects.view_all', 'documents.upload_initial'],
             'Project Planner' => ['projects.plan', 'requirements.submit', 'projects.view_all'],
             'Project Coordinator' => ['projects.recommend', 'projects.view_all'],
             'Project Approver' => ['projects.approve', 'projects.view_all'],

@@ -3,51 +3,72 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreProjectRequest;
+use App\Http\Requests\RegisterProjectRequest;
 use App\Models\Project;
+use App\Models\Review;
+use App\Services\ProjectWorkflowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class ProjectController extends Controller
 {
-    public function store(StoreProjectRequest $request): JsonResponse
+    public function store(RegisterProjectRequest $request): JsonResponse
     {
-        // Validation and Authorization are automatically handled by StoreProjectRequest
         $validated = $request->validated();
         $validated['reviewer_id'] = $request->user()->id;
         $validated['status'] = 'Initiated';
         $validated['phase'] = 'Registration';
+        $validated['plan_review_status'] = 'draft';
 
-        $project = Project::create($validated);
+        $project = Project::create($validated)->load(['reviewer', 'planner', 'coordinator', 'approver']);
 
         return response()->json([
             'message' => 'Project successfully registered in Process 1.',
-            'data'    => $project,
+            'data' => $project,
+            'workflow' => ProjectWorkflowService::workflowPayload($project),
         ], 201);
     }
 
-    public function index(Request $request): JsonResponse
+    public function index(): JsonResponse
     {
-        $projects = Project::with(['reviewer', 'planner', 'coordinator'])->latest()->get();
+        $projects = Project::with(['reviewer', 'planner', 'coordinator', 'approver', 'forwardedTo'])
+            ->latest()
+            ->get()
+            ->map(function (Project $project) {
+                $payload = $project->toArray();
+                $payload['workflow'] = ProjectWorkflowService::workflowPayload($project);
+
+                return $payload;
+            });
 
         return response()->json([
             'data' => $projects,
         ], 200);
     }
 
-    public function show($id): JsonResponse
+    public function show(Project $project): JsonResponse
     {
-        $project = Project::with(['reviewer', 'planner', 'coordinator'])->findOrFail($id);
+        $project->load([
+            'reviewer:id,name,email',
+            'planner:id,name,email',
+            'coordinator:id,name,email',
+            'approver:id,name,email',
+            'forwardedTo:id,name,email',
+            'implementationActivities',
+            'documents',
+            'requirements',
+        ]);
 
         return response()->json([
             'data' => $project,
-        ], 200);
+            'workflow' => ProjectWorkflowService::workflowPayload($project),
+        ]);
     }
 
-    public function reassign(Request $request, $id): JsonResponse
+    public function reassign(Request $request, Project $project): JsonResponse
     {
-        $user = $request->user();
-        if (! $user->hasPermission('projects.assign_planner') && ! $user->hasPermission('projects.reassign_planner')) {
+        if (! $this->allows($request, ['projects.assign_planner', 'projects.reassign_planner'])) {
             return response()->json(['message' => 'Unauthorized access.'], 403);
         }
 
@@ -55,12 +76,273 @@ class ProjectController extends Controller
             'planner_id' => ['required', 'exists:users,id'],
         ]);
 
-        $project = Project::findOrFail($id);
         $project->update(['planner_id' => $validated['planner_id']]);
 
         return response()->json([
             'message' => 'Project planner reassigned.',
-            'data' => $project->fresh(['reviewer', 'planner', 'coordinator']),
+            'data' => $project->fresh(['reviewer', 'planner', 'coordinator', 'approver']),
         ], 200);
+    }
+
+    public function workflow(Project $project): JsonResponse
+    {
+        return response()->json([
+            'data' => ProjectWorkflowService::workflowPayload($project),
+        ]);
+    }
+
+    public function submitPlan(Request $request, Project $project): JsonResponse
+    {
+        $this->guardOpen($project);
+
+        if ($project->implementationActivities()->count() === 0) {
+            throw ValidationException::withMessages([
+                'plan' => ['Add at least one activity before submitting the plan for review.'],
+            ]);
+        }
+
+        $project->update([
+            'plan_review_status' => 'pending_review',
+            'phase' => 'Plan Review',
+            'status' => 'Plan Submitted',
+            'plan_review_comment' => null,
+        ]);
+
+        Review::create([
+            'project_id' => $project->id,
+            'entity_type' => 'plan',
+            'entity_id' => $project->id,
+            'reviewer_id' => $request->user()->id,
+            'decision' => 'submitted',
+            'comment' => $request->input('comment'),
+            'reviewed_at' => now(),
+        ]);
+
+        $fresh = $project->fresh();
+
+        return response()->json([
+            'message' => 'Implementation plan submitted for reviewer approval.',
+            'data' => $fresh,
+            'workflow' => ProjectWorkflowService::workflowPayload($fresh),
+        ]);
+    }
+
+    public function reviewPlan(Request $request, Project $project): JsonResponse
+    {
+        if (! $this->allows($request, ['projects.review'])) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $this->guardOpen($project);
+
+        $validated = $request->validate([
+            'decision' => ['required', 'in:approved,returned'],
+            'comment' => ['required_if:decision,returned', 'nullable', 'string'],
+        ]);
+
+        if ($project->plan_review_status !== 'pending_review') {
+            throw ValidationException::withMessages([
+                'plan' => ['Only plans in pending review can be approved or returned.'],
+            ]);
+        }
+
+        if ($validated['decision'] === 'approved') {
+            $project->update([
+                'plan_review_status' => 'approved',
+                'plan_review_comment' => $validated['comment'] ?? null,
+                'plan_reviewed_at' => now(),
+                'phase' => 'Plan Approved',
+                'status' => 'Plan Approved',
+            ]);
+            $message = 'Implementation plan approved.';
+        } else {
+            $project->update([
+                'plan_review_status' => 'changes_requested',
+                'plan_review_comment' => $validated['comment'],
+                'plan_reviewed_at' => now(),
+                'phase' => 'Planning',
+                'status' => 'Plan Returned',
+            ]);
+            $message = 'Implementation plan returned. Changes do not stick until re-approved.';
+        }
+
+        Review::create([
+            'project_id' => $project->id,
+            'entity_type' => 'plan',
+            'entity_id' => $project->id,
+            'reviewer_id' => $request->user()->id,
+            'role_snapshot' => 'Project Reviewer',
+            'decision' => $validated['decision'],
+            'comment' => $validated['comment'] ?? null,
+            'reviewed_at' => now(),
+        ]);
+
+        $fresh = $project->fresh();
+
+        return response()->json([
+            'message' => $message,
+            'data' => $fresh,
+            'workflow' => ProjectWorkflowService::workflowPayload($fresh),
+        ]);
+    }
+
+    public function recommend(Request $request, Project $project): JsonResponse
+    {
+        if (! $this->allows($request, ['projects.recommend'])) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $this->guardOpen($project);
+
+        $updated = ProjectWorkflowService::recommendAndMoveToExecution($project);
+
+        Review::create([
+            'project_id' => $updated->id,
+            'entity_type' => 'recommendation',
+            'entity_id' => $updated->id,
+            'reviewer_id' => $request->user()->id,
+            'role_snapshot' => 'Project Coordinator',
+            'decision' => 'recommended',
+            'comment' => $request->input('comment'),
+            'reviewed_at' => now(),
+        ]);
+
+        $destination = $updated->forwarded_role ?? 'next role';
+
+        return response()->json([
+            'message' => "Project recommended (SDMM/IDMM) and moved to execution. Forwarded to {$destination}.",
+            'data' => $updated,
+            'workflow' => ProjectWorkflowService::workflowPayload($updated),
+        ], 200);
+    }
+
+    public function approveExecution(Request $request, Project $project): JsonResponse
+    {
+        if (! $this->allows($request, ['projects.approve'])) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $this->guardOpen($project);
+
+        $updated = ProjectWorkflowService::approveExecution($project);
+
+        Review::create([
+            'project_id' => $updated->id,
+            'entity_type' => 'execution',
+            'entity_id' => $updated->id,
+            'reviewer_id' => $request->user()->id,
+            'role_snapshot' => 'Project Approver',
+            'decision' => 'approved',
+            'comment' => $request->input('comment'),
+            'reviewed_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'DICT execution sign-off recorded. Project moved to execution.',
+            'data' => $updated,
+            'workflow' => ProjectWorkflowService::workflowPayload($updated),
+        ]);
+    }
+
+    public function reviews(Project $project): JsonResponse
+    {
+        $reviews = $project->reviews()
+            ->with('reviewer:id,name,email')
+            ->latest('reviewed_at')
+            ->get();
+
+        return response()->json(['data' => $reviews]);
+    }
+
+    public function closureReadiness(Project $project): JsonResponse
+    {
+        $checks = $project->closureChecks();
+
+        return response()->json([
+            'data' => [
+                'ready' => collect($checks)->every(fn (array $check) => $check['passed']),
+                'checks' => $checks,
+                'status' => $project->status,
+                'closed_at' => $project->closed_at,
+                'helpers' => [
+                    'hasCompletedAllActivities' => $project->hasCompletedAllActivities(),
+                    'hasPassedAllUAT' => $project->hasPassedAllUAT(),
+                    'hasAllClosureDocsReviewed' => $project->hasAllClosureDocsReviewed(),
+                ],
+            ],
+        ]);
+    }
+
+    public function close(Request $request, Project $project): JsonResponse
+    {
+        if (! $this->allows($request, ['projects.close', 'projects.review'])) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $this->guardOpen($project);
+
+        $request->validate([
+            'comment' => ['nullable', 'string'],
+        ]);
+
+        $checks = $project->closureChecks();
+        $failed = collect($checks)->where('passed', false)->pluck('label')->values()->all();
+        if ($failed !== []) {
+            throw ValidationException::withMessages([
+                'close' => $failed,
+            ]);
+        }
+
+        $project->update([
+            'status' => 'Closed',
+            'phase' => 'Closed',
+            'closed_at' => now(),
+            'closed_by' => $request->user()->id,
+            'closure_comment' => $request->input('comment'),
+        ]);
+
+        Review::create([
+            'project_id' => $project->id,
+            'entity_type' => 'closure',
+            'entity_id' => $project->id,
+            'reviewer_id' => $request->user()->id,
+            'role_snapshot' => 'Project Reviewer',
+            'decision' => 'closed',
+            'comment' => $request->input('comment'),
+            'reviewed_at' => now(),
+        ]);
+
+        $fresh = $project->fresh(['closedBy', 'planner', 'reviewer']);
+
+        return response()->json([
+            'message' => 'Project closed.',
+            'data' => $fresh,
+            'workflow' => ProjectWorkflowService::workflowPayload($fresh),
+        ]);
+    }
+
+    private function allows(Request $request, array $permissions): bool
+    {
+        $user = $request->user();
+        if (! $user) {
+            return false;
+        }
+
+        foreach ($permissions as $permission) {
+            if ($user->hasPermission($permission)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function guardOpen(Project $project): void
+    {
+        if ($project->closed_at) {
+            throw ValidationException::withMessages([
+                'project' => ['This project is closed.'],
+            ]);
+        }
     }
 }

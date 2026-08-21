@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Modal, Upload, Typography, message } from 'antd'
+import { Modal, Upload, Typography, Select, message } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
+import api from '../../lib/axios'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -12,23 +13,17 @@ const ACCEPTED_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]
 const MAX_FILE_SIZE_MB = 10
-const CURRENT_USER_ID = 1 // placeholder until auth exists
 
-function inferDocumentType(fileName) {
-  const lower = fileName.toLowerCase()
-  if (lower.endsWith('.pdf')) return 'PDF Document'
-  if (lower.endsWith('.docx')) return 'Word Document'
-  if (lower.endsWith('.xlsx')) return 'Excel Document'
-  return 'Document'
-}
+const DOCUMENT_TYPES = ['Implementation Plan', 'SRS', 'Survey Report', 'Cost Estimate', 'Other']
 
-function DocumentUploadModal({ open, onCancel, onUpload }) {
+function DocumentUploadModal({ open, projectId, activityId = null, onCancel, onUploaded }) {
   const [fileList, setFileList] = useState([])
+  const [documentType, setDocumentType] = useState('Implementation Plan')
 
   const handleBeforeUpload = (file) => {
     const extensionOk = ACCEPTED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext))
-    const mimeOk = ACCEPTED_MIME_TYPES.includes(file.type)
-    if (!extensionOk || !mimeOk) {
+    const mimeOk = !file.type || ACCEPTED_MIME_TYPES.includes(file.type)
+    if (!extensionOk && !mimeOk) {
       message.error(`${file.name} is not a supported file type`)
       return Upload.LIST_IGNORE
     }
@@ -39,50 +34,56 @@ function DocumentUploadModal({ open, onCancel, onUpload }) {
     return true
   }
 
-  // No real backend yet — simulate progress so the Dragger's built-in
-  // progress bar has something to animate, then resolve with a blob URL.
-  const handleCustomRequest = ({ file, onProgress, onSuccess }) => {
-    let percent = 0
-    const timer = setInterval(() => {
-      percent = Math.min(percent + 20, 100)
-      onProgress({ percent })
-      if (percent >= 100) {
-        clearInterval(timer)
-        onSuccess({ url: URL.createObjectURL(file) }, file)
-      }
-    }, 150)
-  }
-
-  const handleChange = ({ file, fileList: next }) => {
-    setFileList(next)
-    if (file.status === 'done') {
-      onUpload({
-        project_id: 1,
-        activity_id: null,
-        requirement_id: null,
-        document_type: inferDocumentType(file.name),
-        file_name: file.name,
-        file_url: file.response.url,
-        file_type: file.type,
-        file_size: file.size,
-        version_number: 1,
-        is_current: true,
-        review_status: 'pending',
-        uploaded_by: CURRENT_USER_ID,
-        uploaded_at: new Date().toISOString(),
-      })
+  const handleCustomRequest = async ({ file, onProgress, onSuccess, onError }) => {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('project_id', projectId)
+      if (activityId) formData.append('activity_id', activityId)
+      formData.append('document_type', documentType)
+      onProgress({ percent: 40 })
+      const response = await api.post('/documents', formData)
+      onProgress({ percent: 100 })
+      onSuccess(response.data)
+      onUploaded?.(response.data?.data)
+      message.success('Document uploaded')
+    } catch (err) {
+      onError(err)
+      message.error(err.response?.data?.message || 'Upload failed')
     }
   }
 
   return (
-    <Modal title="Upload documents" open={open} onCancel={onCancel} footer={null} destroyOnHidden>
+    <Modal
+      title="Upload documents"
+      open={open}
+      onCancel={() => {
+        setFileList([])
+        onCancel()
+      }}
+      footer={null}
+      destroyOnHidden
+    >
+      <div className="mb-3">
+        <Text strong className="mb-1 block">Document type</Text>
+        <Select
+          className="w-full"
+          value={documentType}
+          onChange={setDocumentType}
+          options={DOCUMENT_TYPES.map((type) => ({ value: type, label: type }))}
+        />
+        <Text type="secondary" className="mt-1 block text-xs">
+          Required for execution: Implementation Plan and SRS.
+        </Text>
+      </div>
       <Dragger
         multiple
         fileList={fileList}
         beforeUpload={handleBeforeUpload}
         customRequest={handleCustomRequest}
-        onChange={handleChange}
+        onChange={({ fileList: next }) => setFileList(next)}
         accept={ACCEPTED_EXTENSIONS.join(',')}
+        disabled={!projectId}
       >
         <p className="ant-upload-drag-icon">
           <InboxOutlined />

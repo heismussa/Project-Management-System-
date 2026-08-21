@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
-import { Headset, Maximize, Minimize, Moon, Sun } from 'lucide-react'
+import { Badge, Popover } from 'antd'
+import { Bell, Headset, Maximize, Minimize, Moon, Sun } from 'lucide-react'
 import logo from '../../assets/logo.png'
 import { useAuth } from '../../context/AuthContext'
 import { useAppTheme } from '../../theme/ThemeProvider'
 import { SYSTEM_TITLE, getActiveNavItem } from '../nav'
+import api from '../../lib/axios'
+import { unwrapList } from '../../lib/apiHelpers'
 import SupportDeskDrawer from './SupportDeskDrawer'
 import UserActionDrawer from './UserActionDrawer'
 
@@ -26,9 +29,30 @@ export default function MainHeader() {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [userDrawerOpen, setUserDrawerOpen] = useState(false)
   const [supportOpen, setSupportOpen] = useState(false)
+  const [notifications, setNotifications] = useState([])
 
   const fullName = user?.full_name ?? user?.name ?? 'Guest'
   const moduleName = getActiveNavItem(location.pathname).label
+
+  useEffect(() => {
+    let cancelled = false
+    const load = () => {
+      api
+        .get('/notifications')
+        .then((response) => {
+          if (!cancelled) setNotifications(unwrapList(response.data))
+        })
+        .catch(() => {
+          if (!cancelled) setNotifications([])
+        })
+    }
+    load()
+    const timer = window.setInterval(load, 60000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [])
 
   const toggleFullScreen = () => {
     if (!document.fullscreenElement) {
@@ -86,6 +110,32 @@ export default function MainHeader() {
                 >
                   {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
                 </button>
+
+                <Popover
+                  trigger="click"
+                  placement="bottomRight"
+                  title="Notifications"
+                  content={
+                    notifications.length ? (
+                      <div className="max-h-72 w-72 space-y-2 overflow-auto">
+                        {notifications.map((item) => (
+                          <div key={item.id} className="border-b border-gray-100 pb-2 text-sm last:border-0">
+                            <div className="font-semibold text-[#650018]">{item.type}</div>
+                            <div className="text-gray-600">{item.message}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="w-56 text-sm text-gray-500">No notifications yet.</div>
+                    )
+                  }
+                >
+                  <button type="button" className={circleBtnClass} title="Notifications" aria-label="Notifications">
+                    <Badge count={notifications.length} size="small" color="#f9c000">
+                      <Bell className="h-5 w-5 text-white" />
+                    </Badge>
+                  </button>
+                </Popover>
 
                 <button
                   type="button"

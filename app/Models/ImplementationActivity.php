@@ -13,6 +13,14 @@ class ImplementationActivity extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'planned_start_date' => 'date',
+        'planned_end_date' => 'date',
+        'actual_start_date' => 'date',
+        'actual_end_date' => 'date',
+        'pending_changes' => 'array',
+    ];
+
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
@@ -26,5 +34,11 @@ class ImplementationActivity extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(Document::class, 'activity_id');
+    }
+
+    public function progressUpdates(): HasMany
+    {
+        return $this->hasMany(ProgressUpdate::class, 'entity_id')
+            ->where('entity_type', 'activity');
     }
 }

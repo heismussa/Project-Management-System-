@@ -23,7 +23,10 @@ trait HasPermissions
     public function activeRoles(): BelongsToMany
     {
         return $this->roles()
-                    ->wherePivot('is_active', true)
+                    ->where(function ($query) {
+                        $query->where('user_roles.is_active', true)
+                              ->orWhereNull('user_roles.is_active');
+                    })
                     ->where(function ($query) {
                         $query->whereNull('user_roles.expires_at')
                               ->orWhere('user_roles.expires_at', '>', now());
