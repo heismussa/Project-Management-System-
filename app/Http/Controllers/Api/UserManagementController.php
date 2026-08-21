@@ -8,13 +8,18 @@ use App\Http\Requests\StoreManagedUserRequest;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class UserManagementController extends Controller
 {
     public const ICT_SUPPORT_ROLE = 'ICT Support';
 
+    /**
+     * List all users with active roles.
+     */
     public function index(): JsonResponse
     {
         $users = User::query()
@@ -26,6 +31,9 @@ class UserManagementController extends Controller
         return response()->json(['data' => $users]);
     }
 
+    /**
+     * List available roles for user creation and assignment.
+     */
     public function roles(): JsonResponse
     {
         $roles = Role::query()
@@ -35,6 +43,9 @@ class UserManagementController extends Controller
         return response()->json(['data' => $roles]);
     }
 
+    /**
+     * Create a new managed user and assign roles.
+     */
     public function store(StoreManagedUserRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -44,7 +55,8 @@ class UserManagementController extends Controller
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
-                'password' => $validated['password'],
+                'password' => Hash::make($validated['password']),
+                'is_active' => true,
             ]);
 
             $this->syncUserRoles($user, $roleIds);
@@ -58,6 +70,9 @@ class UserManagementController extends Controller
         ], 201);
     }
 
+    /**
+     * Sync assigned roles for an existing user.
+     */
     public function syncRoles(AssignUserRolesRequest $request, User $user): JsonResponse
     {
         $roleIds = array_values(array_unique($request->validated('role_ids')));
@@ -73,6 +88,41 @@ class UserManagementController extends Controller
         ]);
     }
 
+    /**
+     * Update user password (Person 1 Requirement)
+     */
+    public function updatePassword(Request $request, $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = User::findOrFail($id);
+        $user->update([
+            'password' => Hash::make($validated['password']),
+        ]);
+
+        return response()->json(['message' => 'Password updated successfully.']);
+    }
+
+    /**
+     * Toggle account active status (Person 1 Requirement)
+     */
+    public function toggleStatus($id): JsonResponse
+    {
+        $user = User::findOrFail($id);
+        $user->is_active = !$user->is_active;
+        $user->save();
+
+        return response()->json([
+            'message' => 'User status updated successfully.',
+            'is_active' => $user->is_active,
+        ]);
+    }
+
+    /**
+     * Attach/detach pivot entries for user roles.
+     */
     private function syncUserRoles(User $user, array $roleIds): void
     {
         $payload = [];
@@ -88,6 +138,9 @@ class UserManagementController extends Controller
         $user->roles()->sync($payload);
     }
 
+    /**
+     * Safety Guard: Prevent removing the last remaining ICT Support account.
+     */
     private function guardLastIctSupport(User $target, array $newRoleIds): void
     {
         $ictRole = Role::where('name', self::ICT_SUPPORT_ROLE)->first();
@@ -115,6 +168,9 @@ class UserManagementController extends Controller
         }
     }
 
+    /**
+     * Format user payload with active role associations.
+     */
     private function serializeUser(User $user): array
     {
         $roles = $user->activeRoles
@@ -129,6 +185,7 @@ class UserManagementController extends Controller
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
+            'is_active' => (bool) $user->is_active,
             'created_at' => $user->created_at,
             'roles' => $roles,
         ];
