@@ -20,6 +20,7 @@ class ProjectController extends Controller
         $validated['status'] = 'Initiated';
         $validated['phase'] = 'Registration';
         $validated['plan_review_status'] = 'draft';
+        $validated['plan_status'] = 'draft';
 
         $project = Project::create($validated)->load(['reviewer', 'planner', 'coordinator', 'approver']);
 
@@ -95,7 +96,11 @@ class ProjectController extends Controller
     {
         $this->guardOpen($project);
 
-        if (! in_array($project->plan_review_status, ['draft', 'changes_requested'], true)) {
+        if (! $project->canBeManagedBy($request->user())) {
+            return response()->json(['message' => 'You can only submit a plan for a project assigned to you.'], 403);
+        }
+
+        if (! $project->canSubmitPlan()) {
             throw ValidationException::withMessages([
                 'plan' => ['This plan is already in review or approved. Wait for a return before submitting again.'],
             ]);
@@ -107,12 +112,13 @@ class ProjectController extends Controller
             ]);
         }
 
-        $project->update([
-            'plan_review_status' => 'pending_review',
+        $project->applyPlanStatus('pending_review', [
             'phase' => 'Plan Review',
             'status' => 'Plan Submitted',
             'plan_review_comment' => null,
+            'plan_return_comment' => null,
             'plan_pending_reapproval' => false,
+            'plan_submitted_at' => now(),
         ]);
 
         Review::create([
@@ -147,15 +153,14 @@ class ProjectController extends Controller
             'comment' => ['required_if:decision,returned', 'nullable', 'string'],
         ]);
 
-        if ($project->plan_review_status !== 'pending_review') {
+        if ($project->currentPlanStatus() !== 'pending_review') {
             throw ValidationException::withMessages([
                 'plan' => ['Only plans in pending review can be approved or returned.'],
             ]);
         }
 
         if ($validated['decision'] === 'approved') {
-            $project->update([
-                'plan_review_status' => 'approved',
+            $project->applyPlanStatus('approved', [
                 'plan_review_comment' => $validated['comment'] ?? null,
                 'plan_reviewed_at' => now(),
                 'phase' => 'Plan Approved',
@@ -163,9 +168,9 @@ class ProjectController extends Controller
             ]);
             $message = 'Implementation plan approved.';
         } else {
-            $project->update([
-                'plan_review_status' => 'changes_requested',
+            $project->applyPlanStatus('changes_requested', [
                 'plan_review_comment' => $validated['comment'],
+                'plan_return_comment' => $validated['comment'],
                 'plan_reviewed_at' => now(),
                 'plan_pending_reapproval' => false,
                 'phase' => 'Planning',

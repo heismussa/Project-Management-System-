@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\ImplementationActivity;
 use App\Models\ProgressUpdate;
-use App\Services\ProjectWorkflowService;
 use App\Support\ProgressDateRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -44,9 +43,18 @@ class ImplementationActivityController extends Controller
             'responsible_person_id' => ['required', 'exists:users,id'],
         ]);
 
+        $project = \App\Models\Project::findOrFail($validated['project_id']);
+        if (! $project->canBeManagedBy($request->user())) {
+            return response()->json(['message' => 'You can only manage activities on projects assigned to you.'], 403);
+        }
+        if ($project->isPlanLocked()) {
+            return response()->json(['message' => 'Plan activities cannot be added while the plan is pending review.'], 403);
+        }
+
         $validated['status'] = 'not_started';
         $activity = ImplementationActivity::create($validated)->load('responsiblePerson:id,name,email');
-        $activity->project?->markEditedAfterReturn();
+        $project->reopenPlanIfApproved();
+        $project->markEditedAfterReturn();
 
         return response()->json([
             'message' => 'Activity created',
@@ -57,9 +65,16 @@ class ImplementationActivityController extends Controller
     public function update(Request $request, $id): JsonResponse
     {
         $activity = ImplementationActivity::with('project')->findOrFail($id);
+        $project = $activity->project;
 
+        if (! $project->canBeManagedBy($request->user())) {
+            return response()->json(['message' => 'You can only manage activities on projects assigned to you.'], 403);
+        }
+
+        $existingStart = optional($activity->actual_start_date)->toDateString();
         $dateRules = ProgressDateRules::actual(
-            optional($activity->planned_start_date)->toDateString()
+            optional($activity->planned_start_date)->toDateString(),
+            $request->filled('actual_start_date') ? $request->input('actual_start_date') : $existingStart
         );
         $dateRules['actual_start_date'] = array_merge(['sometimes'], $dateRules['actual_start_date']);
         $dateRules['actual_end_date'] = array_merge(['sometimes'], $dateRules['actual_end_date']);
@@ -80,17 +95,14 @@ class ImplementationActivityController extends Controller
         $remark = $validated['remark'] ?? null;
         unset($validated['remark']);
 
-        if ($planning !== [] && ProjectWorkflowService::planningLocked($activity->project)) {
-            $activity->update([
-                'pending_changes' => array_merge($activity->pending_changes ?? [], $planning, [
-                    'submitted_at' => now()->toIso8601String(),
-                    'submitted_by' => $request->user()->id,
-                ]),
-                'plan_change_status' => 'pending',
-            ]);
-        } elseif ($planning !== []) {
+        if ($planning !== [] && $project->isPlanLocked()) {
+            return response()->json(['message' => 'Plan fields cannot be edited while the plan is pending review.'], 403);
+        }
+
+        if ($planning !== []) {
             $activity->update($planning);
-            $activity->project?->markEditedAfterReturn();
+            $project->reopenPlanIfApproved();
+            $project->markEditedAfterReturn();
         }
 
         if ($progress !== []) {
@@ -110,22 +122,28 @@ class ImplementationActivityController extends Controller
         }
 
         $fresh = $activity->fresh()->load(['responsiblePerson:id,name,email', 'documents']);
-        $message = ($planning !== [] && ProjectWorkflowService::planningLocked($activity->project))
-            ? 'Plan change submitted for reviewer approval. It will not apply until approved.'
-            : 'Activity updated';
 
         return response()->json([
-            'message' => $message,
+            'message' => 'Activity updated',
             'data' => $fresh,
         ]);
     }
 
-    public function destroy($id): JsonResponse
+    public function destroy(Request $request, $id): JsonResponse
     {
-        $activity = ImplementationActivity::findOrFail($id);
+        $activity = ImplementationActivity::with('project')->findOrFail($id);
         $project = $activity->project;
+
+        if (! $project->canBeManagedBy($request->user())) {
+            return response()->json(['message' => 'You can only manage activities on projects assigned to you.'], 403);
+        }
+        if ($project->isPlanLocked()) {
+            return response()->json(['message' => 'Plan activities cannot be deleted while the plan is pending review.'], 403);
+        }
+
         $activity->delete();
-        $project?->markEditedAfterReturn();
+        $project->reopenPlanIfApproved();
+        $project->markEditedAfterReturn();
 
         return response()->json(['message' => 'Activity deleted']);
     }

@@ -32,6 +32,9 @@ class Project extends Model
         'plan_review_comment',
         'plan_reviewed_at',
         'plan_pending_reapproval',
+        'plan_status',
+        'plan_submitted_at',
+        'plan_return_comment',
         'recommended_at',
         'execution_started_at',
         'execution_approved_at',
@@ -52,6 +55,7 @@ class Project extends Model
     protected $casts = [
         'plan_reviewed_at' => 'datetime',
         'plan_pending_reapproval' => 'boolean',
+        'plan_submitted_at' => 'datetime',
         'recommended_at' => 'datetime',
         'execution_started_at' => 'datetime',
         'execution_approved_at' => 'datetime',
@@ -112,6 +116,58 @@ class Project extends Model
     public function closedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    /**
+     * Prefer planner-scope plan_status, then Person 3 plan_review_status.
+     */
+    public function currentPlanStatus(): string
+    {
+        $status = $this->plan_status ?: 'draft';
+        $review = $this->plan_review_status ?: 'draft';
+
+        return $status !== 'draft' ? $status : $review;
+    }
+
+    public function canSubmitPlan(): bool
+    {
+        return in_array($this->currentPlanStatus(), ['draft', 'changes_requested'], true);
+    }
+
+    public function isPlanLocked(): bool
+    {
+        return $this->currentPlanStatus() === 'pending_review';
+    }
+
+    public function canBeManagedBy(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->hasRole(\App\Support\Roles::ADMINISTRATOR_ROLE)) {
+            return true;
+        }
+
+        return (int) $this->planner_id === (int) $user->id;
+    }
+
+    public function applyPlanStatus(string $status, array $extra = []): void
+    {
+        $this->update(array_merge([
+            'plan_status' => $status,
+            'plan_review_status' => $status,
+        ], $extra));
+    }
+
+    public function reopenPlanIfApproved(): void
+    {
+        if ($this->currentPlanStatus() === 'approved') {
+            $this->applyPlanStatus('changes_requested', [
+                'phase' => 'Planning',
+                'status' => 'Plan Returned',
+            ]);
+        }
     }
 
     /**

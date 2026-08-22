@@ -189,9 +189,12 @@ class RequirementController extends Controller
             'review_decision' => 'needs_revision',
         ]);
 
-        $project->update([
+        $project->applyPlanStatus('changes_requested', [
             'matrix_return_comment' => $validated['comment'],
+            'plan_return_comment' => $validated['comment'],
             'matrix_returned_at' => now(),
+            'phase' => 'Planning',
+            'status' => 'Plan Returned',
         ]);
 
         Review::create([
@@ -204,12 +207,17 @@ class RequirementController extends Controller
             'reviewed_at' => now(),
         ]);
 
+        $fresh = $project->fresh();
+
         return response()->json([
             'message' => 'Matrix returned to planner with comments.',
             'data' => [
+                'project_id' => $fresh->id,
+                'plan_status' => $fresh->plan_status,
+                'return_comment' => $validated['comment'],
                 'comment' => $validated['comment'],
-                'returned_at' => $project->fresh()->matrix_returned_at,
-                'requirements' => Requirement::where('project_id', $project->id)->get(),
+                'returned_at' => $fresh->matrix_returned_at,
+                'requirements' => Requirement::where('project_id', $fresh->id)->get(),
             ],
         ]);
     }

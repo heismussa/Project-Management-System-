@@ -206,7 +206,7 @@ class ProjectWorkflowService
 
     public static function planningLocked(Project $project): bool
     {
-        return in_array($project->plan_review_status, ['pending_review', 'approved'], true);
+        return in_array($project->currentPlanStatus(), ['pending_review'], true);
     }
 
     public static function workflowPayload(Project $project): array

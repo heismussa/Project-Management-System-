@@ -68,16 +68,9 @@ class WorkflowTest extends TestCase
 
         $this->putJson("/api/activities/{$activity->id}", [
             'name' => 'Kickoff (revised)',
-        ])->assertOk()
-            ->assertJsonFragment(['message' => 'Plan change submitted for reviewer approval. It will not apply until approved.']);
+        ])->assertForbidden();
 
-        $activity->refresh();
-        $this->assertSame('Kickoff', $activity->name);
-        $this->assertSame('pending', $activity->plan_change_status);
-        $this->assertSame('Kickoff (revised)', $activity->pending_changes['name']);
-
-        $this->postJson("/api/activities/{$activity->id}/plan-changes/approve")->assertOk();
-        $this->assertSame('Kickoff (revised)', $activity->fresh()->name);
+        $this->assertSame('Kickoff', $activity->fresh()->name);
     }
 
     #[Test]
