@@ -1,11 +1,14 @@
 import { forwardRef } from 'react'
 import dayjs from 'dayjs'
 import { STATUS, deriveStatus } from '../../lib/status'
-import { getPersonName, getPersonRole } from '../../data/people'
+import { activityResponsibleName } from '../../lib/activityPerson'
+import { formatDate } from '../../lib/dates'
 
 const th = 'border border-gray-300 p-2 text-left text-white'
 const td = 'border border-gray-300 p-2'
 
+// Mirrors ActivitiesTable.jsx's columns/labels 1:1 so the exported document
+// matches what's shown on screen instead of drifting into its own layout.
 const ImplementationPlanView = forwardRef(function ImplementationPlanView({ activities }, ref) {
   return (
     <div
@@ -21,30 +24,26 @@ const ImplementationPlanView = forwardRef(function ImplementationPlanView({ acti
       <table className="mt-6 w-full border-collapse text-xs">
         <thead>
           <tr className="bg-primary">
-            <th className={th}>Phase</th>
-            <th className={th}>Activity</th>
+            <th className={th}>Activity Done</th>
+            <th className={th}>Planned Start</th>
+            <th className={th}>Planned End</th>
+            <th className={th}>Actual Start</th>
+            <th className={th}>Actual End</th>
             <th className={th}>Expected Deliverable</th>
-            <th className={th}>Planned</th>
-            <th className={th}>Actual</th>
-            <th className={th}>Responsible</th>
-            <th className={th}>Role</th>
-            <th className={th}>Status</th>
+            <th className={th}>Responsible Person</th>
+            <th className={th}>Activity Status</th>
           </tr>
         </thead>
         <tbody>
           {activities.map((activity) => (
             <tr key={activity.id}>
-              <td className={td}>{activity.phase ?? '—'}</td>
               <td className={td}>{activity.name}</td>
+              <td className={td}>{formatDate(activity.planned_start_date)}</td>
+              <td className={td}>{formatDate(activity.planned_end_date)}</td>
+              <td className={td}>{formatDate(activity.actual_start_date)}</td>
+              <td className={td}>{formatDate(activity.actual_end_date)}</td>
               <td className={td}>{activity.expected_deliverable}</td>
-              <td className={td}>
-                {activity.planned_start_date} → {activity.planned_end_date}
-              </td>
-              <td className={td}>
-                {activity.actual_start_date || '—'} → {activity.actual_end_date || '—'}
-              </td>
-              <td className={td}>{getPersonName(activity.responsible_person_id)}</td>
-              <td className={td}>{getPersonRole(activity.responsible_person_id)}</td>
+              <td className={td}>{activityResponsibleName(activity)}</td>
               <td className={td}>{STATUS[deriveStatus(activity)].label}</td>
             </tr>
           ))}

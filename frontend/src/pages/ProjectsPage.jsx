@@ -162,13 +162,7 @@ function ProjectsPage() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold" style={{ color: '#650018' }}>
-            Projects
-          </h2>
-          <Text type="secondary">Registered projects, planner assignment, and review status.</Text>
-        </div>
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
         <RoleGuard allow={[ROLES.PRV, ROLES.PAD]}>
           {canRegister && (
             <Button type="primary" icon={<Plus className="h-4 w-4" />} onClick={() => navigate('/projects/create')}>

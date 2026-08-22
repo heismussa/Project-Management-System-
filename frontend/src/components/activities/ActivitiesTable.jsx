@@ -1,18 +1,13 @@
 import { useState } from 'react'
 import { Table, Tooltip, ConfigProvider, Tag } from 'antd'
 import { Info } from 'lucide-react'
-import dayjs from 'dayjs'
 import { STATUS, deriveStatus } from '../../lib/status'
-import { getPersonName, getPersonRole } from '../../data/people'
+import { formatDate } from '../../lib/dates'
 import StatusBadge from '../common/StatusBadge'
 import ActivityActions from './ActivityActions'
 
 function personLookup(people, id) {
   return people?.find((person) => person.id === id)
-}
-
-function formatDate(value) {
-  return value ? dayjs(value).format('MMM D, YYYY') : '—'
 }
 
 function compareDates(a, b) {
@@ -23,47 +18,19 @@ function compareDates(a, b) {
 // ever resolve to not_started/ongoing/completed), so it's left out here.
 const STATUS_FILTER_KEYS = ['not_started', 'ongoing', 'completed']
 
-// Rows are grouped by phase already; find how many consecutive visible rows
-// (starting at `index`) share the same phase, so the Phase column can merge
-// them into a single cell instead of repeating the label on every row.
-function getPhaseRowSpan(list, index) {
-  const phase = list[index].phase
-  if (index > 0 && list[index - 1].phase === phase) return 0
-  let span = 1
-  while (index + span < list.length && list[index + span].phase === phase) span++
-  return span
-}
-
 function ActivitiesTable({
   activities,
   visibleActivities,
   filteredInfo,
   onTableChange,
-  onEdit,
-  onUpdateProgress,
-  onDelete,
-  onDocuments,
-  onApproveChange,
-  onRejectChange,
+  onReview,
   people = [],
 }) {
   const [selectedRowId, setSelectedRowId] = useState(null)
 
   const columns = [
     {
-      title: 'Phase',
-      dataIndex: 'phase',
-      key: 'phase',
-      width: 200,
-      filters: [...new Set(activities.map((a) => a.phase))].map((phase) => ({
-        text: phase,
-        value: phase,
-      })),
-      filteredValue: filteredInfo.phase ?? null,
-      onCell: (_record, index) => ({ rowSpan: getPhaseRowSpan(visibleActivities, index) }),
-    },
-    {
-      title: 'Activity',
+      title: 'Activity Done',
       dataIndex: 'name',
       key: 'name',
       fixed: 'left',
@@ -84,55 +51,48 @@ function ActivitiesTable({
       ),
     },
     {
-      title: 'Expected deliverable',
-      dataIndex: 'expected_deliverable',
-      key: 'expected_deliverable',
-      width: 220,
-    },
-    {
-      title: 'Planned start',
+      title: 'Planned Start',
       dataIndex: 'planned_start_date',
       key: 'planned_start_date',
       sorter: (a, b) => compareDates(a.planned_start_date, b.planned_start_date),
       render: formatDate,
     },
     {
-      title: 'Planned end',
+      title: 'Planned End',
       dataIndex: 'planned_end_date',
       key: 'planned_end_date',
       sorter: (a, b) => compareDates(a.planned_end_date, b.planned_end_date),
       render: formatDate,
     },
     {
-      title: 'Actual start',
+      title: 'Actual Start',
       dataIndex: 'actual_start_date',
       key: 'actual_start_date',
       sorter: (a, b) => compareDates(a.actual_start_date, b.actual_start_date),
       render: formatDate,
     },
     {
-      title: 'Actual end',
+      title: 'Actual End',
       dataIndex: 'actual_end_date',
       key: 'actual_end_date',
       sorter: (a, b) => compareDates(a.actual_end_date, b.actual_end_date),
       render: formatDate,
     },
     {
-      title: 'Responsible',
+      title: 'Expected Deliverable',
+      dataIndex: 'expected_deliverable',
+      key: 'expected_deliverable',
+      width: 220,
+    },
+    {
+      title: 'Responsible Person',
       dataIndex: 'responsible_person_id',
       key: 'responsible_person_id',
       width: 150,
       render: (id) => personLookup(people, id)?.name ?? getPersonName(id),
     },
     {
-      title: 'Assigned role',
-      dataIndex: 'responsible_person_id',
-      key: 'assigned_role',
-      width: 150,
-      render: (id) => personLookup(people, id)?.role ?? getPersonRole(id),
-    },
-    {
-      title: 'Status',
+      title: 'Activity Status',
       key: 'status',
       width: 140,
       filters: STATUS_FILTER_KEYS.map((key) => ({ text: STATUS[key].label, value: key })),
@@ -140,20 +100,13 @@ function ActivitiesTable({
       render: (_, record) => <StatusBadge status={deriveStatus(record)} />,
     },
     {
-      title: 'Actions',
+      title: 'Activity Action',
       key: 'actions',
       fixed: 'right',
-      width: 110,
+      width: 140,
+      align: 'center',
       render: (_, record) => (
-        <ActivityActions
-          onEdit={() => onEdit(record)}
-          onUpdateProgress={() => onUpdateProgress(record)}
-          onDelete={() => onDelete(record.id)}
-          onDocuments={() => onDocuments?.(record)}
-          onApproveChange={() => onApproveChange?.(record)}
-          onRejectChange={() => onRejectChange?.(record)}
-          hasPendingChange={record.plan_change_status === 'pending'}
-        />
+        <ActivityActions onReview={() => onReview(record)} />
       ),
     },
   ]
@@ -183,7 +136,7 @@ function ActivitiesTable({
           columns={columns}
           dataSource={visibleActivities}
           onChange={onTableChange}
-          scroll={{ x: 1700 }}
+          scroll={{ x: 1400 }}
           pagination={false}
           rowClassName={(record) => (record.id === selectedRowId ? 'selected-row' : '')}
           onRow={(record) => ({

@@ -57,7 +57,7 @@ class InitiationAndReviewTest extends TestCase
             'annual_plan_reference' => 'NSSF-2026-APR-001',
             'category' => 'System',
             'project_type' => 'New Implementation',
-            'activity_name' => 'Documentation & Planning',
+            'activity_name' => 'CFMS',
             'name' => 'Member Portal',
             'team_type' => 'Internal',
             'review_track' => 'SDMM',

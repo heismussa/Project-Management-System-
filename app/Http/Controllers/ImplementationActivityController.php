@@ -24,7 +24,7 @@ class ImplementationActivityController extends Controller
     public function index($projectId): JsonResponse
     {
         $activities = ImplementationActivity::where('project_id', $projectId)
-            ->with(['responsiblePerson:id,name,email', 'documents'])
+            ->with(['responsiblePerson:id,name,email', 'responsiblePerson.activeRoles', 'documents'])
             ->orderBy('planned_start_date')
             ->orderBy('id')
             ->get();

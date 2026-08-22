@@ -1,20 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Typography, message } from 'antd'
+import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, message } from 'antd'
 import api from '../lib/axios'
 import { unwrapList } from '../lib/apiHelpers'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../utility/Config.jsx'
 import {
-  PROJECT_ACTIVITIES,
   PROJECT_CATEGORIES,
   PROJECT_TYPES,
   REVIEW_TRACKS,
   TEAM_TYPES,
+  activitiesForCategory,
   optionsFrom,
 } from '../lib/projectCatalog'
-
-const { Text } = Typography
 
 function usersWithRole(users, roleName) {
   const matched = users.filter((user) => (user.roles || []).some((role) => role.name === roleName))
@@ -28,6 +26,8 @@ export default function ProjectRegistration() {
   const [users, setUsers] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const category = Form.useWatch('category', form)
+  const activityOptions = useMemo(() => optionsFrom(activitiesForCategory(category)), [category])
 
   useEffect(() => {
     api
@@ -76,15 +76,6 @@ export default function ProjectRegistration() {
 
   return (
     <div className="mx-auto w-[80%] max-w-none">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold" style={{ color: '#650018' }}>
-          Register project
-        </h2>
-        <Text type="secondary">
-          Process 1 initiation. Assign a planner now. Initiation files can be linked later when the Documents API is live.
-        </Text>
-      </div>
-
       <Card>
         {error && (
           <Alert className="mb-4" type="error" showIcon message={error} />
@@ -105,7 +96,7 @@ export default function ProjectRegistration() {
           initialValues={{
             category: 'System',
             project_type: 'New Implementation',
-            activity_name: PROJECT_ACTIVITIES[0],
+            activity_name: activitiesForCategory('System')[0],
             team_type: 'Internal',
             review_track: 'SDMM',
           }}
@@ -113,27 +104,30 @@ export default function ProjectRegistration() {
           <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
             <Form.Item
               name="annual_plan_reference"
-              label="Annual plan reference"
+              label="Annual Plan Reference"
               rules={[{ required: true, message: 'APR reference is required' }]}
             >
               <Input placeholder="NSSF-2026-APR-001" />
             </Form.Item>
-            <Form.Item name="name" label="Project name" rules={[{ required: true, message: 'Name is required' }]}>
+            <Form.Item name="name" label="Project Name" rules={[{ required: true, message: 'Name is required' }]}>
               <Input placeholder="Member Portal Upgrade" />
             </Form.Item>
             <Form.Item name="category" label="Category" rules={[{ required: true }]}>
-              <Select options={optionsFrom(PROJECT_CATEGORIES)} />
+              <Select
+                options={optionsFrom(PROJECT_CATEGORIES)}
+                onChange={(value) => form.setFieldValue('activity_name', activitiesForCategory(value)[0])}
+              />
             </Form.Item>
-            <Form.Item name="project_type" label="Project type" rules={[{ required: true }]}>
+            <Form.Item name="project_type" label="Project Type" rules={[{ required: true }]}>
               <Select options={optionsFrom(PROJECT_TYPES)} />
             </Form.Item>
-            <Form.Item name="activity_name" label="Initial activity" rules={[{ required: true }]}>
-              <Select options={optionsFrom(PROJECT_ACTIVITIES)} />
+            <Form.Item name="activity_name" label="Activity" rules={[{ required: true }]}>
+              <Select options={activityOptions} />
             </Form.Item>
-            <Form.Item name="review_track" label="Review track" rules={[{ required: true }]}>
+            <Form.Item name="review_track" label="Review Track" rules={[{ required: true }]}>
               <Select options={REVIEW_TRACKS} />
             </Form.Item>
-            <Form.Item name="team_type" label="Team">
+            <Form.Item name="team_type" label="Implementation Team">
               <Select options={optionsFrom(TEAM_TYPES)} allowClear />
             </Form.Item>
             <Form.Item name="planner_id" label="Planner" rules={[{ required: true, message: 'Assign a planner' }]}>
@@ -145,20 +139,16 @@ export default function ProjectRegistration() {
             <Form.Item name="approver_id" label="Approver (optional)">
               <Select showSearch allowClear optionFilterProp="label" options={userOptions(approvers)} />
             </Form.Item>
-            <Form.Item name="planned_start_date" label="Planned start">
+            <Form.Item name="planned_start_date" label="Planned Start">
               <DatePicker className="w-full" />
             </Form.Item>
-            <Form.Item name="planned_end_date" label="Planned end">
+            <Form.Item name="planned_end_date" label="Planned End">
               <DatePicker className="w-full" />
             </Form.Item>
             <Form.Item name="budget" label="Budget (optional)">
               <InputNumber className="w-full" min={0} />
             </Form.Item>
-            <Form.Item
-              name="initiation_document_id"
-              label="Initiation document ID"
-              extra="Nullable until Person 4's Documents API is available. Store the id after upload."
-            >
+            <Form.Item name="initiation_document_id" label="Initiation Document ID">
               <InputNumber className="w-full" min={1} placeholder="Optional" />
             </Form.Item>
           </div>
@@ -166,7 +156,7 @@ export default function ProjectRegistration() {
             <Input.TextArea rows={3} />
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={saving}>
-            Register project
+            Register Project
           </Button>
         </Form>
       </Card>

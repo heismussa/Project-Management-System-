@@ -57,21 +57,21 @@ function ActivityFormModal({ open, activity, people, onCancel, onSave }) {
         </Form.Item>
         <Form.Item
           name="expected_deliverable"
-          label="Expected deliverable"
+          label="Expected Deliverable"
           rules={[{ required: true, message: 'Expected deliverable is required' }]}
         >
           <Input.TextArea rows={2} placeholder="e.g. Excavated foundation trench" />
         </Form.Item>
         <Form.Item
           name="plannedRange"
-          label="Planned start / end"
+          label="Planned Start / Planned End"
           rules={[{ required: true, message: 'Planned start and end dates are required' }]}
         >
           <DatePicker.RangePicker className="w-full" />
         </Form.Item>
         <Form.Item
           name="responsible_person_id"
-          label="Responsible person"
+          label="Responsible Person"
           rules={[{ required: true, message: 'Responsible person is required' }]}
         >
           <Select
