@@ -10,6 +10,7 @@ import ActivitiesTable from '../components/activities/ActivitiesTable'
 import WorkflowBar from '../components/activities/WorkflowBar'
 import ActivityDocumentsModal from '../components/activities/ActivityDocumentsModal'
 import ProjectPicker from '../components/common/ProjectPicker'
+import PreventMutation from '../components/common/PreventMutation'
 import api from '../lib/axios'
 import {
   getStoredProjectId,
@@ -228,6 +229,13 @@ function ImplementationPlanPage() {
     if (phaseFilter?.length && !phaseFilter.includes(activity.phase)) return false
     const statusFilter = filteredInfo.status
     if (statusFilter?.length && !statusFilter.includes(deriveStatus(activity))) return false
+    const responsibleFilter = filteredInfo.responsible_person_id
+    if (
+      responsibleFilter?.length &&
+      !responsibleFilter.map(String).includes(String(activity.responsible_person_id))
+    ) {
+      return false
+    }
     return true
   })
 
@@ -236,16 +244,18 @@ function ImplementationPlanPage() {
       <div className="flex flex-wrap items-center justify-end gap-3">
         <ProjectPicker projects={projects} value={projectId} onChange={handleProjectChange} />
         <PlanExportButton activities={activities} />
-        <button
-          type="button"
-          disabled={!projectId}
-          onClick={() => setFormTarget(BLANK_ACTIVITY)}
-          className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-          style={{ background: '#7A0C22', height: 42, padding: '0 22px' }}
-        >
-          <Plus size={16} />
-          Add activity
-        </button>
+        <PreventMutation fallback={null}>
+          <button
+            type="button"
+            disabled={!projectId}
+            onClick={() => setFormTarget(BLANK_ACTIVITY)}
+            className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+            style={{ background: '#7A0C22', height: 42, padding: '0 22px' }}
+          >
+            <Plus size={16} />
+            Add activity
+          </button>
+        </PreventMutation>
       </div>
 
       <WorkflowBar projectId={projectId} workflow={workflow} />

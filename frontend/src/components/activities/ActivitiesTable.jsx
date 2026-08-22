@@ -3,7 +3,9 @@ import { Table, Tooltip, ConfigProvider, Tag } from 'antd'
 import { Info } from 'lucide-react'
 import { STATUS, deriveStatus } from '../../lib/status'
 import { formatDate } from '../../lib/dates'
+import { getPersonName } from '../../data/people'
 import StatusBadge from '../common/StatusBadge'
+import PreventMutation from '../common/PreventMutation'
 import ActivityActions from './ActivityActions'
 
 function personLookup(people, id) {
@@ -27,6 +29,15 @@ function ActivitiesTable({
   people = [],
 }) {
   const [selectedRowId, setSelectedRowId] = useState(null)
+
+  const responsibleFilters = [...new Set(
+    activities
+      .map((activity) => activity.responsible_person_id)
+      .filter((id) => id != null),
+  )].map((id) => ({
+    text: personLookup(people, id)?.name ?? getPersonName(id),
+    value: id,
+  }))
 
   const columns = [
     {
@@ -89,6 +100,9 @@ function ActivitiesTable({
       dataIndex: 'responsible_person_id',
       key: 'responsible_person_id',
       width: 150,
+      filters: responsibleFilters,
+      filteredValue: filteredInfo.responsible_person_id ?? null,
+      onFilter: (value, record) => String(record.responsible_person_id) === String(value),
       render: (id) => personLookup(people, id)?.name ?? getPersonName(id),
     },
     {
@@ -106,7 +120,9 @@ function ActivitiesTable({
       width: 140,
       align: 'center',
       render: (_, record) => (
-        <ActivityActions onReview={() => onReview(record)} />
+        <PreventMutation>
+          <ActivityActions onReview={() => onReview(record)} />
+        </PreventMutation>
       ),
     },
   ]
