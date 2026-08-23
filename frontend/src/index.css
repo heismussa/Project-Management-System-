@@ -33,6 +33,10 @@
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --pms-bg-container: #ffffff;
+  --pms-bg-layout: #f3f4f6;
+  --pms-border: #e5e7eb;
+  --pms-row-hover: #fffdf9;
 
   --sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: 'Lora', Georgia, serif;
@@ -83,6 +87,26 @@ body {
   box-shadow: inset 3px 0 0 #d9a323;
 }
 
+/* Traceability Matrix: keep headers on one line; narrow fixed columns, flex text columns */
+.matrix-table .ant-table-thead > tr > th .ant-table-column-title {
+  white-space: nowrap;
+}
+
+/* Shared data-table helpers — brand header color across app tables */
+.plan-table .ant-table-thead > tr > th,
+.ictms-table .ant-table-thead > tr > th,
+.matrix-table .ant-table-thead > tr > th {
+  white-space: nowrap;
+  background: #962c30 !important;
+  color: #fff !important;
+}
+
+.plan-table .ant-table-cell,
+.ictms-table .ant-table-cell,
+.matrix-table .ant-table-cell {
+  vertical-align: middle;
+}
+
 .nav-link.active {
   background-color: #962c30;
   color: #fff;
@@ -109,12 +133,16 @@ body {
 }
 
 html.dark {
-  background-color: #111827;
+  --pms-bg-container: #17212b;
+  --pms-bg-layout: #111827;
+  --pms-border: #2a3947;
+  --pms-row-hover: #1e2d3a;
+  background-color: var(--pms-bg-layout);
 }
 
 .dark body,
 .dark #root {
-  background-color: #111827;
+  background-color: var(--pms-bg-layout);
   color: #e5e7eb;
 }
 
@@ -125,19 +153,54 @@ html.dark {
   padding-bottom: 16px;
 }
 
-.page-shell-card {
+.page-shell-card,
+.pms-table-shell {
   margin-top: 12px;
   overflow: hidden;
   border-radius: 0.75rem;
-  border: 1px solid #e5e7eb;
-  background-color: #ffffff;
+  border: 1px solid var(--pms-border);
+  background-color: var(--pms-bg-container);
   padding: 1rem;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
-.dark .page-shell-card {
-  border-color: #374151;
-  background-color: #1f2937;
+.pms-table-shell {
+  margin-top: 0;
+  padding: 0;
+}
+
+.dark .page-shell-card,
+.dark .pms-table-shell {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+}
+
+/* Table body surfaces follow container token in dark mode */
+.dark .plan-table .ant-table,
+.dark .matrix-table .ant-table,
+.dark .ictms-table .ant-table,
+.dark .ant-table-wrapper .ant-table {
+  background: var(--pms-bg-container);
+}
+
+.dark .plan-table .ant-table-tbody > tr > td,
+.dark .matrix-table .ant-table-tbody > tr > td,
+.dark .ictms-table .ant-table-tbody > tr > td {
+  border-bottom-color: var(--pms-border);
+}
+
+.dark .plan-table .ant-table-tbody > tr:hover > td,
+.dark .matrix-table .ant-table-tbody > tr:hover > td,
+.dark .ictms-table .ant-table-tbody > tr:hover > td {
+  background: var(--pms-row-hover) !important;
+}
+
+.dark .plan-table .ant-table-tbody > tr.selected-row > td {
+  background: linear-gradient(90deg, #2a2418 0%, #1e2d3a 100%);
+  border-bottom-color: #3d3420;
+}
+
+.dark .plan-table .ant-table-tbody > tr.selected-row > td:first-child {
+  box-shadow: inset 3px 0 0 #d9a323;
 }
 
 .avatar {

@@ -14,7 +14,7 @@ function WorkflowBar({ projectId, workflow }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--pms-border)] bg-[var(--pms-bg-container)] p-4">
         <Space wrap>
           <Tag color={STATUS_COLOR[workflow.plan_review_status] || 'default'}>
             Plan: {(workflow.plan_review_status || 'draft').replaceAll('_', ' ')}

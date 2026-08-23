@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Card, Form, Input, Modal, Popover, Select, Space, Table, Tag, Typography, message } from 'antd'
+import {
+  AuditOutlined,
+  EyeOutlined,
+  FormOutlined,
+  MoreOutlined,
+  PlusOutlined,
+  SwapOutlined,
+} from '@ant-design/icons'
 import { Plus, Search } from 'lucide-react'
 import api from '../lib/axios'
 import { storeProjectId, unwrapList } from '../lib/apiHelpers'
@@ -23,17 +31,28 @@ function hasPermission(user, code) {
   return (user?.permissions || []).includes(code)
 }
 
+function isAssignedToPlanner(project, user) {
+  if (!user) return false
+  if (project.planner_id != null && Number(project.planner_id) === Number(user.id)) return true
+  const userName = user.name || user.full_name
+  if (userName && project.planner?.name === userName) return true
+  return false
+}
+
 function ProjectsPage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, activeRole } = useAuth()
   const [projects, setProjects] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [reassignTarget, setReassignTarget] = useState(null)
+  const [actionsOpenId, setActionsOpenId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
 
+  const isPlannerRole = activeRole?.name === ROLES.PPL
+  const isReviewerRole = activeRole?.name === ROLES.PRV
   const canRegister = hasPermission(user, 'projects.register')
   const canReassign =
     hasPermission(user, 'projects.assign_planner') || hasPermission(user, 'projects.reassign_planner')
@@ -41,15 +60,30 @@ function ProjectsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [projectsRes, usersRes] = await Promise.all([api.get('/projects'), api.get('/users')])
-      setProjects(unwrapList(projectsRes.data))
+      const projectParams = {}
+      if (isPlannerRole && user?.id) {
+        projectParams.planner_id = user.id
+        projectParams.role = ROLES.PPL
+      }
+
+      const [projectsRes, usersRes] = await Promise.all([
+        api.get('/projects', { params: projectParams }),
+        api.get('/users'),
+      ])
+
+      let list = unwrapList(projectsRes.data)
+      if (isPlannerRole && user) {
+        list = list.filter((project) => isAssignedToPlanner(project, user))
+      }
+
+      setProjects(list)
       setUsers(unwrapList(usersRes.data))
     } catch (err) {
       message.error(err.response?.data?.message || 'Could not load projects.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isPlannerRole, user])
 
   useEffect(() => {
     load()
@@ -74,9 +108,17 @@ function ProjectsPage() {
     )
   }, [projects, search])
 
-  const openProject = (project, path) => {
+  const openProject = (project, path, searchParams = {}) => {
+    setActionsOpenId(null)
     storeProjectId(project.id)
-    navigate(path)
+    const params = new URLSearchParams({ projectId: String(project.id), ...searchParams })
+    navigate(`${path}?${params.toString()}`)
+  }
+
+  const openReassign = (record) => {
+    setActionsOpenId(null)
+    setReassignTarget(record)
+    form.setFieldsValue({ planner_id: record.planner_id })
   }
 
   const submitReassign = async (values) => {
@@ -100,62 +142,169 @@ function ProjectsPage() {
       title: 'Project',
       dataIndex: 'name',
       key: 'name',
+      ellipsis: true,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (value, record) => (
         <div>
-          <div className="font-medium">{value}</div>
-          <Text type="secondary">{record.annual_plan_reference || 'No APR ref'}</Text>
+          <div className="truncate font-medium">{value}</div>
+          <Text type="secondary" className="truncate">
+            {record.annual_plan_reference || 'No APR ref'}
+          </Text>
         </div>
       ),
     },
-    { title: 'Category', dataIndex: 'category', key: 'category', width: 130 },
-    { title: 'Type', dataIndex: 'project_type', key: 'project_type', width: 170 },
+    {
+      title: 'Category',
+      dataIndex: 'category',
+      key: 'category',
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+    },
+    {
+      title: 'Type',
+      dataIndex: 'project_type',
+      key: 'project_type',
+      ellipsis: true,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+    },
     {
       title: 'Track',
       dataIndex: 'review_track',
       key: 'review_track',
       width: 90,
+      align: 'center',
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (value, record) => value || record.workflow?.review_track || '—',
     },
     {
       title: 'Planner',
       key: 'planner',
+      ellipsis: true,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (_, record) => record.planner?.name || 'Unassigned',
     },
     {
       title: 'Status',
       key: 'status',
-      width: 150,
+      width: 140,
+      align: 'left',
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+      onCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Tag color={STATUS_COLOR[record.status] || 'default'}>{record.status || '—'}</Tag>
-          <Text type="secondary">{record.phase || record.workflow?.phase}</Text>
+        <Space direction="vertical" size={2} className="whitespace-nowrap">
+          <Tag
+            color={STATUS_COLOR[record.status] || 'default'}
+            style={{ marginInlineEnd: 0, whiteSpace: 'nowrap' }}
+          >
+            {record.status || '—'}
+          </Tag>
+          <Text type="secondary" className="whitespace-nowrap">
+            {record.phase || record.workflow?.phase}
+          </Text>
         </Space>
       ),
     },
     {
       title: 'Actions',
       key: 'actions',
-      width: 280,
+      width: 80,
+      align: 'center',
+      fixed: 'right',
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (_, record) => (
-        <Space wrap>
-          <Button size="small" onClick={() => openProject(record, '/reviews')}>
-            Reviews
-          </Button>
-          <Button size="small" onClick={() => openProject(record, '/implementation-plan')}>
-            Plan
-          </Button>
-          {canReassign && (
-            <Button
-              size="small"
-              onClick={() => {
-                setReassignTarget(record)
-                form.setFieldsValue({ planner_id: record.planner_id })
-              }}
-            >
-              Reassign
-            </Button>
-          )}
-        </Space>
+        <Popover
+          trigger="click"
+          placement="bottomRight"
+          arrow={{ pointAtCenter: true }}
+          open={actionsOpenId === record.id}
+          onOpenChange={(open) => setActionsOpenId(open ? record.id : null)}
+          content={
+            <div className="w-[180px]">
+              <Space direction="vertical" size={4} className="w-full">
+                {isPlannerRole ? (
+                  <>
+                    <Button
+                      type="text"
+                      block
+                      className="!justify-start"
+                      icon={<PlusOutlined />}
+                      onClick={() =>
+                        openProject(record, '/implementation-plan', { autoOpenAddModal: 'true' })
+                      }
+                    >
+                      Add Activity
+                    </Button>
+                    <Button
+                      type="text"
+                      block
+                      className="!justify-start"
+                      icon={<EyeOutlined />}
+                      onClick={() => openProject(record, '/implementation-plan')}
+                    >
+                      View Activity
+                    </Button>
+                  </>
+                ) : isReviewerRole ? (
+                  <>
+                    <Button
+                      type="text"
+                      block
+                      className="!justify-start"
+                      icon={<AuditOutlined />}
+                      onClick={() => openProject(record, '/reviews')}
+                    >
+                      Reviews
+                    </Button>
+                    {canReassign && (
+                      <Button
+                        type="text"
+                        block
+                        className="!justify-start"
+                        icon={<SwapOutlined />}
+                        onClick={() => openReassign(record)}
+                      >
+                        Reassign
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      type="text"
+                      block
+                      className="!justify-start"
+                      icon={<AuditOutlined />}
+                      onClick={() => openProject(record, '/reviews')}
+                    >
+                      Reviews
+                    </Button>
+                    <Button
+                      type="text"
+                      block
+                      className="!justify-start"
+                      icon={<FormOutlined />}
+                      onClick={() => openProject(record, '/implementation-plan')}
+                    >
+                      Plan
+                    </Button>
+                    {canReassign && (
+                      <Button
+                        type="text"
+                        block
+                        className="!justify-start"
+                        icon={<SwapOutlined />}
+                        onClick={() => openReassign(record)}
+                      >
+                        Reassign
+                      </Button>
+                    )}
+                  </>
+                )}
+              </Space>
+            </div>
+          }
+        >
+          <Button type="text" icon={<MoreOutlined style={{ fontSize: 18 }} />} aria-label="Actions" />
+        </Popover>
       ),
     },
   ]
@@ -172,7 +321,7 @@ function ProjectsPage() {
         </RoleGuard>
       </div>
 
-      <Card>
+      <Card className="page-shell-card">
         <Input
           allowClear
           prefix={<Search className="h-4 w-4 text-gray-400" />}
@@ -186,8 +335,9 @@ function ProjectsPage() {
           loading={loading}
           columns={columns}
           dataSource={filtered}
+          scroll={{ x: 'max-content' }}
           pagination={{ pageSize: 10, showSizeChanger: true }}
-          locale={{ emptyText: 'No projects registered yet.' }}
+          locale={{ emptyText: isPlannerRole ? 'No projects assigned to you.' : 'No projects registered yet.' }}
         />
       </Card>
 

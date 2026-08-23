@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Table, Space, Button, Tooltip, Tag, Alert, Modal, Form, Input, Spin, message } from 'antd'
+import { Table, Space, Button, Popover, Tag, Alert, Modal, Form, Input, Spin, Divider, message } from 'antd'
 import {
   CheckOutlined,
   CloseOutlined,
@@ -7,6 +7,7 @@ import {
   ExperimentOutlined,
   RollbackOutlined,
   PlusOutlined,
+  MoreOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { STATUS } from '../../lib/status'
@@ -17,7 +18,6 @@ import { isSpecReadOnlyRole, useActiveRoleName } from '../common/RoleGuard'
 import { getRequirementStatus } from './requirementStatus'
 import RequirementProgressModal from './RequirementProgressModal'
 import TestScoreModal from './TestScoreModal'
-import ProgressGauge from './ProgressGauge'
 import api from '../../lib/axios'
 import {
   apiStatusToUi,
@@ -57,7 +57,6 @@ function TraceabilityTable() {
   const [projects, setProjects] = useState([])
   const [projectId, setProjectId] = useState(getStoredProjectId)
   const [requirements, setRequirements] = useState([])
-  const [overallProgress, setOverallProgress] = useState(null)
   const [matrixReturn, setMatrixReturn] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -65,6 +64,7 @@ function TraceabilityTable() {
   const [testTarget, setTestTarget] = useState(null)
   const [returnModalOpen, setReturnModalOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [actionsOpenId, setActionsOpenId] = useState(null)
   const [returnForm] = Form.useForm()
   const [addForm] = Form.useForm()
 
@@ -87,19 +87,16 @@ function TraceabilityTable() {
   const loadMatrix = useCallback(async (id) => {
     if (!id) {
       setRequirements([])
-      setOverallProgress(null)
       return
     }
     setLoading(true)
     setError('')
     try {
-      const [reqRes, progressRes, workflowRes] = await Promise.all([
+      const [reqRes, workflowRes] = await Promise.all([
         api.get(`/projects/${id}/requirements`),
-        api.get(`/projects/${id}/progress`),
         api.get(`/projects/${id}/workflow`),
       ])
       setRequirements(unwrapList(reqRes.data).map(normalizeRequirement))
-      setOverallProgress(progressRes.data?.overall_progress ?? null)
       const workflow = workflowRes.data?.data
       if (workflow?.matrix_return_comment) {
         setMatrixReturn({ comment: workflow.matrix_return_comment, date: workflow.matrix_returned_at })
@@ -122,13 +119,13 @@ function TraceabilityTable() {
     loadMatrix(projectId)
   }, [projectId, loadMatrix])
 
-  const applyUpdatedRequirement = (updated, score) => {
+  const applyUpdatedRequirement = (updated) => {
     const normalized = normalizeRequirement(updated)
     setRequirements((prev) => prev.map((requirement) => (requirement.id === normalized.id ? { ...requirement, ...normalized } : requirement)))
-    if (score != null) setOverallProgress(score)
   }
 
   const handleDecision = async (id, review_decision) => {
+    setActionsOpenId(null)
     try {
       const response = await api.patch(`/requirements/${id}/review`, { review_decision })
       const updated = unwrapItem(response.data)
@@ -149,7 +146,7 @@ function TraceabilityTable() {
         implementation_status: datesToImplementationStatus({ actual_start_date, actual_end_date }),
         remarks: remark,
       })
-      applyUpdatedRequirement(unwrapItem(response.data), response.data?.overall_implementation_score)
+      applyUpdatedRequirement(unwrapItem(response.data))
       setProgressTarget(null)
       message.success('Requirement status updated')
     } catch (err) {
@@ -164,7 +161,7 @@ function TraceabilityTable() {
         test_result: uiTestResultToApi(test_result),
         remarks: test_comments,
       })
-      applyUpdatedRequirement(unwrapItem(response.data), response.data?.overall_implementation_score)
+      applyUpdatedRequirement(unwrapItem(response.data))
       setTestTarget(null)
       message.success('Test result saved')
     } catch (err) {
@@ -209,8 +206,6 @@ function TraceabilityTable() {
         addForm.resetFields()
         setAddOpen(false)
         message.success('Requirement added')
-        const progressRes = await api.get(`/projects/${projectId}/progress`)
-        setOverallProgress(progressRes.data?.overall_progress ?? null)
       } catch (err) {
         message.error(err.response?.data?.message || 'Could not add requirement.')
       }
@@ -224,31 +219,37 @@ function TraceabilityTable() {
       key: 'requirement_code',
       fixed: 'left',
       width: 110,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
     },
     {
       title: 'Description',
       dataIndex: 'description',
       key: 'description',
+      ellipsis: true,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
     },
     {
       title: 'Status',
       key: 'status',
-      width: 150,
+      width: 120,
       filters: STATUS_FILTER_KEYS.map((key) => ({ text: STATUS[key].label, value: key })),
       onFilter: (value, record) => (record.ui_status || getRequirementStatus(record.id, [])) === value,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (_, record) => <StatusBadge status={record.ui_status || 'pending'} />,
     },
     {
       title: 'Score',
       dataIndex: 'score_percent',
       key: 'score_percent',
-      width: 90,
+      width: 80,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (value) => `${value ?? 0}%`,
     },
     {
       title: 'Review decision',
       key: 'review_decision',
       width: 150,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (_, record) => {
         const decision = DECISION[record.review_decision]
         return decision ? <Tag color={decision.color}>{decision.label}</Tag> : <Tag>Not reviewed</Tag>
@@ -257,73 +258,106 @@ function TraceabilityTable() {
     {
       title: 'Test result',
       key: 'test_result',
-      width: 130,
+      width: 120,
       filters: TEST_RESULT_FILTERS,
       onFilter: (value, record) => (record.test_result_ui || 'not_tested') === value,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (_, record) => <TestResultBadge result={record.test_result_ui} />,
     },
     {
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      width: 200,
+      width: 80,
+      align: 'center',
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (_, record) =>
         readOnly ? (
           <span className="text-gray-400">View only</span>
         ) : (
-        <Space>
-          <Tooltip title="Approve">
-            <Button
-              type="text"
-              icon={<CheckOutlined />}
-              disabled={record.review_decision === 'approved'}
-              onClick={() => handleDecision(record.id, 'approved')}
-            />
-          </Tooltip>
-          <Tooltip title="Reject">
-            <Button
-              type="text"
-              danger
-              icon={<CloseOutlined />}
-              disabled={record.review_decision === 'rejected'}
-              onClick={() => handleDecision(record.id, 'rejected')}
-            />
-          </Tooltip>
-          <Tooltip title="Update progress">
-            <Button type="text" icon={<SyncOutlined />} onClick={() => setProgressTarget(record)} />
-          </Tooltip>
-          <Tooltip title="Record test result">
-            <Button type="text" icon={<ExperimentOutlined />} onClick={() => setTestTarget(record)} />
-          </Tooltip>
-        </Space>
+          <Popover
+            trigger="click"
+            placement="bottomRight"
+            arrow={{ pointAtCenter: true }}
+            open={actionsOpenId === record.id}
+            onOpenChange={(open) => setActionsOpenId(open ? record.id : null)}
+            content={
+              <div className="w-[220px]">
+                <Space size="small" className="mb-1">
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<CheckOutlined />}
+                    disabled={record.review_decision === 'approved'}
+                    onClick={() => handleDecision(record.id, 'approved')}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    danger
+                    size="small"
+                    icon={<CloseOutlined />}
+                    disabled={record.review_decision === 'rejected'}
+                    onClick={() => handleDecision(record.id, 'rejected')}
+                  >
+                    Reject
+                  </Button>
+                </Space>
+                <Divider className="!my-2" />
+                <Space direction="vertical" size={4} className="w-full">
+                  <Button
+                    type="text"
+                    block
+                    className="!justify-start"
+                    icon={<SyncOutlined />}
+                    onClick={() => {
+                      setActionsOpenId(null)
+                      setProgressTarget(record)
+                    }}
+                  >
+                    Update progress
+                  </Button>
+                  <Button
+                    type="text"
+                    block
+                    className="!justify-start"
+                    icon={<ExperimentOutlined />}
+                    onClick={() => {
+                      setActionsOpenId(null)
+                      setTestTarget(record)
+                    }}
+                  >
+                    Record test result
+                  </Button>
+                </Space>
+              </div>
+            }
+          >
+            <Button type="text" icon={<MoreOutlined style={{ fontSize: 18 }} />} aria-label="Actions" />
+          </Popover>
         ),
     },
   ]
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-gray-800">SRS Traceability Matrix</h2>
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
         <Space wrap>
           <ProjectPicker projects={projects} value={projectId} onChange={(id) => { storeProjectId(id); setProjectId(id) }} />
           {!readOnly && (
             <>
-          <Button type="primary" icon={<PlusOutlined />} disabled={!projectId} onClick={() => setAddOpen(true)}>
-            Add requirement
-          </Button>
-          <Button icon={<RollbackOutlined />} onClick={() => setReturnModalOpen(true)}>
-            Return matrix with comments
-          </Button>
+              <Button type="primary" icon={<PlusOutlined />} disabled={!projectId} onClick={() => setAddOpen(true)}>
+                Add requirement
+              </Button>
+              <Button icon={<RollbackOutlined />} onClick={() => setReturnModalOpen(true)}>
+                Return matrix with comments
+              </Button>
             </>
           )}
         </Space>
       </div>
 
       {error && <Alert className="mb-4" type="error" showIcon message={error} />}
-
-      <div className="mb-6 flex justify-center">
-        <ProgressGauge overallProgress={overallProgress} />
-      </div>
 
       {matrixReturn && (
         <Alert
@@ -338,14 +372,17 @@ function TraceabilityTable() {
       )}
 
       <Spin spinning={loading}>
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={requirements}
-          scroll={{ x: 1000 }}
-          pagination={false}
-          rowClassName={(record) => (record.review_decision === 'rejected' ? 'bg-red-50' : '')}
-        />
+        <div className="page-shell-card p-0">
+          <Table
+            className="matrix-table"
+            rowKey="id"
+            columns={columns}
+            dataSource={requirements}
+            scroll={{ x: 'max-content' }}
+            pagination={false}
+            rowClassName={(record) => (record.review_decision === 'rejected' ? 'bg-red-50 dark:bg-red-950/30' : '')}
+          />
+        </div>
       </Spin>
 
       <RequirementProgressModal

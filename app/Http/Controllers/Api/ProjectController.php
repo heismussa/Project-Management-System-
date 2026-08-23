@@ -7,6 +7,7 @@ use App\Http\Requests\RegisterProjectRequest;
 use App\Models\Project;
 use App\Models\Review;
 use App\Services\ProjectWorkflowService;
+use App\Support\Roles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -31,10 +32,22 @@ class ProjectController extends Controller
         ], 201);
     }
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $projects = Project::with(['reviewer', 'planner', 'coordinator', 'approver', 'forwardedTo'])
-            ->latest()
+        $query = Project::with(['reviewer', 'planner', 'coordinator', 'approver', 'forwardedTo'])
+            ->latest();
+
+        $plannerId = $request->integer('planner_id') ?: null;
+        $role = $request->query('role');
+
+        // Project Planners only see projects assigned to them.
+        if ($role === Roles::PLANNER_ROLE && $request->user()) {
+            $query->where('planner_id', $request->user()->id);
+        } elseif ($plannerId) {
+            $query->where('planner_id', $plannerId);
+        }
+
+        $projects = $query
             ->get()
             ->map(function (Project $project) {
                 $payload = $project->toArray();

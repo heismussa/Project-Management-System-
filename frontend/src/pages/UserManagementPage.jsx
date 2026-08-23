@@ -5,6 +5,7 @@ import {
   Form,
   Input,
   Modal,
+  Popover,
   Select,
   Space,
   Table,
@@ -12,6 +13,13 @@ import {
   Typography,
   message,
 } from 'antd'
+import {
+  CheckCircleOutlined,
+  KeyOutlined,
+  MoreOutlined,
+  StopOutlined,
+  UserOutlined,
+} from '@ant-design/icons'
 import { Plus, Search } from 'lucide-react'
 import api from '../lib/axios'
 import { unwrapList } from '../lib/apiHelpers'
@@ -26,6 +34,7 @@ function UserManagementPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [assignTarget, setAssignTarget] = useState(null)
   const [passwordTarget, setPasswordTarget] = useState(null)
+  const [actionsOpenId, setActionsOpenId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [createForm] = Form.useForm()
   const [assignForm] = Form.useForm()
@@ -61,10 +70,16 @@ function UserManagementPage() {
   }, [users, search])
 
   const openAssign = (user) => {
+    setActionsOpenId(null)
     setAssignTarget(user)
     assignForm.setFieldsValue({
       role_ids: (user.roles || []).map((role) => role.id),
     })
+  }
+
+  const openPassword = (user) => {
+    setActionsOpenId(null)
+    setPasswordTarget(user)
   }
 
   const handleCreate = async (values) => {
@@ -86,6 +101,7 @@ function UserManagementPage() {
   }
 
   const handleToggle = async (user) => {
+    setActionsOpenId(null)
     setSaving(true)
     try {
       await api.post(`/admin/users/${user.id}/toggle-status`)
@@ -147,17 +163,22 @@ function UserManagementPage() {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
+      ellipsis: true,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       sorter: (a, b) => a.name.localeCompare(b.name),
     },
     {
       title: 'Email',
       dataIndex: 'email',
       key: 'email',
+      ellipsis: true,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
     },
     {
       title: 'Roles',
       dataIndex: 'roles',
       key: 'roles',
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (userRoles = []) =>
         userRoles.length ? (
           <Space size={[4, 4]} wrap>
@@ -175,7 +196,9 @@ function UserManagementPage() {
       title: 'Status',
       dataIndex: 'is_active',
       key: 'is_active',
-      width: 110,
+      width: 100,
+      align: 'center',
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (active) => (
         <Tag color={active === false ? 'default' : 'green'}>{active === false ? 'Disabled' : 'Active'}</Tag>
       ),
@@ -183,18 +206,58 @@ function UserManagementPage() {
     {
       title: 'Action',
       key: 'action',
-      width: 280,
-      render: (_, record) => (
-        <Space wrap>
-          <Button type="primary" onClick={() => openAssign(record)}>
-            Assign Roles
-          </Button>
-          <Button onClick={() => setPasswordTarget(record)}>Reset password</Button>
-          <Button danger={record.is_active !== false} onClick={() => handleToggle(record)}>
-            {record.is_active === false ? 'Enable' : 'Disable'}
-          </Button>
-        </Space>
-      ),
+      width: 80,
+      align: 'center',
+      fixed: 'right',
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+      render: (_, record) => {
+        const isDisabled = record.is_active === false
+        return (
+          <Popover
+            trigger="click"
+            placement="bottomRight"
+            arrow={{ pointAtCenter: true }}
+            open={actionsOpenId === record.id}
+            onOpenChange={(open) => setActionsOpenId(open ? record.id : null)}
+            content={
+              <div className="w-[200px]">
+                <Space direction="vertical" size={4} className="w-full">
+                  <Button
+                    type="text"
+                    block
+                    className="!justify-start"
+                    icon={<UserOutlined />}
+                    onClick={() => openAssign(record)}
+                  >
+                    Assign Roles
+                  </Button>
+                  <Button
+                    type="text"
+                    block
+                    className="!justify-start"
+                    icon={<KeyOutlined />}
+                    onClick={() => openPassword(record)}
+                  >
+                    Reset Password
+                  </Button>
+                  <Button
+                    type="text"
+                    block
+                    className="!justify-start"
+                    danger={!isDisabled}
+                    icon={isDisabled ? <CheckCircleOutlined /> : <StopOutlined />}
+                    onClick={() => handleToggle(record)}
+                  >
+                    {isDisabled ? 'Enable' : 'Disable'}
+                  </Button>
+                </Space>
+              </div>
+            }
+          >
+            <Button type="text" icon={<MoreOutlined style={{ fontSize: 18 }} />} aria-label="Actions" />
+          </Popover>
+        )
+      },
     },
   ]
 
@@ -226,6 +289,7 @@ function UserManagementPage() {
           columns={columns}
           dataSource={filteredUsers}
           loading={loading}
+          scroll={{ x: 'max-content' }}
           pagination={{ pageSize: 10, showSizeChanger: true }}
           locale={{ emptyText: 'No users found.' }}
         />

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Badge, Popover } from 'antd'
 import { Bell, Headset, Maximize, Minimize, Moon, Sun } from 'lucide-react'
 import logo from '../../assets/logo.png'
 import { useAuth } from '../../context/AuthContext'
 import { useAppTheme } from '../../theme/ThemeProvider'
-import { SYSTEM_TITLE, getActiveNavItem } from '../nav'
+import { SYSTEM_TITLE } from '../nav'
 import api from '../../lib/axios'
 import { unwrapList } from '../../lib/apiHelpers'
 import SupportDeskDrawer from './SupportDeskDrawer'
@@ -23,7 +23,6 @@ function getInitials(name) {
 }
 
 export default function MainHeader() {
-  const location = useLocation()
   const { user } = useAuth()
   const { isDark, toggleTheme } = useAppTheme()
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -32,7 +31,6 @@ export default function MainHeader() {
   const [notifications, setNotifications] = useState([])
 
   const fullName = user?.full_name ?? user?.name ?? 'Guest'
-  const moduleName = getActiveNavItem(location.pathname).label
 
   useEffect(() => {
     let cancelled = false
@@ -154,15 +152,7 @@ export default function MainHeader() {
             </div>
           </div>
 
-          <div className="flex h-[40px] items-center justify-between bg-[#f9c000] pl-28 pr-4 sm:pr-6">
-            {moduleName ? (
-              <span className="truncate text-sm font-semibold capitalize text-gray-900 lg:text-base">
-                {moduleName}
-              </span>
-            ) : (
-              <span />
-            )}
-
+          <div className="flex h-[40px] items-center justify-end bg-[#f9c000] pl-28 pr-4 sm:pr-6">
             <button
               type="button"
               onClick={() => setSupportOpen(true)}

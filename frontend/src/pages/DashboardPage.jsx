@@ -50,9 +50,7 @@ function DashboardPage() {
 
   return (
     <div>
-      <Title level={3} style={{ color: '#650018' }}>
-        Dashboard
-      </Title>
+      
       <Paragraph type="secondary">
         Project overview and key metrics for {activeRole?.name || 'your account'}.
       </Paragraph>
