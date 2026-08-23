@@ -1,34 +1,30 @@
 import { useState } from 'react'
 import { Modal, Upload, Typography, message } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
+import api from '../../utility/api'
 
 const { Dragger } = Upload
 const { Text } = Typography
 
-const ACCEPTED_EXTENSIONS = ['.pdf', '.docx', '.xlsx']
-const ACCEPTED_MIME_TYPES = [
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-]
-const MAX_FILE_SIZE_MB = 10
-const CURRENT_USER_ID = 1 // placeholder until auth exists
+const ACCEPTED_EXTENSIONS = ['.pdf', '.docx', '.xlsx', '.doc', '.xls', '.png', '.jpg', '.zip']
+const MAX_FILE_SIZE_MB = 20
 
 function inferDocumentType(fileName) {
   const lower = fileName.toLowerCase()
   if (lower.endsWith('.pdf')) return 'PDF Document'
-  if (lower.endsWith('.docx')) return 'Word Document'
-  if (lower.endsWith('.xlsx')) return 'Excel Document'
+  if (lower.endsWith('.docx') || lower.endsWith('.doc')) return 'Word Document'
+  if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) return 'Excel Document'
+  if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'Image'
+  if (lower.endsWith('.zip')) return 'Archive'
   return 'Document'
 }
 
-function DocumentUploadModal({ open, onCancel, onUpload }) {
+function DocumentUploadModal({ open, onCancel, onUpload, projectId = 1, activityId = null, requirementId = null }) {
   const [fileList, setFileList] = useState([])
 
   const handleBeforeUpload = (file) => {
     const extensionOk = ACCEPTED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext))
-    const mimeOk = ACCEPTED_MIME_TYPES.includes(file.type)
-    if (!extensionOk || !mimeOk) {
+    if (!extensionOk) {
       message.error(`${file.name} is not a supported file type`)
       return Upload.LIST_IGNORE
     }
@@ -39,43 +35,60 @@ function DocumentUploadModal({ open, onCancel, onUpload }) {
     return true
   }
 
-  // No real backend yet — simulate progress so the Dragger's built-in
-  // progress bar has something to animate, then resolve with a blob URL.
-  const handleCustomRequest = ({ file, onProgress, onSuccess }) => {
-    let percent = 0
-    const timer = setInterval(() => {
-      percent = Math.min(percent + 20, 100)
-      onProgress({ percent })
-      if (percent >= 100) {
-        clearInterval(timer)
-        onSuccess({ url: URL.createObjectURL(file) }, file)
-      }
-    }, 150)
-  }
+  const handleCustomRequest = async ({ file, onProgress, onSuccess, onError }) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('project_id', projectId)
+    if (activityId) formData.append('activity_id', activityId)
+    if (requirementId) formData.append('requirement_id', requirementId)
+    formData.append('title', file.name)
+    formData.append('document_type', inferDocumentType(file.name))
 
-  const handleChange = ({ file, fileList: next }) => {
-    setFileList(next)
-    if (file.status === 'done') {
-      onUpload({
-        project_id: 1,
-        activity_id: null,
-        requirement_id: null,
-        document_type: inferDocumentType(file.name),
-        file_name: file.name,
-        file_url: file.response.url,
-        file_type: file.type,
-        file_size: file.size,
-        version_number: 1,
-        is_current: true,
-        review_status: 'pending',
-        uploaded_by: CURRENT_USER_ID,
-        uploaded_at: new Date().toISOString(),
+    try {
+      const response = await api.post('/documents', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (event) => {
+          if (event.total) {
+            const percent = Math.round((event.loaded * 100) / event.total)
+            onProgress({ percent })
+          }
+        },
       })
+
+      const createdDoc = response.data?.document || response.data
+      onSuccess(createdDoc, file)
+      message.success(`${file.name} uploaded successfully`)
+
+      if (onUpload) {
+        onUpload(createdDoc)
+      }
+    } catch (error) {
+      console.error('Document upload error:', error)
+      onError(error)
+      const errorMsg = error.response?.data?.message || `Failed to upload ${file.name}`
+      message.error(errorMsg)
     }
   }
 
+  const handleChange = ({ fileList: next }) => {
+    setFileList(next)
+  }
+
+  const handleModalClose = () => {
+    setFileList([])
+    if (onCancel) onCancel()
+  }
+
   return (
-    <Modal title="Upload documents" open={open} onCancel={onCancel} footer={null} destroyOnHidden>
+    <Modal
+      title="Upload documents"
+      open={open}
+      onCancel={handleModalClose}
+      footer={null}
+      destroyOnClose
+    >
       <Dragger
         multiple
         fileList={fileList}

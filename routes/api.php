@@ -1,54 +1,44 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProjectController;
-use App\Http\Controllers\Api\UserManagementController;
-use App\Http\Controllers\RequirementController;
-use App\Http\Controllers\ImplementationActivityController;
+use App\Http\Controllers\DocumentController;
+use Illuminate\Support\Facades\Route;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
+// Public Authentication Routes
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 
+// Signed Email Verification Link
 Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
     ->middleware(['signed'])
     ->name('verification.verify');
 
+// Authenticated Routes
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
+
     Route::post('/email/verification-notification', [AuthController::class, 'resendVerification'])
         ->middleware(['throttle:6,1'])
         ->name('verification.send');
 });
 
-Route::middleware(['auth:sanctum'])->group(function () {
+// Fully Protected Routes
+Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
-    Route::get('/users', [AuthController::class, 'users']);
 
-    Route::middleware('manage.users')->prefix('admin')->group(function () {
-        Route::get('/users', [UserManagementController::class, 'index']);
-        Route::post('/users', [UserManagementController::class, 'store']);
-        Route::put('/users/{user}/roles', [UserManagementController::class, 'syncRoles']);
-        Route::get('/roles', [UserManagementController::class, 'roles']);
-    });
-
+    // Project Initiation Routes
     Route::post('/projects', [ProjectController::class, 'store']);
     Route::get('/projects', [ProjectController::class, 'index']);
-    Route::get('/projects/{id}', [ProjectController::class, 'show'])->whereNumber('id');
-    Route::put('/projects/{id}/reassign', [ProjectController::class, 'reassign'])->whereNumber('id');
+    Route::get('/projects/{id}', [ProjectController::class, 'show']);
+    Route::put('/projects/{id}/reassign', [ProjectController::class, 'reassign']);
 
-    Route::get('/projects/{projectId}/activities', [ImplementationActivityController::class, 'index']);
-    Route::post('/activities', [ImplementationActivityController::class, 'store']);
-    Route::put('/activities/{id}', [ImplementationActivityController::class, 'update']);
-    Route::delete('/activities/{id}', [ImplementationActivityController::class, 'destroy']);
-
-    Route::get('/projects/{projectId}/requirements', [RequirementController::class, 'index']);
-    Route::post('/requirements', [RequirementController::class, 'store']);
-    Route::patch('/requirements/{id}/status', [RequirementController::class, 'updateStatus']);
-    Route::get('/projects/{project}/progress', [RequirementController::class, 'getProjectProgress']);
+    // Document Management Routes
+    Route::get('/documents', [DocumentController::class, 'index']);
+    Route::post('/documents', [DocumentController::class, 'store']);
+    Route::get('/documents/{document}', [DocumentController::class, 'show']);
+    Route::get('/documents/{document}/stream', [DocumentController::class, 'stream']);
+    Route::put('/documents/{document}', [DocumentController::class, 'update']);
+    Route::patch('/documents/{document}', [DocumentController::class, 'update']);
+    Route::delete('/documents/{document}', [DocumentController::class, 'destroy']);
 });

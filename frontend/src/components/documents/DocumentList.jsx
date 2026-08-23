@@ -1,92 +1,132 @@
-import { useState } from 'react'
-import { Table, Button, Input, Tooltip, Modal, Space } from 'antd'
+import { useState, useEffect, useCallback } from 'react'
+import { Table, Button, Input, Tooltip, Modal, Space, message } from 'antd'
 import { UploadOutlined, DownloadOutlined, EyeOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import ReviewStatusBadge from '../common/ReviewStatusBadge'
 import DocumentUploadModal from './DocumentUploadModal'
-import { documents as seedDocuments } from '../../data/documents'
-import { getPersonName } from '../../data/people'
+import api from '../../utility/api'
 
-function isPdf(doc) {
-  return doc.file_name.toLowerCase().endsWith('.pdf')
+function getStreamUrl(docId) {
+  const baseURL = api.defaults?.baseURL || '/api'
+  return `${baseURL}/documents/${docId}/stream`
 }
 
-function DocumentList() {
-  const [documents, setDocuments] = useState(seedDocuments)
+function isPdf(doc) {
+  const name = doc.title || doc.file_name || ''
+  const type = doc.file_type || ''
+  return name.toLowerCase().endsWith('.pdf') || type.toLowerCase().includes('pdf')
+}
+
+function DocumentList({ projectId }) {
+  const [documents, setDocuments] = useState([])
+  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [uploadOpen, setUploadOpen] = useState(false)
   const [previewDoc, setPreviewDoc] = useState(null)
 
-  const handleUpload = (fileMeta) => {
-    setDocuments((prev) => {
-      const newId = prev.length ? Math.max(...prev.map((d) => d.id)) + 1 : 1
-      return [{ id: newId, ...fileMeta }, ...prev]
-    })
+  const fetchDocuments = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = {}
+      if (projectId) params.project_id = projectId
+      if (search.trim()) params.search = search.trim()
+
+      const response = await api.get('/documents', { params })
+      setDocuments(response.data || [])
+    } catch (error) {
+      console.error('Failed to fetch documents:', error)
+      message.error('Failed to load documents list')
+    } finally {
+      setLoading(false)
+    }
+  }, [projectId, search])
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      fetchDocuments()
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [fetchDocuments])
+
+  const handleUploadSuccess = (newDoc) => {
+    if (newDoc) {
+      setDocuments((prev) => [newDoc, ...prev])
+    } else {
+      fetchDocuments()
+    }
   }
 
-  const query = search.trim().toLowerCase()
-  const filtered = documents.filter((doc) => {
-    if (!query) return true
-    return (
-      doc.file_name.toLowerCase().includes(query) || doc.document_type.toLowerCase().includes(query)
-    )
-  })
-
   const columns = [
-    { title: 'File name', dataIndex: 'file_name', key: 'file_name' },
-    { title: 'Type', dataIndex: 'document_type', key: 'document_type' },
+    {
+      title: 'File name',
+      dataIndex: 'title',
+      key: 'title',
+      render: (text, record) => text || record.file_name || 'Untitled Document',
+    },
+    {
+      title: 'Type',
+      dataIndex: 'document_type',
+      key: 'document_type',
+      render: (text) => text || 'General',
+    },
     {
       title: 'Version',
       dataIndex: 'version_number',
       key: 'version_number',
       width: 90,
-      render: (value) => `v${value}`,
+      render: (value) => `v${value || 1}`,
     },
     {
       title: 'Review status',
       dataIndex: 'review_status',
       key: 'review_status',
       width: 140,
-      render: (value) => <ReviewStatusBadge status={value} />,
+      render: (value) => <ReviewStatusBadge status={value || 'pending'} />,
     },
     {
       title: 'Uploaded by',
       dataIndex: 'uploaded_by',
       key: 'uploaded_by',
-      render: getPersonName,
+      render: (_, record) => record.uploaded_by?.name || record.uploadedBy?.name || 'System User',
     },
     {
       title: 'Uploaded at',
-      dataIndex: 'uploaded_at',
-      key: 'uploaded_at',
-      render: (value) => dayjs(value).format('MMM D, YYYY h:mm A'),
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (value, record) => {
+        const dateVal = value || record.uploaded_at
+        return dateVal ? dayjs(dateVal).format('MMM D, YYYY h:mm A') : '-'
+      },
     },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_, record) => (
-        <Space>
-          {isPdf(record) && (
-            <Tooltip title={record.file_url ? 'Preview' : 'No file to preview'}>
+      render: (_, record) => {
+        const streamUrl = getStreamUrl(record.id)
+        return (
+          <Space>
+            {isPdf(record) && (
+              <Tooltip title="Preview">
+                <Button
+                  type="text"
+                  icon={<EyeOutlined />}
+                  onClick={() => setPreviewDoc({ ...record, streamUrl })}
+                />
+              </Tooltip>
+            )}
+            <Tooltip title="Download">
               <Button
                 type="text"
-                icon={<EyeOutlined />}
-                disabled={!record.file_url}
-                onClick={() => setPreviewDoc(record)}
+                icon={<DownloadOutlined />}
+                href={streamUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                download={record.title || record.file_name}
               />
             </Tooltip>
-          )}
-          <Tooltip title={record.file_url ? 'Download' : 'No file to download'}>
-            <Button
-              type="text"
-              icon={<DownloadOutlined />}
-              disabled={!record.file_url}
-              href={record.file_url ?? undefined}
-              download={record.file_name}
-            />
-          </Tooltip>
-        </Space>
-      ),
+          </Space>
+        )
+      },
     },
   ]
 
@@ -108,23 +148,34 @@ function DocumentList() {
         onChange={(e) => setSearch(e.target.value)}
       />
 
-      <Table rowKey="id" columns={columns} dataSource={filtered} pagination={false} />
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={documents}
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
 
-      <DocumentUploadModal open={uploadOpen} onCancel={() => setUploadOpen(false)} onUpload={handleUpload} />
+      <DocumentUploadModal
+        open={uploadOpen}
+        projectId={projectId || 1}
+        onCancel={() => setUploadOpen(false)}
+        onUpload={handleUploadSuccess}
+      />
 
       <Modal
-        title={previewDoc?.file_name}
+        title={previewDoc?.title || previewDoc?.file_name}
         open={previewDoc !== null}
         onCancel={() => setPreviewDoc(null)}
         footer={null}
         width={800}
-        destroyOnHidden
+        destroyOnClose
       >
         {previewDoc && (
           <iframe
-            src={previewDoc.file_url}
-            title={previewDoc.file_name}
-            className="h-[600px] w-full border-0"
+            src={previewDoc.streamUrl}
+            title={previewDoc.title || previewDoc.file_name}
+            className="h-150 w-full border-0"
           />
         )}
       </Modal>

@@ -11,6 +11,7 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
+        // 1. Create Project Reviewer (Process 1 Lead)
         $reviewer = User::firstOrCreate(
             ['email' => 'luquman2004tajir@gmail.com'],
             [
@@ -21,35 +22,21 @@ class UserSeeder extends Seeder
         );
         $reviewerRole = Role::where('name', 'Project Reviewer')->first();
         if ($reviewerRole) {
-            $reviewer->roles()->sync([$reviewerRole->id => ['is_active' => true, 'assigned_at' => now()]]);
+            $reviewer->roles()->sync([$reviewerRole->id]);
         }
 
-        foreach (['mussasaid@gmail.com', 'sms.mussasaid@gmail.com'] as $adminEmail) {
-            $admin = User::firstOrCreate(
-                ['email' => $adminEmail],
-                [
-                    'name' => 'System Admin',
-                    'password' => Hash::make('password123'),
-                    'email_verified_at' => now(),
-                ]
-            );
-            $adminRole = Role::where('name', 'Project Administrator')->first();
-            if ($adminRole) {
-                $admin->roles()->sync([$adminRole->id => ['is_active' => true, 'assigned_at' => now()]]);
-            }
-        }
-
-        $ictSupport = User::firstOrCreate(
-            ['email' => 'ictsupport@nssf.go.tz'],
+        // 2. Create System Administrator
+        $admin = User::firstOrCreate(
+            ['email' => 'sms.mussasaid@gmail.com'],
             [
-                'name' => 'ICT Support',
+                'name' => 'System Admin',
                 'password' => Hash::make('password123'),
                 'email_verified_at' => now(),
             ]
         );
-        $ictSupportRole = Role::where('name', 'ICT Support')->first();
-        if ($ictSupportRole) {
-            $ictSupport->roles()->sync([$ictSupportRole->id => ['is_active' => true, 'assigned_at' => now()]]);
+        $adminRole = Role::where('name', 'Project Administrator')->first();
+        if ($adminRole) {
+            $admin->roles()->sync([$adminRole->id]);
         }
     }
 }

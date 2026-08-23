@@ -3,145 +3,79 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
-use Illuminate\Auth\Events\Verified;
+use App\Http\Requests\StoreProjectRequest;
+use App\Models\Project;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
-use Laravel\Sanctum\PersonalAccessToken;
 
-class AuthController extends Controller
+class ProjectController extends Controller
 {
-    public function register(Request $request)
+    public function store(StoreProjectRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name'  => ['required', 'string', 'max:255'],
-            'email' => [
-                'required',
-                'string',
-                'email',
-                'max:255',
-                'unique:users,email',
-                function ($attribute, $value, $fail) {
-                    $allowedDomains = ['dict.go.tz', 'nssf.or.tz', 'gmail.com'];
-                    $domain = strtolower((string) substr((string) strrchr($value, '@'), 1));
-                    if (! in_array($domain, $allowedDomains, true)) {
-                        $fail('Registration is restricted to authorized domains (@dict.go.tz, @nssf.or.tz, @gmail.com).');
-                    }
-                },
-            ],
-            'password' => ['required', 'string', 'min:8'],
-        ]);
+        // Validation and Authorization are automatically handled by StoreProjectRequest
+        $validated = $request->validated();
+        $validated['reviewer_id'] = $request->user()->id;
+        $validated['status'] = 'Initiated';
+        $validated['phase'] = 'Registration';
 
-        $user = User::create([
-            'name'     => $validated['name'],
-            'email'    => $validated['email'],
-            'password' => Hash::make($validated['password']),
-        ]);
-
-        $user->sendEmailVerificationNotification();
+        $project = Project::create($validated);
 
         return response()->json([
-            'message' => 'User registered successfully. A verification link has been sent to your email address.',
-            'user'    => $user,
+            'message' => 'Project successfully registered in Process 1.',
+            'data'    => $project,
         ], 201);
     }
 
-    public function login(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        $request->validate([
-            'login'    => 'required|string',
-            'password' => 'required|string',
+        if (!$request->user()->hasPermission('projects.view_all')) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $projects = Project::with(['reviewer', 'planner', 'coordinator'])->latest()->get();
+
+        return response()->json([
+            'data' => $projects,
+        ], 200);
+    }
+
+    public function show(Request $request, string $id): JsonResponse
+    {
+        if (!$request->user()->hasPermission('projects.view_all')) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $project = Project::with(['reviewer', 'planner', 'coordinator'])->find($id);
+
+        if (!$project) {
+            return response()->json(['message' => 'Project not found.'], 404);
+        }
+
+        return response()->json(['data' => $project], 200);
+    }
+
+    public function reassign(Request $request, string $id): JsonResponse
+    {
+        if (!$request->user()->hasPermission('projects.reassign_planner')) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $validated = $request->validate([
+            'planner_id' => ['required', 'integer', 'exists:users,id'],
         ]);
 
-        $fieldType = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
+        $project = Project::find($id);
 
-        if (! Auth::attempt([$fieldType => $request->login, 'password' => $request->password])) {
-            throw ValidationException::withMessages([
-                'login' => ['The provided credentials do not match our records.'],
-            ]);
+        if (!$project) {
+            return response()->json(['message' => 'Project not found.'], 404);
         }
 
-        /** @var \App\Models\User $user */
-        $user = Auth::user();
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $project->planner_id = $validated['planner_id'];
+        $project->save();
 
         return response()->json([
-            'message'        => 'Login successful',
-            'token'          => $token,
-            'email_verified' => $user->hasVerifiedEmail(),
-            'user'           => $user->toAuthArray(),
+            'message' => 'Project planner reassigned successfully.',
+            'data'    => $project->load(['reviewer', 'planner', 'coordinator']),
         ], 200);
-    }
-
-    public function logout(Request $request): JsonResponse
-    {
-        $user = $request->user();
-
-        /** @var PersonalAccessToken|null $token */
-        $token = $user?->currentAccessToken();
-
-        if ($token) {
-            $token->delete();
-        }
-
-        return response()->json(['message' => 'Logout successful'], 200);
-    }
-
-    public function me(Request $request): JsonResponse
-    {
-        $user = $request->user();
-
-        return response()->json([
-            'data'           => $user->toAuthArray(),
-            'user'           => $user->toAuthArray(),
-            'email_verified' => $user->hasVerifiedEmail(),
-            'permissions'    => $user->permissionCodes(),
-        ], 200);
-    }
-
-    public function users(): JsonResponse
-    {
-        $users = User::query()
-            ->select('id', 'name', 'email')
-            ->orderBy('name')
-            ->get();
-
-        return response()->json(['data' => $users]);
-    }
-
-    public function verifyEmail(Request $request, string $id, string $hash)
-    {
-        $user = User::findOrFail($id);
-
-        if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
-            return response()->json(['message' => 'Invalid or expired verification link.'], 403);
-        }
-
-        if ($user->hasVerifiedEmail()) {
-            return response()->json(['message' => 'Email address is already verified.'], 200);
-        }
-
-        if ($user->markEmailAsVerified()) {
-            event(new Verified($user));
-        }
-
-        return response()->json(['message' => 'Email address verified successfully.'], 200);
-    }
-
-    public function resendVerification(Request $request)
-    {
-        /** @var \App\Models\User $user */
-        $user = $request->user();
-
-        if ($user->hasVerifiedEmail()) {
-            return response()->json(['message' => 'Email address is already verified.'], 400);
-        }
-
-        $user->sendEmailVerificationNotification();
-
-        return response()->json(['message' => 'Verification email link resent successfully.'], 200);
     }
 }

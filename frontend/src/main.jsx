@@ -1,19 +1,24 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { StyleProvider } from '@ant-design/cssinjs'
-import './index.css'
-import App from './App.jsx'
-import { ThemeProvider } from './theme/ThemeProvider'
-import AppProviders from './theme/AppProviders'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import App from './App.jsx';
+import './index.css';
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <ThemeProvider>
-      <StyleProvider layer>
-        <AppProviders>
-          <App />
-        </AppProviders>
-      </StyleProvider>
-    </ThemeProvider>
-  </StrictMode>,
-)
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,
+      retry: 1,
+    },
+  },
+});
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <App />
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
+  </React.StrictMode>
+);

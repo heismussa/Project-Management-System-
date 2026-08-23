@@ -6,6 +6,7 @@ import { STATUS, deriveStatus } from '../../lib/status'
 import { getPersonName, getPersonRole } from '../../data/people'
 import StatusBadge from '../common/StatusBadge'
 import ActivityActions from './ActivityActions'
+import PreventMutation from '../common/PreventMutation'
 
 function personLookup(people, id) {
   return people?.find((person) => person.id === id)
@@ -19,13 +20,8 @@ function compareDates(a, b) {
   return (a ?? '').localeCompare(b ?? '')
 }
 
-// pending isn't reachable from deriveStatus() for activities (dates only
-// ever resolve to not_started/ongoing/completed), so it's left out here.
 const STATUS_FILTER_KEYS = ['not_started', 'ongoing', 'completed']
 
-// Rows are grouped by phase already; find how many consecutive visible rows
-// (starting at `index`) share the same phase, so the Phase column can merge
-// them into a single cell instead of repeating the label on every row.
 function getPhaseRowSpan(list, index) {
   const phase = list[index].phase
   if (index > 0 && list[index - 1].phase === phase) return 0
@@ -115,7 +111,12 @@ function ActivitiesTable({
       title: 'Responsible',
       dataIndex: 'responsible_person_id',
       key: 'responsible_person_id',
-      width: 150,
+      width: 170,
+      filters: people.map((person) => ({
+        text: person.name,
+        value: person.id,
+      })),
+      filteredValue: filteredInfo.responsible_person_id ?? null,
       render: (id) => personLookup(people, id)?.name ?? getPersonName(id),
     },
     {
@@ -139,11 +140,13 @@ function ActivitiesTable({
       fixed: 'right',
       width: 110,
       render: (_, record) => (
-        <ActivityActions
-          onEdit={() => onEdit(record)}
-          onUpdateProgress={() => onUpdateProgress(record)}
-          onDelete={() => onDelete(record.id)}
-        />
+        <PreventMutation fallback={<span style={{ color: '#98A2B3', fontSize: 13 }}>—</span>}>
+          <ActivityActions
+            onEdit={() => onEdit(record)}
+            onUpdateProgress={() => onUpdateProgress(record)}
+            onDelete={() => onDelete(record.id)}
+          />
+        </PreventMutation>
       ),
     },
   ]
