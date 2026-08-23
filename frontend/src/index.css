@@ -1,0 +1,182 @@
+/*
+ * Cascade layer order: unlayered rules (this file's own selectors below,
+ * plus Tailwind's `components`/`utilities` output) always win over anything
+ * layered, regardless of specificity. Within the layered tier, `antd`
+ * outranks `reset` — so AntD's component CSS overrides Tailwind's preflight
+ * reset instead of the other way around. AntD's cssinjs runtime (see
+ * `<StyleProvider layer>` in main.jsx) injects its styles into this same
+ * `antd` layer at runtime.
+ *
+ * The layer is named `reset`, not `base` — Tailwind v3 reserves the literal
+ * name `base` (and `components`/`utilities`) for its own `@layer base {}`
+ * customization syntax and silently drops a nested `@tailwind base;`
+ * directive inside a block with that reserved name.
+ */
+@layer reset, antd;
+
+@layer reset {
+  @tailwind base;
+}
+
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
+  --code-bg: #f4f3ec;
+  --accent: #aa3bff;
+  --accent-bg: rgba(170, 59, 255, 0.1);
+  --accent-border: rgba(170, 59, 255, 0.5);
+  --social-bg: rgba(244, 243, 236, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+
+  --sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: 'Lora', Georgia, serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0.18px;
+  color-scheme: light;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+/* Implementation Plan table (see ConfigProvider in ActivitiesTable.jsx for
+   the color/hover tokens this complements — header bg/color, row hover,
+   and cell horizontal padding are handled there). This covers the pixel
+   dimensions AntD doesn't expose as tokens. */
+.plan-table .ant-table-thead > tr > th {
+  height: 54px;
+  font-weight: 600;
+}
+
+.plan-table .ant-table-tbody > tr > td {
+  min-height: 82px;
+  border-bottom: 1px solid #eceff2;
+  vertical-align: middle;
+}
+
+.plan-table .ant-table-tbody > tr.selected-row > td {
+  background: linear-gradient(90deg, #fff4d8 0%, #fff9eb 100%);
+  border-bottom-color: #fff4d8;
+}
+
+.plan-table .ant-table-tbody > tr.selected-row > td:first-child {
+  box-shadow: inset 3px 0 0 #d9a323;
+}
+
+.nav-link.active {
+  background-color: #962c30;
+  color: #fff;
+}
+
+.nav-link.active .nav-icon {
+  color: #fff;
+}
+
+.navbar-drawer-item {
+  display: flex;
+  width: 100%;
+  border-radius: 0.375rem;
+  border: 1px solid #e5e7eb;
+  padding: 0.25rem 0.75rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+  color: #962c30;
+}
+
+.navbar-drawer-item:hover {
+  background-color: #962c30;
+  color: #fff;
+}
+
+html.dark {
+  background-color: #111827;
+}
+
+.dark body,
+.dark #root {
+  background-color: #111827;
+  color: #e5e7eb;
+}
+
+.page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.page-shell-card {
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+  background-color: #ffffff;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.dark .page-shell-card {
+  border-color: #374151;
+  background-color: #1f2937;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 61.5px;
+  border: 3px solid #ffffff;
+  background-color: rgb(172, 0, 0);
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.avatar-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 40px);
+  margin: 8px 0 4px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.avatar-email {
+  font-size: 12px;
+  line-height: 1.33;
+  font-weight: 400;
+  color: rgb(57, 58, 61);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 40px);
+  margin: 0 0 12px;
+}
+
+.dark .avatar-email {
+  color: #9ca3af;
+}
