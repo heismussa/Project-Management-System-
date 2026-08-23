@@ -62,6 +62,7 @@ function ReviewsPage() {
 
   const pendingDocs = documents.filter((doc) => doc.review_status === 'pending' || doc.review_status === 'returned')
   const pendingChanges = activities.filter((activity) => activity.plan_change_status === 'pending')
+  const pendingProgress = activities.filter((activity) => activity.progress_review_status === 'pending')
   const blockers = workflow?.execution_blockers || []
   const checks = closure?.checks || workflow?.closure?.checks || []
 
@@ -311,6 +312,55 @@ function ReviewsPage() {
                             danger
                             onClick={() =>
                               runAction(`/activities/${record.id}/plan-changes/reject`, { comment: 'Rejected' })
+                            }
+                          >
+                            Reject
+                          </Button>
+                        </Space>
+                      </RoleGuard>
+                    ),
+                  },
+                ]}
+              />
+            ),
+          },
+          {
+            key: 'progress',
+            label: `Progress updates (${pendingProgress.length})`,
+            children: (
+              <Table
+                rowKey="id"
+                pagination={false}
+                dataSource={pendingProgress}
+                columns={[
+                  { title: 'Activity', dataIndex: 'name' },
+                  {
+                    title: 'Actual Start',
+                    dataIndex: 'actual_start_date',
+                    render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
+                  },
+                  {
+                    title: 'Actual End',
+                    dataIndex: 'actual_end_date',
+                    render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
+                  },
+                  {
+                    title: 'Action',
+                    render: (_, record) => (
+                      <RoleGuard allow={[ROLES.PRV, ROLES.PAD]}>
+                        <Space>
+                          <Button
+                            size="small"
+                            type="primary"
+                            onClick={() => runAction(`/activities/${record.id}/progress-review/approve`)}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="small"
+                            danger
+                            onClick={() =>
+                              runAction(`/activities/${record.id}/progress-review/reject`, { comment: 'Rejected' })
                             }
                           >
                             Reject

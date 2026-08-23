@@ -42,6 +42,9 @@ function ActivitiesTable({
           {record.plan_change_status === 'pending' && (
             <Tag color="gold">Pending approval</Tag>
           )}
+          {record.progress_review_status === 'pending' && (
+            <Tag color="blue">Submitted for review</Tag>
+          )}
           {record.validation_rule && (
             <Tooltip title={record.validation_rule}>
               <Info size={16} style={{ color: '#98A2B3', flexShrink: 0, marginTop: 3 }} />

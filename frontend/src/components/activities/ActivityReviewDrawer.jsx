@@ -42,6 +42,7 @@ function ActivityReviewDrawer({
   onAddRemark,
   onApproveChange,
   onRejectChange,
+  onSubmitForReview,
 }) {
   const [form] = Form.useForm()
   const actualStart = Form.useWatch('actual_start_date', form)
@@ -51,6 +52,7 @@ function ActivityReviewDrawer({
   const [marking, setMarking] = useState(false)
   const [approvingChange, setApprovingChange] = useState(false)
   const [rejectingChange, setRejectingChange] = useState(false)
+  const [submittingProgress, setSubmittingProgress] = useState(false)
 
   useEffect(() => {
     if (!open || !activity) return
@@ -116,6 +118,18 @@ function ActivityReviewDrawer({
       await onRejectChange(activity)
     } finally {
       setRejectingChange(false)
+    }
+  }
+
+  const progressReviewStatus = activity.progress_review_status
+  const canSubmitProgress = progressReviewStatus !== 'pending'
+
+  const handleSubmitForReview = async () => {
+    setSubmittingProgress(true)
+    try {
+      await onSubmitForReview(activity)
+    } finally {
+      setSubmittingProgress(false)
     }
   }
 
@@ -266,6 +280,38 @@ function ActivityReviewDrawer({
           </p>
           <p className="ant-upload-text">Click or drag files to this area to upload</p>
         </Dragger>
+      </div>
+
+      <div className="mt-6">
+        {progressReviewStatus === 'pending' && (
+          <Alert
+            className="mb-3"
+            type="info"
+            showIcon
+            message="Submitted — awaiting reviewer approval"
+          />
+        )}
+        {progressReviewStatus === 'approved' && (
+          <Alert className="mb-3" type="success" showIcon message="Reviewer approved this progress update" />
+        )}
+        {progressReviewStatus === 'rejected' && (
+          <Alert
+            className="mb-3"
+            type="error"
+            showIcon
+            message="Reviewer rejected this progress update"
+            description={activity.progress_review_comment || undefined}
+          />
+        )}
+        <Button
+          type="primary"
+          block
+          loading={submittingProgress}
+          disabled={!canSubmitProgress}
+          onClick={handleSubmitForReview}
+        >
+          Submit
+        </Button>
       </div>
     </Drawer>
   )

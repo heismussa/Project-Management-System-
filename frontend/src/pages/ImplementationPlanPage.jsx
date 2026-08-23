@@ -223,6 +223,18 @@ function ImplementationPlanPage() {
     }
   }
 
+  const handleSubmitProgressReview = async (activity) => {
+    try {
+      const response = await api.post(`/activities/${activity.id}/progress-review/submit`)
+      const updated = unwrapItem(response.data)
+      setActivities((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      setReviewTarget((prev) => (prev && prev.id === updated.id ? updated : prev))
+      message.success('Submitted to the reviewer')
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not submit for review.')
+    }
+  }
+
   const visibleActivities = activities.filter((activity) => {
     const phaseFilter = filteredInfo.phase
     if (phaseFilter?.length && !phaseFilter.includes(activity.phase)) return false
@@ -289,6 +301,7 @@ function ImplementationPlanPage() {
         onAddRemark={handleAddRemark}
         onApproveChange={handleApproveChange}
         onRejectChange={handleRejectChange}
+        onSubmitForReview={handleSubmitProgressReview}
       />
       <ActivityDocumentsModal
         open={docsTarget !== null}

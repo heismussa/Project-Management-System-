@@ -53,6 +53,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/activities/{id}/progress', [ImplementationActivityController::class, 'progressHistory']);
     Route::post('/activities/{id}/plan-changes/approve', [ImplementationActivityController::class, 'approvePlanChange']);
     Route::post('/activities/{id}/plan-changes/reject', [ImplementationActivityController::class, 'rejectPlanChange']);
+    Route::post('/activities/{id}/progress-review/submit', [ImplementationActivityController::class, 'submitProgressReview']);
+    Route::post('/activities/{id}/progress-review/approve', [ImplementationActivityController::class, 'approveProgressReview']);
+    Route::post('/activities/{id}/progress-review/reject', [ImplementationActivityController::class, 'rejectProgressReview']);
 
     Route::get('/projects/{projectId}/requirements', [RequirementController::class, 'index']);
     Route::post('/requirements', [RequirementController::class, 'store']);
