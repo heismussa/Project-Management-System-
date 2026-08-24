@@ -23,6 +23,7 @@ import { formatDate } from '../../lib/dates'
 import { getPersonName } from '../../data/people'
 import { uploadActivityDocumentStub } from '../../api/activityDocumentsStub'
 import StatusBadge from '../common/StatusBadge'
+import PreventMutation from '../common/PreventMutation'
 
 const { Text } = Typography
 const { Dragger } = Upload
@@ -167,14 +168,16 @@ function ActivityReviewDrawer({
                 The planning details for this activity were edited and are awaiting reviewer approval. The
                 current plan stays in effect until this change is approved.
               </Text>
-              <Space>
-                <Button type="primary" loading={approvingChange} onClick={handleApproveChange}>
-                  Approve change
-                </Button>
-                <Button danger loading={rejectingChange} onClick={handleRejectChange}>
-                  Reject change
-                </Button>
-              </Space>
+              <PreventMutation fallback={null}>
+                <Space>
+                  <Button type="primary" loading={approvingChange} onClick={handleApproveChange}>
+                    Approve change
+                  </Button>
+                  <Button danger loading={rejectingChange} onClick={handleRejectChange}>
+                    Reject change
+                  </Button>
+                </Space>
+              </PreventMutation>
             </Space>
           }
         />
@@ -190,11 +193,22 @@ function ActivityReviewDrawer({
           {personLookup(people, activity.responsible_person_id)?.name ??
             getPersonName(activity.responsible_person_id)}
         </Descriptions.Item>
-        <Descriptions.Item label="Activity Status">
+        <Descriptions.Item label="Project Status">
           <StatusBadge status={status} />
         </Descriptions.Item>
       </Descriptions>
 
+      <PreventMutation
+        fallback={
+          <Alert
+            className="mt-5"
+            type="info"
+            showIcon
+            message="Read-only access"
+            description="Your role can view this activity but cannot change dates, remarks, or documents."
+          />
+        }
+      >
       <div className="mt-5">
         <Text strong>Actual Start</Text>
         <Form form={form} layout="inline" className="mt-2">
@@ -274,7 +288,12 @@ function ActivityReviewDrawer({
 
       <div className="mt-6">
         <Text strong>Documents</Text>
-        <Dragger multiple customRequest={handleStubUpload} className="mt-2">
+        {!isCompleted && (
+          <Text type="secondary" className="mt-1 block text-xs">
+            Documents can be attached once this activity is marked complete.
+          </Text>
+        )}
+        <Dragger multiple disabled={!isCompleted} customRequest={handleStubUpload} className="mt-2">
           <p className="ant-upload-drag-icon">
             <InboxOutlined />
           </p>
@@ -313,6 +332,7 @@ function ActivityReviewDrawer({
           Submit
         </Button>
       </div>
+      </PreventMutation>
     </Drawer>
   )
 }

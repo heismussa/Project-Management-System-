@@ -35,8 +35,12 @@ class Person3PlannerTest extends TestCase
     #[Test]
     public function plan_cannot_be_submitted_without_activities(): void
     {
-        $this->actingPlanner();
-        $project = Project::create(['name' => 'Empty Plan', 'plan_review_status' => 'draft']);
+        $user = $this->actingPlanner();
+        $project = Project::create([
+            'name' => 'Empty Plan',
+            'plan_review_status' => 'draft',
+            'planner_id' => $user->id,
+        ]);
 
         $this->postJson("/api/projects/{$project->id}/plan/submit")
             ->assertUnprocessable()
@@ -102,7 +106,11 @@ class Person3PlannerTest extends TestCase
     public function actual_dates_cannot_be_before_planned_start_or_in_the_future(): void
     {
         $user = $this->actingPlanner();
-        $project = Project::create(['name' => 'Dates', 'plan_review_status' => 'draft']);
+        $project = Project::create([
+            'name' => 'Dates',
+            'plan_review_status' => 'draft',
+            'planner_id' => $user->id,
+        ]);
         $activity = ImplementationActivity::create([
             'project_id' => $project->id,
             'name' => 'Build',

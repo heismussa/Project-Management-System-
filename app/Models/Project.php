@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Support\InitiationDocuments;
+use App\Support\Roles;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,10 +31,14 @@ class Project extends Model
         'approver_id',
         'status',
         'phase',
+        'lifecycle_stage',
         'plan_review_status',
         'plan_review_comment',
         'plan_reviewed_at',
         'plan_pending_reapproval',
+        'plan_status',
+        'plan_submitted_at',
+        'plan_return_comment',
         'recommended_at',
         'execution_started_at',
         'execution_approved_at',
@@ -52,6 +59,7 @@ class Project extends Model
     protected $casts = [
         'plan_reviewed_at' => 'datetime',
         'plan_pending_reapproval' => 'boolean',
+        'plan_submitted_at' => 'datetime',
         'recommended_at' => 'datetime',
         'execution_started_at' => 'datetime',
         'execution_approved_at' => 'datetime',
@@ -112,6 +120,58 @@ class Project extends Model
     public function closedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    /**
+     * Prefer planner-scope plan_status, then Person 3 plan_review_status.
+     */
+    public function currentPlanStatus(): string
+    {
+        $status = $this->plan_status ?: 'draft';
+        $review = $this->plan_review_status ?: 'draft';
+
+        return $status !== 'draft' ? $status : $review;
+    }
+
+    public function canSubmitPlan(): bool
+    {
+        return in_array($this->currentPlanStatus(), ['draft', 'changes_requested'], true);
+    }
+
+    public function isPlanLocked(): bool
+    {
+        return $this->currentPlanStatus() === 'pending_review';
+    }
+
+    public function canBeManagedBy(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->hasRole(Roles::ADMINISTRATOR_ROLE)) {
+            return true;
+        }
+
+        return (int) $this->planner_id === (int) $user->id;
+    }
+
+    public function applyPlanStatus(string $status, array $extra = []): void
+    {
+        $this->update(array_merge([
+            'plan_status' => $status,
+            'plan_review_status' => $status,
+        ], $extra));
+    }
+
+    public function reopenPlanIfApproved(): void
+    {
+        if ($this->currentPlanStatus() === 'approved') {
+            $this->applyPlanStatus('changes_requested', [
+                'phase' => 'Planning',
+                'status' => 'Plan Returned',
+            ]);
+        }
     }
 
     /**
@@ -275,5 +335,305 @@ class Project extends Model
     public function isReadyToClose(): bool
     {
         return collect($this->closureChecks())->every(fn (array $check) => $check['passed']);
+    }
+
+    /**
+     * Initiation -> Planning gate. Checked both for the frontend checklist
+     * and, authoritatively, by advance-to-planning before flipping
+     * lifecycle_stage — a disabled button is not security.
+     */
+    public function initiationReadiness(): array
+    {
+        $current = $this->documents()
+            ->where('is_current', true)
+            ->whereIn('document_type', InitiationDocuments::keys())
+            ->get()
+            ->keyBy('document_type');
+
+        $blockers = [];
+        $documents = [];
+
+        foreach (InitiationDocuments::TYPES as $key => $meta) {
+            $document = $current->get($key);
+
+            $documents[] = [
+                'key' => $key,
+                'label' => $meta['label'],
+                'required' => $meta['required'],
+                'uploaded' => (bool) $document,
+                'document' => $document,
+            ];
+
+            if ($meta['required'] && ! $document) {
+                $blockers[] = "Missing required document: {$meta['label']}.";
+            }
+        }
+
+        return [
+            'ready' => $blockers === [],
+            'blockers' => $blockers,
+            'documents' => $documents,
+        ];
+    }
+
+    public function isReadyForPlanning(): bool
+    {
+        return $this->initiationReadiness()['ready'];
+    }
+
+    /**
+     * The single gate currently holding this project back, in priority
+     * order, for the Administrator dashboard's "transition blockers" table.
+     * Null once closed or when nothing is blocking it.
+     */
+    public function transitionBlocker(): ?array
+    {
+        if ($this->closed_at) {
+            return null;
+        }
+
+        if ($this->lifecycle_stage === 'initiation') {
+            if (! $this->initiationReadiness()['ready']) {
+                return ['reason' => 'Initiation documents missing', 'since' => $this->created_at];
+            }
+
+            return null;
+        }
+
+        if ($this->plan_review_status === 'pending_review') {
+            return ['reason' => 'Plan not reviewed', 'since' => $this->plan_submitted_at ?? $this->updated_at];
+        }
+
+        $returnedDocument = $this->documents()
+            ->where('is_current', true)
+            ->where('review_status', 'returned')
+            ->oldest('reviewed_at')
+            ->first();
+        if ($returnedDocument) {
+            return [
+                'reason' => 'Returned documents unresolved',
+                'since' => $returnedDocument->reviewed_at ?? $returnedDocument->updated_at,
+            ];
+        }
+
+        if ($this->execution_started_at && ! $this->hasPassedAllUAT()) {
+            return ['reason' => 'UAT scores missing', 'since' => $this->execution_started_at];
+        }
+
+        return null;
+    }
+
+    /**
+     * Aggregates for the Administrator dashboard at "/". Kept on the model,
+     * alongside getReviewerMetrics()/getPlannerMetrics()/getImplementorMetrics(),
+     * so it's queried the same way the rest of the dashboard contracts are.
+     */
+    public static function administratorDashboard(): array
+    {
+        $statusCounts = [
+            'total' => static::count(),
+            'ongoing' => static::whereNotNull('actual_start_date')->whereNull('actual_end_date')->count(),
+            'completed' => static::whereNotNull('actual_end_date')->count(),
+            'not_started' => static::whereNull('actual_start_date')->count(),
+        ];
+
+        $phaseCounts = collect(['initiation', 'planning', 'execution', 'closure'])
+            ->mapWithKeys(fn (string $stage) => [$stage => static::where('lifecycle_stage', $stage)->count()])
+            ->all();
+
+        $averageScore = static::whereNotNull('overall_implementation_score')->avg('overall_implementation_score');
+        $requirementTotal = Requirement::count();
+        $passCount = Requirement::where('test_result', 'Pass')->count();
+
+        $blockers = static::whereNull('closed_at')
+            ->get()
+            ->map(function (Project $project) {
+                $blocker = $project->transitionBlocker();
+                if (! $blocker) {
+                    return null;
+                }
+
+                return [
+                    'project_id' => $project->id,
+                    'project_name' => $project->name,
+                    'reason' => $blocker['reason'],
+                    'days_stuck' => $blocker['since'] ? self::daysSince($blocker['since']) : 0,
+                ];
+            })
+            ->filter()
+            ->sortByDesc('days_stuck')
+            ->values()
+            ->all();
+
+        $overdueDays = ImplementationActivity::query()
+            ->whereNull('actual_start_date')
+            ->whereNotNull('planned_start_date')
+            ->whereDate('planned_start_date', '<', now()->toDateString())
+            ->get(['planned_start_date'])
+            ->map(fn (ImplementationActivity $activity) => self::daysSince($activity->planned_start_date));
+
+        return [
+            'status_counts' => $statusCounts,
+            'phase_counts' => $phaseCounts,
+            'implementation_score_average' => $averageScore !== null ? round((float) $averageScore, 1) : null,
+            'uat_pass_rate' => $requirementTotal > 0 ? round(($passCount / $requirementTotal) * 100, 1) : 0.0,
+            'total_budget' => (float) static::sum('budget'),
+            'requirement_total' => $requirementTotal,
+            'transition_blockers' => $blockers,
+            'overdue_activities' => [
+                'total' => $overdueDays->count(),
+                '1_day' => $overdueDays->filter(fn ($days) => $days === 1)->count(),
+                '3_days' => $overdueDays->filter(fn ($days) => $days === 3)->count(),
+                'over_3_days' => $overdueDays->filter(fn ($days) => $days > 3)->count(),
+            ],
+            'awaiting_action' => [
+                'new_registrations' => static::where('phase', 'Registration')->count(),
+                'plans_pending_review' => static::where('plan_review_status', 'pending_review')->count(),
+                'matrices_pending_approval' => Requirement::whereNull('review_decision')->distinct('project_id')->count('project_id'),
+                'documents_pending_review' => Document::where('review_status', 'pending')->count(),
+                'closure_signoffs' => static::whereNull('closed_at')->get()->filter(fn (Project $project) => $project->isReadyToClose())->count(),
+            ],
+        ];
+    }
+
+    /**
+     * Aggregates for the Reviewer dashboard at "/". The six queue counts,
+     * the monthly review-load line chart, and turnaround metrics — all
+     * sourced from the reviews table, keyed on reviewed_at.
+     */
+    public static function reviewerDashboard(): array
+    {
+        $newRegistrations = static::where('lifecycle_stage', 'initiation')
+            ->get()
+            ->filter(fn (Project $project) => ! $project->initiationReadiness()['ready'])
+            ->count();
+
+        $plansPending = static::where('plan_status', 'pending_review')->count();
+
+        $matricesPending = Requirement::whereNull('review_decision')->distinct('project_id')->count('project_id');
+
+        $documentsPending = Document::where('review_status', 'pending')->count();
+
+        // "no newer version submitted" — replacing a document flips the old
+        // row's is_current off, so a still-current returned row means the
+        // return has gone unaddressed.
+        $returnedUnresolved = Document::where('review_status', 'returned')->where('is_current', true)->count();
+
+        $closureSignoffs = static::whereNull('closed_at')
+            ->get()
+            ->filter(fn (Project $project) => $project->isReadyToClose())
+            ->count();
+
+        $reviews = Review::whereYear('reviewed_at', now()->year)->get(['project_id', 'entity_type', 'decision', 'reviewed_at']);
+
+        $reviewLoad = collect(range(1, 12))->map(function (int $month) use ($reviews) {
+            $inMonth = $reviews->filter(fn (Review $review) => $review->reviewed_at->month === $month);
+
+            return [
+                'month' => Carbon::create(2000, $month, 1)->format('M'),
+                'received' => $inMonth->where('decision', 'submitted')->count(),
+                'completed' => $inMonth->where('decision', '!=', 'submitted')->count(),
+            ];
+        })->values()->all();
+
+        $completedReviews = Review::where('decision', '!=', 'submitted')->get(['project_id', 'entity_type', 'decision', 'reviewed_at']);
+        $submittedByKey = Review::where('decision', 'submitted')
+            ->get(['project_id', 'entity_type', 'reviewed_at'])
+            ->groupBy(fn (Review $review) => $review->project_id.'-'.$review->entity_type);
+
+        $turnaroundDays = $completedReviews
+            ->map(function (Review $completed) use ($submittedByKey) {
+                $key = $completed->project_id.'-'.$completed->entity_type;
+                $submission = ($submittedByKey->get($key) ?? collect())
+                    ->filter(fn (Review $submitted) => $submitted->reviewed_at <= $completed->reviewed_at)
+                    ->sortByDesc('reviewed_at')
+                    ->first();
+
+                return $submission ? self::daysSince($submission->reviewed_at, $completed->reviewed_at) : null;
+            })
+            ->filter(fn ($days) => $days !== null);
+
+        $reviewedThisMonth = Review::where('decision', '!=', 'submitted')
+            ->whereYear('reviewed_at', now()->year)
+            ->whereMonth('reviewed_at', now()->month)
+            ->count();
+
+        $totalDecisions = $completedReviews->count();
+        $returnedDecisions = $completedReviews->whereIn('decision', ['rejected', 'needs_revision'])->count();
+
+        return [
+            'queue' => [
+                'new_registrations' => $newRegistrations,
+                'plans_pending' => $plansPending,
+                'matrices_pending' => $matricesPending,
+                'documents_pending' => $documentsPending,
+                'returned_unresolved' => $returnedUnresolved,
+                'closure_signoffs' => $closureSignoffs,
+            ],
+            'review_load' => $reviewLoad,
+            'turnaround' => [
+                'avg_review_days' => $turnaroundDays->isNotEmpty() ? round($turnaroundDays->avg(), 1) : 0,
+                'reviewed_this_month' => $reviewedThisMonth,
+                'backlog' => $newRegistrations + $plansPending + $matricesPending + $documentsPending + $returnedUnresolved + $closureSignoffs,
+                'return_rate' => $totalDecisions > 0 ? round(($returnedDecisions / $totalDecisions) * 100, 1) : 0,
+            ],
+        ];
+    }
+
+    /**
+     * Aggregates for the read-only ViewOnly dashboard at "/". Reuses
+     * administratorDashboard() for the portfolio-wide numbers it needs
+     * (status/phase counts, score, budget) and adds the requirement status
+     * breakdown and flat project list unique to this view.
+     */
+    public static function viewOnlyDashboard(): array
+    {
+        $admin = static::administratorDashboard();
+
+        $pendingRequirements = Requirement::where(function ($query) {
+            $query->where('implementation_status', 'Pending')->orWhereNull('implementation_status');
+        })->count();
+        $ongoingRequirements = Requirement::where('implementation_status', 'Ongoing')->count();
+        $completedRequirements = Requirement::where('implementation_status', 'Completed')->count();
+
+        $projects = static::orderBy('name')
+            ->get(['id', 'name', 'category', 'phase', 'overall_implementation_score'])
+            ->map(fn (Project $project) => [
+                'id' => $project->id,
+                'name' => $project->name,
+                'category' => $project->category,
+                'phase' => $project->phase,
+                'overall_implementation_score' => $project->overall_implementation_score,
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'status_counts' => $admin['status_counts'],
+            'phase_counts' => $admin['phase_counts'],
+            'implementation_score_average' => $admin['implementation_score_average'],
+            'uat_pass_rate' => $admin['uat_pass_rate'],
+            'total_budget' => $admin['total_budget'],
+            'requirement_status_counts' => [
+                'pending' => $pendingRequirements,
+                'ongoing' => $ongoingRequirements,
+                'completed' => $completedRequirements,
+            ],
+            'projects' => $projects,
+        ];
+    }
+
+    /**
+     * Whole days between $since and $until (defaults to now), always
+     * non-negative. Carbon 3 flipped diffInDays() to return a signed value
+     * by default, which for a past $since gives a negative number —
+     * computed via raw timestamps here so the result doesn't depend on
+     * that default.
+     */
+    private static function daysSince($since, $until = null): int
+    {
+        $untilTimestamp = $until?->timestamp ?? now()->timestamp;
+
+        return max(0, (int) floor(($untilTimestamp - $since->timestamp) / 86400));
     }
 }

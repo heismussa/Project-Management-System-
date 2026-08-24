@@ -7,6 +7,7 @@ use App\Http\Requests\RegisterProjectRequest;
 use App\Models\Project;
 use App\Models\Review;
 use App\Services\ProjectWorkflowService;
+use App\Support\Roles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -19,7 +20,9 @@ class ProjectController extends Controller
         $validated['reviewer_id'] = $request->user()->id;
         $validated['status'] = 'Initiated';
         $validated['phase'] = 'Registration';
+        $validated['lifecycle_stage'] = 'initiation';
         $validated['plan_review_status'] = 'draft';
+        $validated['plan_status'] = 'draft';
 
         $project = Project::create($validated)->load(['reviewer', 'planner', 'coordinator', 'approver']);
 
@@ -30,10 +33,22 @@ class ProjectController extends Controller
         ], 201);
     }
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $projects = Project::with(['reviewer', 'planner', 'coordinator', 'approver', 'forwardedTo'])
-            ->latest()
+        $query = Project::with(['reviewer', 'planner', 'coordinator', 'approver', 'forwardedTo'])
+            ->latest();
+
+        $plannerId = $request->integer('planner_id') ?: null;
+        $role = $request->query('role');
+
+        // Project Planners only see projects assigned to them.
+        if ($role === Roles::PLANNER_ROLE && $request->user()) {
+            $query->where('planner_id', $request->user()->id);
+        } elseif ($plannerId) {
+            $query->where('planner_id', $plannerId);
+        }
+
+        $projects = $query
             ->get()
             ->map(function (Project $project) {
                 $payload = $project->toArray();
@@ -66,6 +81,36 @@ class ProjectController extends Controller
         ]);
     }
 
+    public function initiationReadiness(Project $project): JsonResponse
+    {
+        return response()->json([
+            'data' => $project->initiationReadiness(),
+        ]);
+    }
+
+    public function advanceToPlanning(Request $request, Project $project): JsonResponse
+    {
+        if (! $this->allows($request, ['projects.register'])) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $this->guardOpen($project);
+
+        $readiness = $project->initiationReadiness();
+        if (! $readiness['ready']) {
+            throw ValidationException::withMessages([
+                'blockers' => $readiness['blockers'],
+            ]);
+        }
+
+        $project->update(['lifecycle_stage' => 'planning']);
+
+        return response()->json([
+            'message' => 'Project advanced to Planning.',
+            'data' => $project->fresh(),
+        ]);
+    }
+
     public function reassign(Request $request, Project $project): JsonResponse
     {
         if (! $this->allows($request, ['projects.assign_planner', 'projects.reassign_planner'])) {
@@ -95,7 +140,11 @@ class ProjectController extends Controller
     {
         $this->guardOpen($project);
 
-        if (! in_array($project->plan_review_status, ['draft', 'changes_requested'], true)) {
+        if (! $project->canBeManagedBy($request->user())) {
+            return response()->json(['message' => 'You can only submit a plan for a project assigned to you.'], 403);
+        }
+
+        if (! $project->canSubmitPlan()) {
             throw ValidationException::withMessages([
                 'plan' => ['This plan is already in review or approved. Wait for a return before submitting again.'],
             ]);
@@ -107,12 +156,13 @@ class ProjectController extends Controller
             ]);
         }
 
-        $project->update([
-            'plan_review_status' => 'pending_review',
+        $project->applyPlanStatus('pending_review', [
             'phase' => 'Plan Review',
             'status' => 'Plan Submitted',
             'plan_review_comment' => null,
+            'plan_return_comment' => null,
             'plan_pending_reapproval' => false,
+            'plan_submitted_at' => now(),
         ]);
 
         Review::create([
@@ -147,15 +197,14 @@ class ProjectController extends Controller
             'comment' => ['required_if:decision,returned', 'nullable', 'string'],
         ]);
 
-        if ($project->plan_review_status !== 'pending_review') {
+        if ($project->currentPlanStatus() !== 'pending_review') {
             throw ValidationException::withMessages([
                 'plan' => ['Only plans in pending review can be approved or returned.'],
             ]);
         }
 
         if ($validated['decision'] === 'approved') {
-            $project->update([
-                'plan_review_status' => 'approved',
+            $project->applyPlanStatus('approved', [
                 'plan_review_comment' => $validated['comment'] ?? null,
                 'plan_reviewed_at' => now(),
                 'phase' => 'Plan Approved',
@@ -163,9 +212,9 @@ class ProjectController extends Controller
             ]);
             $message = 'Implementation plan approved.';
         } else {
-            $project->update([
-                'plan_review_status' => 'changes_requested',
+            $project->applyPlanStatus('changes_requested', [
                 'plan_review_comment' => $validated['comment'],
+                'plan_return_comment' => $validated['comment'],
                 'plan_reviewed_at' => now(),
                 'plan_pending_reapproval' => false,
                 'phase' => 'Planning',

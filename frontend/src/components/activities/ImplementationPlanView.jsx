@@ -31,7 +31,7 @@ const ImplementationPlanView = forwardRef(function ImplementationPlanView({ acti
             <th className={th}>Actual End</th>
             <th className={th}>Expected Deliverable</th>
             <th className={th}>Responsible Person</th>
-            <th className={th}>Activity Status</th>
+            <th className={th}>Project Status</th>
           </tr>
         </thead>
         <tbody>

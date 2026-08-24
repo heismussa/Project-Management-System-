@@ -2,7 +2,7 @@ import { Button } from 'antd'
 
 function ActivityActions({ onReview }) {
   return (
-    <div onClick={(e) => e.stopPropagation()}>
+    <div onClick={(event) => event.stopPropagation()}>
       <Button
         onClick={onReview}
         style={{

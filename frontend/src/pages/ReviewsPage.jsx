@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Alert, Button, Form, Input, Modal, Select, Space, Table, Tabs, Tag, message } from 'antd'
 import dayjs from 'dayjs'
 import ProjectPicker from '../components/common/ProjectPicker'
@@ -16,8 +17,13 @@ function hasPermission(user, code) {
 function ReviewsPage() {
   const { user } = useAuth()
   const roleName = useActiveRoleName()
+  const [searchParams] = useSearchParams()
   const [projects, setProjects] = useState([])
-  const [projectId, setProjectId] = useState(getStoredProjectId)
+  const [projectId, setProjectId] = useState(() => {
+    const fromQuery = Number(searchParams.get('projectId'))
+    return Number.isFinite(fromQuery) && fromQuery > 0 ? fromQuery : getStoredProjectId()
+  })
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'plan')
   const [workflow, setWorkflow] = useState(null)
   const [documents, setDocuments] = useState([])
   const [activities, setActivities] = useState([])
@@ -153,6 +159,8 @@ function ReviewsPage() {
       )}
 
       <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
           {
             key: 'plan',

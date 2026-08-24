@@ -8,6 +8,8 @@ import {
   ClipboardCheck,
   Settings as SettingsIcon,
   Users,
+  ShieldCheck,
+  KeyRound,
 } from 'lucide-react'
 
 export default function Project() {
@@ -17,6 +19,24 @@ export default function Project() {
       url: '/',
       roles: [],
       icon: LayoutDashboard,
+    },
+    {
+      label: 'User management',
+      url: '/user-management',
+      roles: [ROLES.IS, ROLES.PAD],
+      icon: Users,
+    },
+    {
+      label: 'Role management',
+      url: '/role-management',
+      roles: [ROLES.IS],
+      icon: ShieldCheck,
+    },
+    {
+      label: 'Password reset',
+      url: '/password-reset',
+      roles: [ROLES.IS],
+      icon: KeyRound,
     },
     {
       label: 'Projects',
@@ -51,14 +71,8 @@ export default function Project() {
     {
       label: 'Settings',
       url: '/settings',
-      roles: [ROLES.IS],
+      roles: [ROLES.IS, ROLES.PRV, ROLES.PVO],
       icon: SettingsIcon,
-    },
-    {
-      label: 'User Management',
-      url: '/user-management',
-      roles: [ROLES.IS, ROLES.PAD],
-      icon: Users,
     },
   ]
 }

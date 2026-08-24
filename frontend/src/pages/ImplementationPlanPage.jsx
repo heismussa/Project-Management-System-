@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { message, Modal, Spin, Alert } from 'antd'
+import { useSearchParams } from 'react-router-dom'
+import { message, Modal, Space, Spin, Alert } from 'antd'
 import { Plus } from 'lucide-react'
 import dayjs from 'dayjs'
 import { deriveStatus } from '../lib/status'
@@ -10,6 +11,9 @@ import ActivitiesTable from '../components/activities/ActivitiesTable'
 import WorkflowBar from '../components/activities/WorkflowBar'
 import ActivityDocumentsModal from '../components/activities/ActivityDocumentsModal'
 import ProjectPicker from '../components/common/ProjectPicker'
+import PreventMutation from '../components/common/PreventMutation'
+import { isSpecReadOnlyRole, useActiveRoleName } from '../components/common/RoleGuard'
+import { ROLES } from '../utility/Config.jsx'
 import api from '../lib/axios'
 import {
   getStoredProjectId,
@@ -28,9 +32,22 @@ const BLANK_ACTIVITY = {
 }
 
 function ImplementationPlanPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const roleName = useActiveRoleName()
+  const canAddActivity = !isSpecReadOnlyRole(roleName) && roleName !== ROLES.PRV
   const [projects, setProjects] = useState([])
   const [users, setUsers] = useState([])
-  const [projectId, setProjectId] = useState(getStoredProjectId)
+  const [projectId, setProjectId] = useState(() => {
+    const fromQuery = searchParams.get('projectId')
+    if (fromQuery) {
+      const parsed = Number(fromQuery)
+      if (!Number.isNaN(parsed)) {
+        storeProjectId(parsed)
+        return parsed
+      }
+    }
+    return getStoredProjectId()
+  })
   const [workflow, setWorkflow] = useState(null)
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(false)
@@ -102,6 +119,29 @@ function ImplementationPlanPage() {
   useEffect(() => {
     loadActivities(projectId)
   }, [projectId, loadActivities])
+
+  useEffect(() => {
+    const queryProjectId = searchParams.get('projectId')
+    const autoOpen = searchParams.get('autoOpenAddModal') === 'true'
+    if (!queryProjectId && !autoOpen) return
+
+    if (queryProjectId) {
+      const parsed = Number(queryProjectId)
+      if (!Number.isNaN(parsed)) {
+        storeProjectId(parsed)
+        setProjectId((current) => (current === parsed ? current : parsed))
+      }
+    }
+
+    if (autoOpen) {
+      if (canAddActivity) {
+        setFormTarget({ ...BLANK_ACTIVITY })
+      }
+      const next = new URLSearchParams(searchParams)
+      next.delete('autoOpenAddModal')
+      setSearchParams(next, { replace: true })
+    }
+  }, [searchParams, setSearchParams, canAddActivity])
 
   const handleProjectChange = (id) => {
     storeProjectId(id)
@@ -245,19 +285,25 @@ function ImplementationPlanPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <ProjectPicker projects={projects} value={projectId} onChange={handleProjectChange} />
-        <PlanExportButton activities={activities} />
-        <button
-          type="button"
-          disabled={!projectId}
-          onClick={() => setFormTarget(BLANK_ACTIVITY)}
-          className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-          style={{ background: '#7A0C22', height: 42, padding: '0 22px' }}
-        >
-          <Plus size={16} />
-          Add activity
-        </button>
+      <div className="flex w-full flex-wrap items-center justify-end gap-3">
+        <Space wrap size="middle" className="ms-auto justify-end">
+          <ProjectPicker projects={projects} value={projectId} onChange={handleProjectChange} />
+          <PlanExportButton activities={activities} />
+          {canAddActivity && (
+            <PreventMutation fallback={null}>
+              <button
+                type="button"
+                disabled={!projectId}
+                onClick={() => setFormTarget(BLANK_ACTIVITY)}
+                className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+                style={{ background: '#7A0C22', height: 42, padding: '0 22px' }}
+              >
+                <Plus size={16} />
+                Add activity
+              </button>
+            </PreventMutation>
+          )}
+        </Space>
       </div>
 
       <WorkflowBar projectId={projectId} workflow={workflow} />
@@ -270,12 +316,7 @@ function ImplementationPlanPage() {
           visibleActivities={visibleActivities}
           filteredInfo={filteredInfo}
           onTableChange={(_pagination, filters) => setFilteredInfo(filters)}
-          onEdit={setFormTarget}
           onReview={openReview}
-          onDelete={handleDelete}
-          onDocuments={setDocsTarget}
-          onApproveChange={handleApproveChange}
-          onRejectChange={handleRejectChange}
           people={people}
         />
       </Spin>

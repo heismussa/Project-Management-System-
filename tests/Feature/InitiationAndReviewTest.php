@@ -125,8 +125,10 @@ class InitiationAndReviewTest extends TestCase
             'responsible_person_id' => $planner->id,
         ]);
 
+        Sanctum::actingAs($otherPlanner);
         $this->postJson("/api/projects/{$project->id}/plan/submit")->assertOk();
 
+        Sanctum::actingAs($reviewer);
         $this->postJson("/api/projects/{$project->id}/plan/review", [
             'decision' => 'returned',
         ])->assertStatus(422);
@@ -137,7 +139,9 @@ class InitiationAndReviewTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.plan_review_status', 'changes_requested');
 
+        Sanctum::actingAs($otherPlanner);
         $this->postJson("/api/projects/{$project->id}/plan/submit")->assertOk();
+        Sanctum::actingAs($reviewer);
         $this->postJson("/api/projects/{$project->id}/plan/review", [
             'decision' => 'approved',
         ])->assertOk()

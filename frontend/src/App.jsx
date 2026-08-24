@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 import Login from './pages/login'
@@ -47,10 +47,18 @@ function UnassignedRoute() {
   return <UnassignedPage />
 }
 
-function IctSupportRoute({ children }) {
-  const { activeRole, isLoadingAuth } = useAuth()
+/**
+ * Blocks direct URL access when the active role cannot open that path.
+ * Falls back to user.role when activeRole is not set yet.
+ */
+function RolePageRoute({ children }) {
+  const location = useLocation()
+  const { user, activeRole, isLoadingAuth } = useAuth()
   if (isLoadingAuth) return null
-  if (!pathAllowedForRole('/user-management', activeRole?.name)) return <Navigate to="/" replace />
+  const roleName = activeRole?.name ?? user?.role ?? null
+  if (!pathAllowedForRole(location.pathname, roleName)) {
+    return <Navigate to="/" replace />
+  }
   return children
 }
 
@@ -79,18 +87,69 @@ export default function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/home" element={<HomePage />} />
             <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/projects/create" element={<ProjectRegistration />} />
-            <Route path="/implementation-plan" element={<ImplementationPlanPage />} />
-            <Route path="/traceability-matrix" element={<TraceabilityMatrixPage />} />
-            <Route path="/documents" element={<DocumentsPage />} />
-            <Route path="/reviews" element={<ReviewsPage />} />
+            <Route
+              path="/projects/create"
+              element={
+                <RolePageRoute>
+                  <ProjectRegistration />
+                </RolePageRoute>
+              }
+            />
+            <Route
+              path="/implementation-plan"
+              element={
+                <RolePageRoute>
+                  <ImplementationPlanPage />
+                </RolePageRoute>
+              }
+            />
+            <Route
+              path="/traceability-matrix"
+              element={
+                <RolePageRoute>
+                  <TraceabilityMatrixPage />
+                </RolePageRoute>
+              }
+            />
+            <Route
+              path="/documents"
+              element={
+                <RolePageRoute>
+                  <DocumentsPage />
+                </RolePageRoute>
+              }
+            />
+            <Route
+              path="/reviews"
+              element={
+                <RolePageRoute>
+                  <ReviewsPage />
+                </RolePageRoute>
+              }
+            />
             <Route path="/settings" element={<SettingsPage />} />
             <Route
               path="/user-management"
               element={
-                <IctSupportRoute>
+                <RolePageRoute>
                   <UserManagementPage />
-                </IctSupportRoute>
+                </RolePageRoute>
+              }
+            />
+            <Route
+              path="/role-management"
+              element={
+                <RolePageRoute>
+                  <UserManagementPage />
+                </RolePageRoute>
+              }
+            />
+            <Route
+              path="/password-reset"
+              element={
+                <RolePageRoute>
+                  <UserManagementPage />
+                </RolePageRoute>
               }
             />
           </Route>

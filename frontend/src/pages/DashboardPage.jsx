@@ -4,6 +4,11 @@ import { Card, Col, Row, Statistic, Typography } from 'antd'
 import api from '../lib/axios'
 import { unwrapItem } from '../lib/apiHelpers'
 import { useAuth } from '../context/AuthContext'
+import { ROLES } from '../utility/Config.jsx'
+import AdministratorDashboard from '../components/dashboard/AdministratorDashboard'
+import ReviewerDashboard from '../components/dashboard/ReviewerDashboard'
+import ViewOnlyDashboard from '../components/dashboard/ViewOnlyDashboard'
+import IctSupportDashboard from '../components/dashboard/IctSupportDashboard'
 
 const { Title, Paragraph } = Typography
 
@@ -24,6 +29,10 @@ const METRIC_LABELS = {
 function DashboardPage() {
   const navigate = useNavigate()
   const { activeRole } = useAuth()
+  const isAdministrator = activeRole?.name === ROLES.PAD
+  const isReviewer = activeRole?.name === ROLES.PRV
+  const isViewOnly = activeRole?.name === ROLES.PVO
+  const isIctSupport = activeRole?.name === ROLES.IS
   const [payload, setPayload] = useState(null)
 
   useEffect(() => {
@@ -48,9 +57,25 @@ function DashboardPage() {
       .map(([key, label]) => ({ key, label, value: counts[key] }))
   }, [payload])
 
+  if (isAdministrator) {
+    return <AdministratorDashboard />
+  }
+
+  if (isReviewer) {
+    return <ReviewerDashboard />
+  }
+
+  if (isViewOnly) {
+    return <ViewOnlyDashboard />
+  }
+
+  if (isIctSupport) {
+    return <IctSupportDashboard />
+  }
+
   return (
     <div>
-      <Title level={3} style={{ color: '#650018' }}>
+      <Title level={4} className="!mb-1">
         Dashboard
       </Title>
       <Paragraph type="secondary">

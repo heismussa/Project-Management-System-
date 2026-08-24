@@ -81,6 +81,10 @@ export function getActiveNavItem(pathname) {
 }
 
 export function pathAllowedForRole(pathname, roleName) {
+  // Registration is Reviewer/Admin only — /projects alone is open to every role.
+  if (pathname.startsWith('/projects/create')) {
+    return roleName === ROLES.PRV || roleName === ROLES.PAD
+  }
   return canAccessNavItem(getActiveNavItem(pathname), roleName)
 }
 

@@ -280,10 +280,7 @@ class PlanLifecycleTest extends TestCase
         ]);
 
         $response->assertStatus(200);
-        $this->assertDatabaseHas('implementation_activities', [
-            'id' => $activity->id,
-            'actual_start_date' => '2020-01-05',
-        ]);
+        $this->assertSame('2020-01-05', $activity->fresh()->actual_start_date->toDateString());
     }
 
     // --- edit locking ----------------------------------------------------

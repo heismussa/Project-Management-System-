@@ -165,9 +165,9 @@ function DocumentList() {
   ]
 
   return (
-    <div>
+    <div className="page-container">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-gray-800">Project Documents</h2>
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Project Documents</h2>
         <Space wrap>
           <ProjectPicker
             projects={projects}
@@ -185,12 +185,8 @@ function DocumentList() {
         </Space>
       </div>
 
-      <Alert
-        className="mb-4"
-        type="info"
-        showIcon
-        message="Reviewer can approve or return documents with comments. Returned documents block execution until resolved with a new upload."
-      />
+      
+      
 
       <Input
         className="mb-4 max-w-sm"
@@ -201,7 +197,9 @@ function DocumentList() {
         onChange={(e) => setSearch(e.target.value)}
       />
 
-      <Table rowKey="id" columns={columns} dataSource={filtered} pagination={false} />
+      <div className="page-shell-card p-4">
+        <Table rowKey="id" className="ictms-table" columns={columns} dataSource={filtered} pagination={false} scroll={{ x: 'max-content' }} />
+      </div>
 
       <DocumentUploadModal
         open={uploadOpen}
