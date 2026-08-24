@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Button,
   Card,
@@ -27,6 +28,8 @@ import { unwrapList } from '../lib/apiHelpers'
 const { Text } = Typography
 
 function UserManagementPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const noRoleFilter = searchParams.get('filter') === 'no-role'
   const [users, setUsers] = useState([])
   const [roles, setRoles] = useState([])
   const [loading, setLoading] = useState(false)
@@ -61,13 +64,14 @@ function UserManagementPage() {
   }, [loadData])
 
   const filteredUsers = useMemo(() => {
+    const base = noRoleFilter ? users.filter((user) => (user.roles || []).length === 0) : users
     const term = search.trim().toLowerCase()
-    if (!term) return users
-    return users.filter((user) => {
+    if (!term) return base
+    return base.filter((user) => {
       const roleNames = (user.roles || []).map((role) => role.name).join(' ')
       return [user.name, user.email, roleNames].join(' ').toLowerCase().includes(term)
     })
-  }, [users, search])
+  }, [users, search, noRoleFilter])
 
   const openAssign = (user) => {
     setActionsOpenId(null)
@@ -264,6 +268,20 @@ function UserManagementPage() {
   return (
     <div className="page-container">
       <Card className="page-shell-card" styles={{ body: { padding: 16 } }}>
+        {noRoleFilter && (
+          <Tag
+            closable
+            color="#962c30"
+            className="mb-4"
+            onClose={() => {
+              const next = new URLSearchParams(searchParams)
+              next.delete('filter')
+              setSearchParams(next, { replace: true })
+            }}
+          >
+            Filtered by: Users without roles
+          </Tag>
+        )}
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <Input
             allowClear

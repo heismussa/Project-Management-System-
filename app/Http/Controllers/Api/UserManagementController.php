@@ -7,6 +7,7 @@ use App\Http\Requests\AssignUserRolesRequest;
 use App\Http\Requests\StoreManagedUserRequest;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\UserActivityLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -50,13 +51,19 @@ class UserManagementController extends Controller
         $validated = $request->validated();
         $roleIds = array_values(array_unique($validated['role_ids'] ?? []));
 
-        $user = DB::transaction(function () use ($validated, $roleIds) {
+        $user = DB::transaction(function () use ($validated, $roleIds, $request) {
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password' => $validated['password'],
                 'is_active' => true,
                 'email_verified_at' => now(),
+            ]);
+
+            UserActivityLog::create([
+                'user_id' => $user->id,
+                'action' => 'account_created',
+                'performed_by' => $request->user()?->id,
             ]);
 
             $this->syncUserRoles($user, $roleIds);
@@ -80,6 +87,14 @@ class UserManagementController extends Controller
         $this->guardLastIctSupport($user, $roleIds);
         $this->syncUserRoles($user, $roleIds);
 
+        if ($roleIds !== []) {
+            UserActivityLog::create([
+                'user_id' => $user->id,
+                'action' => 'role_assigned',
+                'performed_by' => $request->user()?->id,
+            ]);
+        }
+
         $user->load('activeRoles');
 
         return response()->json([
@@ -101,13 +116,19 @@ class UserManagementController extends Controller
             'password' => $validated['password'],
         ]);
 
+        UserActivityLog::create([
+            'user_id' => $user->id,
+            'action' => 'password_reset',
+            'performed_by' => $request->user()?->id,
+        ]);
+
         return response()->json(['message' => 'Password updated successfully.']);
     }
 
     /**
      * Toggle account active status (Person 1 Requirement)
      */
-    public function toggleStatus(User $user): JsonResponse
+    public function toggleStatus(Request $request, User $user): JsonResponse
     {
         if ($user->is_active) {
             $this->guardLastIctSupport($user, []);
@@ -115,6 +136,12 @@ class UserManagementController extends Controller
 
         $user->is_active = ! $user->is_active;
         $user->save();
+
+        UserActivityLog::create([
+            'user_id' => $user->id,
+            'action' => $user->is_active ? 'account_enabled' : 'account_disabled',
+            'performed_by' => $request->user()?->id,
+        ]);
 
         return response()->json([
             'message' => $user->is_active ? 'User enabled.' : 'User disabled.',
@@ -146,14 +173,14 @@ class UserManagementController extends Controller
     private function guardLastIctSupport(User $target, array $newRoleIds): void
     {
         $ictRole = Role::where('name', self::ICT_SUPPORT_ROLE)->first();
-        if (!$ictRole) {
+        if (! $ictRole) {
             return;
         }
 
         $currentlyHas = $target->activeRoles()->where('roles.id', $ictRole->id)->exists();
         $willHave = in_array($ictRole->id, $newRoleIds, true);
 
-        if (!$currentlyHas || $willHave) {
+        if (! $currentlyHas || $willHave) {
             return;
         }
 

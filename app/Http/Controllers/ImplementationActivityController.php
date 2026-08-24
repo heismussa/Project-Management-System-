@@ -209,4 +209,65 @@ class ImplementationActivityController extends Controller
             'data' => $activity->fresh()->load('responsiblePerson:id,name,email'),
         ]);
     }
+
+    public function submitProgressReview($id): JsonResponse
+    {
+        $activity = ImplementationActivity::findOrFail($id);
+
+        $activity->update([
+            'progress_review_status' => 'pending',
+            'progress_review_comment' => null,
+            'progress_reviewed_at' => null,
+        ]);
+
+        return response()->json([
+            'message' => 'Progress submitted for review',
+            'data' => $activity->fresh()->load(['responsiblePerson:id,name,email', 'documents']),
+        ]);
+    }
+
+    public function approveProgressReview($id): JsonResponse
+    {
+        $activity = ImplementationActivity::findOrFail($id);
+
+        if ($activity->progress_review_status !== 'pending') {
+            throw ValidationException::withMessages([
+                'progress_review_status' => ['There is no progress update pending review.'],
+            ]);
+        }
+
+        $activity->update([
+            'progress_review_status' => 'approved',
+            'progress_review_comment' => null,
+            'progress_reviewed_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Progress update approved',
+            'data' => $activity->fresh()->load(['responsiblePerson:id,name,email', 'documents']),
+        ]);
+    }
+
+    public function rejectProgressReview(Request $request, $id): JsonResponse
+    {
+        $activity = ImplementationActivity::findOrFail($id);
+        $request->validate(['comment' => ['nullable', 'string']]);
+
+        if ($activity->progress_review_status !== 'pending') {
+            throw ValidationException::withMessages([
+                'progress_review_status' => ['There is no progress update pending review.'],
+            ]);
+        }
+
+        $activity->update([
+            'progress_review_status' => 'rejected',
+            'progress_review_comment' => $request->filled('comment') ? $request->string('comment')->toString() : null,
+            'progress_reviewed_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Progress update rejected',
+            'data' => $activity->fresh()->load(['responsiblePerson:id,name,email', 'documents']),
+        ]);
+    }
 }

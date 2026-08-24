@@ -20,6 +20,7 @@ class ProjectController extends Controller
         $validated['reviewer_id'] = $request->user()->id;
         $validated['status'] = 'Initiated';
         $validated['phase'] = 'Registration';
+        $validated['lifecycle_stage'] = 'initiation';
         $validated['plan_review_status'] = 'draft';
         $validated['plan_status'] = 'draft';
 
@@ -77,6 +78,36 @@ class ProjectController extends Controller
         return response()->json([
             'data' => $project,
             'workflow' => ProjectWorkflowService::workflowPayload($project),
+        ]);
+    }
+
+    public function initiationReadiness(Project $project): JsonResponse
+    {
+        return response()->json([
+            'data' => $project->initiationReadiness(),
+        ]);
+    }
+
+    public function advanceToPlanning(Request $request, Project $project): JsonResponse
+    {
+        if (! $this->allows($request, ['projects.register'])) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $this->guardOpen($project);
+
+        $readiness = $project->initiationReadiness();
+        if (! $readiness['ready']) {
+            throw ValidationException::withMessages([
+                'blockers' => $readiness['blockers'],
+            ]);
+        }
+
+        $project->update(['lifecycle_stage' => 'planning']);
+
+        return response()->json([
+            'message' => 'Project advanced to Planning.',
+            'data' => $project->fresh(),
         ]);
     }
 

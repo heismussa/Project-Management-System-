@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Alert, Button, Form, Input, Modal, Select, Space, Table, Tabs, Tag, message } from 'antd'
 import dayjs from 'dayjs'
 import ProjectPicker from '../components/common/ProjectPicker'
@@ -16,8 +17,13 @@ function hasPermission(user, code) {
 function ReviewsPage() {
   const { user } = useAuth()
   const roleName = useActiveRoleName()
+  const [searchParams] = useSearchParams()
   const [projects, setProjects] = useState([])
-  const [projectId, setProjectId] = useState(getStoredProjectId)
+  const [projectId, setProjectId] = useState(() => {
+    const fromQuery = Number(searchParams.get('projectId'))
+    return Number.isFinite(fromQuery) && fromQuery > 0 ? fromQuery : getStoredProjectId()
+  })
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'plan')
   const [workflow, setWorkflow] = useState(null)
   const [documents, setDocuments] = useState([])
   const [activities, setActivities] = useState([])
@@ -62,6 +68,7 @@ function ReviewsPage() {
 
   const pendingDocs = documents.filter((doc) => doc.review_status === 'pending' || doc.review_status === 'returned')
   const pendingChanges = activities.filter((activity) => activity.plan_change_status === 'pending')
+  const pendingProgress = activities.filter((activity) => activity.progress_review_status === 'pending')
   const blockers = workflow?.execution_blockers || []
   const checks = closure?.checks || workflow?.closure?.checks || []
 
@@ -152,6 +159,8 @@ function ReviewsPage() {
       )}
 
       <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
           {
             key: 'plan',
@@ -311,6 +320,55 @@ function ReviewsPage() {
                             danger
                             onClick={() =>
                               runAction(`/activities/${record.id}/plan-changes/reject`, { comment: 'Rejected' })
+                            }
+                          >
+                            Reject
+                          </Button>
+                        </Space>
+                      </RoleGuard>
+                    ),
+                  },
+                ]}
+              />
+            ),
+          },
+          {
+            key: 'progress',
+            label: `Progress updates (${pendingProgress.length})`,
+            children: (
+              <Table
+                rowKey="id"
+                pagination={false}
+                dataSource={pendingProgress}
+                columns={[
+                  { title: 'Activity', dataIndex: 'name' },
+                  {
+                    title: 'Actual Start',
+                    dataIndex: 'actual_start_date',
+                    render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
+                  },
+                  {
+                    title: 'Actual End',
+                    dataIndex: 'actual_end_date',
+                    render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
+                  },
+                  {
+                    title: 'Action',
+                    render: (_, record) => (
+                      <RoleGuard allow={[ROLES.PRV, ROLES.PAD]}>
+                        <Space>
+                          <Button
+                            size="small"
+                            type="primary"
+                            onClick={() => runAction(`/activities/${record.id}/progress-review/approve`)}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="small"
+                            danger
+                            onClick={() =>
+                              runAction(`/activities/${record.id}/progress-review/reject`, { comment: 'Rejected' })
                             }
                           >
                             Reject

@@ -1,15 +1,15 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\ImplementationActivityController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\RequirementController;
-use App\Http\Controllers\ImplementationActivityController;
-use App\Http\Controllers\DocumentController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -35,6 +35,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::middleware('can.mutate')->group(function () {
         Route::post('/projects', [ProjectController::class, 'store']);
+        Route::post('/projects/{project}/documents', [DocumentController::class, 'storeInitiation']);
+        Route::post('/projects/{project}/advance-to-planning', [ProjectController::class, 'advanceToPlanning']);
         Route::put('/projects/{project}/reassign', [ProjectController::class, 'reassign']);
         Route::post('/projects/{project}/plan/submit', [ProjectController::class, 'submitPlan']);
         Route::post('/projects/{project}/plan/review', [ProjectController::class, 'reviewPlan']);
@@ -47,6 +49,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/activities/{id}', [ImplementationActivityController::class, 'destroy']);
         Route::post('/activities/{id}/plan-changes/approve', [ImplementationActivityController::class, 'approvePlanChange']);
         Route::post('/activities/{id}/plan-changes/reject', [ImplementationActivityController::class, 'rejectPlanChange']);
+        Route::post('/activities/{id}/progress-review/submit', [ImplementationActivityController::class, 'submitProgressReview']);
+        Route::post('/activities/{id}/progress-review/approve', [ImplementationActivityController::class, 'approveProgressReview']);
+        Route::post('/activities/{id}/progress-review/reject', [ImplementationActivityController::class, 'rejectProgressReview']);
 
         Route::post('/requirements', [RequirementController::class, 'store']);
         Route::patch('/requirements/{id}/status', [RequirementController::class, 'updateStatus']);
@@ -63,6 +68,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/projects/{project}/workflow', [ProjectController::class, 'workflow']);
     Route::get('/projects/{project}/reviews', [ProjectController::class, 'reviews']);
     Route::get('/projects/{project}/closure-readiness', [ProjectController::class, 'closureReadiness']);
+    Route::get('/projects/{project}/initiation-readiness', [ProjectController::class, 'initiationReadiness']);
 
     Route::get('/projects/{projectId}/activities', [ImplementationActivityController::class, 'index']);
     Route::get('/activities/{id}/progress', [ImplementationActivityController::class, 'progressHistory']);

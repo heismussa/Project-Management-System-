@@ -273,6 +273,18 @@ function ImplementationPlanPage() {
     }
   }
 
+  const handleSubmitProgressReview = async (activity) => {
+    try {
+      const response = await api.post(`/activities/${activity.id}/progress-review/submit`)
+      const updated = unwrapItem(response.data)
+      setActivities((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      setReviewTarget((prev) => (prev && prev.id === updated.id ? updated : prev))
+      message.success('Submitted to the reviewer')
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not submit for review.')
+    }
+  }
+
   const handleUploadDocument = (activity) => {
     setActionsOpenId(null)
     setUploadTarget(activity)
@@ -453,6 +465,7 @@ function ImplementationPlanPage() {
         onAddRemark={handleAddRemark}
         onApproveChange={handleApproveChange}
         onRejectChange={handleRejectChange}
+        onSubmitForReview={handleSubmitProgressReview}
       />
       <ActivityActualDatesModal
         open={datesTarget !== null}

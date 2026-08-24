@@ -185,12 +185,8 @@ function DocumentList() {
         </Space>
       </div>
 
-      <Alert
-        className="mb-4"
-        type="info"
-        showIcon
-        message="Reviewer can approve or return documents with comments. Returned documents block execution until resolved with a new upload."
-      />
+      
+      
 
       <Input
         className="mb-4 max-w-sm"

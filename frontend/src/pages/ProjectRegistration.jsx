@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, message } from 'antd'
 import api from '../lib/axios'
-import { unwrapList } from '../lib/apiHelpers'
+import { unwrapItem, unwrapList } from '../lib/apiHelpers'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../utility/Config.jsx'
 import {
@@ -13,6 +12,7 @@ import {
   activitiesForCategory,
   optionsFrom,
 } from '../lib/projectCatalog'
+import InitiationDocumentsPanel from '../components/projects/InitiationDocumentsPanel'
 
 function usersWithRole(users, roleName) {
   const matched = users.filter((user) => (user.roles || []).some((role) => role.name === roleName))
@@ -21,11 +21,11 @@ function usersWithRole(users, roleName) {
 
 export default function ProjectRegistration() {
   const [form] = Form.useForm()
-  const navigate = useNavigate()
   const { user } = useAuth()
   const [users, setUsers] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [project, setProject] = useState(null)
   const category = Form.useWatch('category', form)
   const activityOptions = useMemo(() => optionsFrom(activitiesForCategory(category)), [category])
 
@@ -56,9 +56,9 @@ export default function ProjectRegistration() {
         planned_end_date: values.planned_end_date?.format('YYYY-MM-DD'),
         initiation_document_id: values.initiation_document_id || null,
       }
-      await api.post('/projects', payload)
-      message.success('Project registered.')
-      navigate('/projects')
+      const response = await api.post('/projects', payload)
+      setProject(unwrapItem(response.data))
+      message.success('Project registered. Attach the initiation documents below before proceeding to Planning.')
     } catch (err) {
       if (err.response?.status === 422) {
         const errors = err.response.data.errors || {}
@@ -89,10 +89,21 @@ export default function ProjectRegistration() {
           />
         )}
 
+        {project && (
+          <Alert
+            className="mb-4"
+            type="success"
+            showIcon
+            message={`"${project.name}" registered.`}
+            description="Attach the initiation documents below, then proceed to Planning once every required document is attached."
+          />
+        )}
+
         <Form
           form={form}
           layout="vertical"
           onFinish={handleFinish}
+          disabled={Boolean(project)}
           initialValues={{
             category: 'System',
             project_type: 'New Implementation',
@@ -155,10 +166,14 @@ export default function ProjectRegistration() {
           <Form.Item name="description" label="Description">
             <Input.TextArea rows={3} />
           </Form.Item>
-          <Button type="primary" htmlType="submit" loading={saving}>
-            Register Project
+          <Button type="primary" htmlType="submit" loading={saving} disabled={Boolean(project)}>
+            Register
           </Button>
         </Form>
+      </Card>
+
+      <Card className="mt-4">
+        <InitiationDocumentsPanel projectId={project?.id ?? null} />
       </Card>
     </div>
   )

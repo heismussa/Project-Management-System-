@@ -17,7 +17,7 @@ const EXCEL_COLUMNS = [
   { header: 'Actual End', key: 'actualEnd', width: 14 },
   { header: 'Expected Deliverable', key: 'deliverable', width: 32 },
   { header: 'Responsible Person', key: 'responsible', width: 20 },
-  { header: 'Activity Status', key: 'status', width: 14 },
+  { header: 'Project Status', key: 'status', width: 14 },
 ]
 
 function todayISO() {

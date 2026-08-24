@@ -136,6 +136,22 @@ export default function App() {
                 </RolePageRoute>
               }
             />
+            <Route
+              path="/role-management"
+              element={
+                <RolePageRoute>
+                  <UserManagementPage />
+                </RolePageRoute>
+              }
+            />
+            <Route
+              path="/password-reset"
+              element={
+                <RolePageRoute>
+                  <UserManagementPage />
+                </RolePageRoute>
+              }
+            />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />

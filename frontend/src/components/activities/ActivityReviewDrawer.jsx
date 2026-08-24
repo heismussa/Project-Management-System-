@@ -43,6 +43,7 @@ function ActivityReviewDrawer({
   onAddRemark,
   onApproveChange,
   onRejectChange,
+  onSubmitForReview,
 }) {
   const [form] = Form.useForm()
   const actualStart = Form.useWatch('actual_start_date', form)
@@ -52,6 +53,7 @@ function ActivityReviewDrawer({
   const [marking, setMarking] = useState(false)
   const [approvingChange, setApprovingChange] = useState(false)
   const [rejectingChange, setRejectingChange] = useState(false)
+  const [submittingProgress, setSubmittingProgress] = useState(false)
 
   useEffect(() => {
     if (!open || !activity) return
@@ -120,6 +122,18 @@ function ActivityReviewDrawer({
     }
   }
 
+  const progressReviewStatus = activity.progress_review_status
+  const canSubmitProgress = progressReviewStatus !== 'pending'
+
+  const handleSubmitForReview = async () => {
+    setSubmittingProgress(true)
+    try {
+      await onSubmitForReview(activity)
+    } finally {
+      setSubmittingProgress(false)
+    }
+  }
+
   const handleStubUpload = async ({ file, onSuccess, onError }) => {
     try {
       const result = await uploadActivityDocumentStub(activity.id, file)
@@ -179,7 +193,7 @@ function ActivityReviewDrawer({
           {personLookup(people, activity.responsible_person_id)?.name ??
             getPersonName(activity.responsible_person_id)}
         </Descriptions.Item>
-        <Descriptions.Item label="Activity Status">
+        <Descriptions.Item label="Project Status">
           <StatusBadge status={status} />
         </Descriptions.Item>
       </Descriptions>
@@ -274,12 +288,49 @@ function ActivityReviewDrawer({
 
       <div className="mt-6">
         <Text strong>Documents</Text>
-        <Dragger multiple customRequest={handleStubUpload} className="mt-2">
+        {!isCompleted && (
+          <Text type="secondary" className="mt-1 block text-xs">
+            Documents can be attached once this activity is marked complete.
+          </Text>
+        )}
+        <Dragger multiple disabled={!isCompleted} customRequest={handleStubUpload} className="mt-2">
           <p className="ant-upload-drag-icon">
             <InboxOutlined />
           </p>
           <p className="ant-upload-text">Click or drag files to this area to upload</p>
         </Dragger>
+      </div>
+
+      <div className="mt-6">
+        {progressReviewStatus === 'pending' && (
+          <Alert
+            className="mb-3"
+            type="info"
+            showIcon
+            message="Submitted — awaiting reviewer approval"
+          />
+        )}
+        {progressReviewStatus === 'approved' && (
+          <Alert className="mb-3" type="success" showIcon message="Reviewer approved this progress update" />
+        )}
+        {progressReviewStatus === 'rejected' && (
+          <Alert
+            className="mb-3"
+            type="error"
+            showIcon
+            message="Reviewer rejected this progress update"
+            description={activity.progress_review_comment || undefined}
+          />
+        )}
+        <Button
+          type="primary"
+          block
+          loading={submittingProgress}
+          disabled={!canSubmitProgress}
+          onClick={handleSubmitForReview}
+        >
+          Submit
+        </Button>
       </div>
       </PreventMutation>
     </Drawer>

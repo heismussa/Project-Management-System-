@@ -6,6 +6,7 @@ use App\Models\Document;
 use App\Models\ImplementationActivity;
 use App\Models\Project;
 use App\Models\Requirement;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -50,15 +51,31 @@ class DashboardController extends Controller
             ];
         }
 
-        return response()->json([
-            'data' => [
-                'role' => $role,
-                'counts' => $metrics,
-                'pending_actions' => $pendingActions,
-                'activity_total' => ImplementationActivity::count(),
-                'requirement_total' => Requirement::count(),
-                'document_total' => Document::count(),
-            ],
-        ]);
+        $payload = [
+            'role' => $role,
+            'counts' => $metrics,
+            'pending_actions' => $pendingActions,
+            'activity_total' => ImplementationActivity::count(),
+            'requirement_total' => Requirement::count(),
+            'document_total' => Document::count(),
+        ];
+
+        if ($role === 'Project Administrator') {
+            $payload['admin'] = Project::administratorDashboard();
+        }
+
+        if ($role === 'Project Reviewer') {
+            $payload['reviewer'] = Project::reviewerDashboard();
+        }
+
+        if ($role === 'Project ViewOnly') {
+            $payload['view_only'] = Project::viewOnlyDashboard();
+        }
+
+        if ($role === 'ICT Support') {
+            $payload['ict_support'] = User::ictSupportDashboard();
+        }
+
+        return response()->json(['data' => $payload]);
     }
 }

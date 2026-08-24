@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, Card, Form, Input, Modal, Popover, Select, Space, Table, Tag, Typography, message } from 'antd'
 import {
   AuditOutlined,
+  CloseCircleOutlined,
   EyeOutlined,
   FormOutlined,
   MoreOutlined,
@@ -14,9 +15,13 @@ import api from '../lib/axios'
 import { storeProjectId, unwrapList } from '../lib/apiHelpers'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../utility/Config.jsx'
+import { deriveStatus } from '../lib/status'
 import RoleGuard from '../components/common/RoleGuard'
 
 const { Text } = Typography
+
+const DERIVED_STATUS_LABELS = { not_started: 'Not started', ongoing: 'Ongoing', completed: 'Completed' }
+const LIFECYCLE_STAGE_LABELS = { initiation: 'Initiation', planning: 'Planning', execution: 'Execution', closure: 'Closure' }
 
 const STATUS_COLOR = {
   Initiated: 'default',
@@ -42,10 +47,13 @@ function isAssignedToPlanner(project, user) {
 function ProjectsPage() {
   const navigate = useNavigate()
   const { user, activeRole } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [projects, setProjects] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('q') || '')
+  const derivedStatusFilter = searchParams.get('derivedStatus')
+  const lifecycleStageFilter = searchParams.get('lifecycleStage')
   const [reassignTarget, setReassignTarget] = useState(null)
   const [actionsOpenId, setActionsOpenId] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -98,20 +106,29 @@ function ProjectsPage() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
-    if (!term) return projects
-    return projects.filter((project) =>
-      [project.name, project.category, project.project_type, project.status, project.phase, project.planner?.name]
+    return projects.filter((project) => {
+      if (derivedStatusFilter && deriveStatus(project) !== derivedStatusFilter) return false
+      if (lifecycleStageFilter && project.lifecycle_stage !== lifecycleStageFilter) return false
+      if (!term) return true
+      return [project.name, project.category, project.project_type, project.status, project.phase, project.planner?.name]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
-        .includes(term),
-    )
-  }, [projects, search])
+        .includes(term)
+    })
+  }, [projects, search, derivedStatusFilter, lifecycleStageFilter])
 
-  const openProject = (project, path, searchParams = {}) => {
+  const clearStructuredFilter = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('derivedStatus')
+    next.delete('lifecycleStage')
+    setSearchParams(next, { replace: true })
+  }
+
+  const openProject = (project, path, extraParams = {}) => {
     setActionsOpenId(null)
     storeProjectId(project.id)
-    const params = new URLSearchParams({ projectId: String(project.id), ...searchParams })
+    const params = new URLSearchParams({ projectId: String(project.id), ...extraParams })
     navigate(`${path}?${params.toString()}`)
   }
 
@@ -322,6 +339,23 @@ function ProjectsPage() {
       </div>
 
       <Card className="page-shell-card">
+        {(derivedStatusFilter || lifecycleStageFilter) && (
+          <Tag
+            closable
+            closeIcon={<CloseCircleOutlined />}
+            onClose={clearStructuredFilter}
+            color="#962c30"
+            className="mb-4"
+          >
+            Filtered by:{' '}
+            {[
+              derivedStatusFilter && (DERIVED_STATUS_LABELS[derivedStatusFilter] ?? derivedStatusFilter),
+              lifecycleStageFilter && (LIFECYCLE_STAGE_LABELS[lifecycleStageFilter] ?? lifecycleStageFilter),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Tag>
+        )}
         <Input
           allowClear
           prefix={<Search className="h-4 w-4 text-gray-400" />}
