@@ -1,86 +1,8 @@
-import { Button, Popover, Space } from 'antd'
-import {
-  CalendarOutlined,
-  CloudUploadOutlined,
-  MoreOutlined,
-  SaveOutlined,
-  SendOutlined,
-} from '@ant-design/icons'
+import { Button } from 'antd'
 
-function ActivityActions({
-  isPlanner = false,
-  actionsOpen = false,
-  onActionsOpenChange,
-  canSaveDocument = false,
-  onReview,
-  onUploadDocument,
-  onSaveDocument,
-  onSubmitPlan,
-  onUpdateDates,
-}) {
-  const stopRowClick = (event) => event.stopPropagation()
-
-  if (isPlanner) {
-    return (
-      <div onClick={stopRowClick}>
-        <Popover
-          trigger="click"
-          placement="bottomRight"
-          arrow={{ pointAtCenter: true }}
-          open={actionsOpen}
-          onOpenChange={onActionsOpenChange}
-          content={
-            <div className="w-[200px]">
-              <Space direction="vertical" size={4} className="w-full">
-                <Button
-                  type="text"
-                  block
-                  className="!justify-start"
-                  icon={<CloudUploadOutlined />}
-                  onClick={onUploadDocument}
-                >
-                  Upload Document
-                </Button>
-                <Button
-                  type="text"
-                  block
-                  className="!justify-start"
-                  icon={<SaveOutlined />}
-                  disabled={!canSaveDocument}
-                  onClick={onSaveDocument}
-                >
-                  Save Document
-                </Button>
-                <Button
-                  type="text"
-                  block
-                  className="!justify-start"
-                  icon={<SendOutlined />}
-                  onClick={onSubmitPlan}
-                >
-                  Submit Plan
-                </Button>
-                <Button
-                  type="text"
-                  block
-                  className="!justify-start"
-                  icon={<CalendarOutlined />}
-                  onClick={onUpdateDates}
-                >
-                  Update Dates
-                </Button>
-              </Space>
-            </div>
-          }
-        >
-          <Button type="text" icon={<MoreOutlined style={{ fontSize: 18 }} />} aria-label="Activity actions" />
-        </Popover>
-      </div>
-    )
-  }
-
+function ActivityActions({ onReview }) {
   return (
-    <div onClick={stopRowClick}>
+    <div onClick={(event) => event.stopPropagation()}>
       <Button
         onClick={onReview}
         style={{

@@ -2,11 +2,11 @@ import { Link } from 'react-router-dom'
 import { Home, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSidebar } from '../SidebarContext'
 
-export default function BreadCrumb({ crumbs = [] }) {
+export default function BreadCrumb({ crumbs = [], className = '' }) {
   const { sideBarShown, toggleSideBar } = useSidebar()
 
   return (
-    <nav className="flex w-full min-w-0 items-stretch gap-[10px]" aria-label="Breadcrumb">
+    <nav className={`flex min-w-0 items-stretch gap-[10px] ${className}`.trim()} aria-label="Breadcrumb">
       <button
         type="button"
         onClick={toggleSideBar}

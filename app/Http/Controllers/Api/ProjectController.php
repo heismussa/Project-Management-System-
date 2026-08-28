@@ -52,7 +52,7 @@ class ProjectController extends Controller
             ->get()
             ->map(function (Project $project) {
                 $payload = $project->toArray();
-                $payload['workflow'] = ProjectWorkflowService::workflowPayload($project);
+                $payload['workflow'] = ProjectWorkflowService::workflowListPayload($project);
 
                 return $payload;
             });
@@ -103,7 +103,10 @@ class ProjectController extends Controller
             ]);
         }
 
-        $project->update(['lifecycle_stage' => 'planning']);
+        $project->update([
+            'lifecycle_stage' => 'planning',
+            'phase' => 'Planning',
+        ]);
 
         return response()->json([
             'message' => 'Project advanced to Planning.',
@@ -321,12 +324,101 @@ class ProjectController extends Controller
                 'checks' => $checks,
                 'status' => $project->status,
                 'closed_at' => $project->closed_at,
+                'closure_requested_at' => $project->closure_requested_at,
+                'closure_request_comment' => $project->closure_request_comment,
+                'closure_return_comment' => $project->closure_return_comment,
                 'helpers' => [
                     'hasCompletedAllActivities' => $project->hasCompletedAllActivities(),
                     'hasPassedAllUAT' => $project->hasPassedAllUAT(),
                     'hasAllClosureDocsReviewed' => $project->hasAllClosureDocsReviewed(),
                 ],
             ],
+        ]);
+    }
+
+    public function requestClosure(Request $request, Project $project): JsonResponse
+    {
+        $this->guardOpen($project);
+
+        if (! $project->canBeManagedBy($request->user())) {
+            return response()->json(['message' => 'You can only request closure for a project assigned to you.'], 403);
+        }
+
+        $request->validate([
+            'comment' => ['nullable', 'string'],
+        ]);
+
+        if (! $project->isReadyToClose()) {
+            $failed = collect($project->closureChecks())->where('passed', false)->pluck('label')->values()->all();
+            throw ValidationException::withMessages([
+                'close' => $failed,
+            ]);
+        }
+
+        $project->update([
+            'lifecycle_stage' => 'closure',
+            'closure_requested_at' => now(),
+            'closure_requested_by' => $request->user()->id,
+            'closure_request_comment' => $request->input('comment'),
+            'closure_return_comment' => null,
+        ]);
+
+        Review::create([
+            'project_id' => $project->id,
+            'entity_type' => 'closure',
+            'entity_id' => $project->id,
+            'reviewer_id' => $request->user()->id,
+            'role_snapshot' => 'Project Planner',
+            'decision' => 'requested',
+            'comment' => $request->input('comment'),
+            'reviewed_at' => now(),
+        ]);
+
+        $fresh = $project->fresh(['planner', 'reviewer']);
+
+        return response()->json([
+            'message' => 'Closure requested. The reviewer will verify documents and sign off.',
+            'data' => $fresh,
+            'workflow' => ProjectWorkflowService::workflowPayload($fresh),
+        ]);
+    }
+
+    public function returnClosure(Request $request, Project $project): JsonResponse
+    {
+        if (! $this->allows($request, ['projects.close', 'projects.review'])) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        $this->guardOpen($project);
+
+        $validated = $request->validate([
+            'comment' => ['required', 'string'],
+        ]);
+
+        $project->update([
+            'closure_requested_at' => null,
+            'closure_requested_by' => null,
+            'closure_request_comment' => null,
+            'closure_return_comment' => $validated['comment'],
+        ]);
+
+        Review::create([
+            'project_id' => $project->id,
+            'entity_type' => 'closure',
+            'entity_id' => $project->id,
+            'reviewer_id' => $request->user()->id,
+            'role_snapshot' => 'Project Reviewer',
+            'decision' => 'returned',
+            'comment' => $validated['comment'],
+            'reviewed_at' => now(),
+        ]);
+
+        $fresh = $project->fresh(['planner', 'reviewer']);
+
+        return response()->json([
+            'message' => 'Closure request returned to the planner.',
+            'data' => $fresh,
+            'workflow' => ProjectWorkflowService::workflowPayload($fresh),
         ]);
     }
 
@@ -350,9 +442,16 @@ class ProjectController extends Controller
             ]);
         }
 
+        if (! $project->closure_requested_at) {
+            throw ValidationException::withMessages([
+                'close' => ['The planner must request closure before the reviewer can sign off.'],
+            ]);
+        }
+
         $project->update([
             'status' => 'Closed',
             'phase' => 'Closed',
+            'lifecycle_stage' => 'closure',
             'closed_at' => now(),
             'closed_by' => $request->user()->id,
             'closure_comment' => $request->input('comment'),

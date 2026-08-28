@@ -11,11 +11,11 @@ const GREEN = '#068737'
 
 const QUEUE_CARDS = [
   { key: 'new_registrations', label: 'New registrations', description: 'Initiation docs missing', path: '/projects?lifecycleStage=initiation' },
-  { key: 'plans_pending', label: 'Plans pending review', description: 'Awaiting your decision', path: '/reviews?tab=plan' },
-  { key: 'matrices_pending', label: 'Requirement matrices', description: 'Awaiting approval', path: '/traceability-matrix' },
-  { key: 'documents_pending', label: 'Documents pending', description: 'Needs your review', path: '/documents' },
-  { key: 'returned_unresolved', label: 'Returned unresolved', description: 'Needs follow-up', path: '/documents' },
-  { key: 'closure_signoffs', label: 'Closure sign-offs', description: 'All gates passed', path: '/reviews?tab=closure' },
+  { key: 'plans_pending', label: 'Plans pending review', description: 'Awaiting your decision', path: '/reviews' },
+  { key: 'matrices_pending', label: 'Requirement matrices', description: 'Awaiting approval', path: '/reviews' },
+  { key: 'documents_pending', label: 'Documents pending', description: 'Needs your review', path: '/reviews' },
+  { key: 'returned_unresolved', label: 'Returned unresolved', description: 'Needs follow-up', path: '/projects' },
+  { key: 'closure_signoffs', label: 'Closure sign-offs', description: 'All gates passed', path: '/reviews' },
 ]
 
 function QueueCard({ label, description, value, onClick }) {

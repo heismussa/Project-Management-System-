@@ -75,15 +75,43 @@ export function getVisibleNavItems(roleName) {
 
 export function getActiveNavItem(pathname) {
   if (pathname === '/' || pathname === '/home') return NAV_ITEMS[0]
+  if (/^\/projects\/\d+/.test(pathname)) {
+    return NAV_ITEMS.find((item) => item.url === '/projects') ?? NAV_ITEMS[0]
+  }
   const matches = NAV_ITEMS.filter((item) => item.url !== '/' && pathname.startsWith(item.url))
   const sorted = [...matches].sort((a, b) => b.url.length - a.url.length)
   return sorted[0] ?? NAV_ITEMS[0]
 }
 
 export function pathAllowedForRole(pathname, roleName) {
-  // Registration is Reviewer/Admin only — /projects alone is open to every role.
   if (pathname.startsWith('/projects/create')) {
     return roleName === ROLES.PRV || roleName === ROLES.PAD
+  }
+  if (/^\/projects\/\d+/.test(pathname) || pathname === '/projects') {
+    return true
+  }
+  if (
+    pathname.startsWith('/implementation-plan') ||
+    pathname.startsWith('/traceability-matrix') ||
+    pathname.startsWith('/documents')
+  ) {
+    return true
+  }
+  if (pathname.startsWith('/reviews')) {
+    return [ROLES.PRV, ROLES.PCO, ROLES.PAP, ROLES.PAD].includes(roleName)
+  }
+  if (pathname.startsWith('/recommendations')) {
+    return roleName === ROLES.PCO || roleName === ROLES.PAD
+  }
+  if (pathname.startsWith('/reports') || pathname.startsWith('/notifications')) {
+    // Reviewer sidebar hides these; direct URL still allowed for other roles and bookmarks.
+    return true
+  }
+  if (pathname.startsWith('/settings')) {
+    return [ROLES.IS, ROLES.PRV, ROLES.PVO, ROLES.PAD].includes(roleName)
+  }
+  if (pathname.startsWith('/admin/master-data')) {
+    return roleName === ROLES.IS || roleName === ROLES.PAD
   }
   return canAccessNavItem(getActiveNavItem(pathname), roleName)
 }
@@ -96,7 +124,7 @@ export function formatUserRoles(user, activeRole = null) {
   return names.map((name) => formatRoleLabel(name)).join(', ')
 }
 
-export function getBreadcrumbCrumbs(pathname) {
+export function getBreadcrumbCrumbs(pathname, projectName) {
   const active = getActiveNavItem(pathname)
   const isIctSupport = ICT_SUPPORT_NAV_ITEMS.some((item) => item.url === active.url)
 
@@ -114,6 +142,12 @@ export function getBreadcrumbCrumbs(pathname) {
   if (pathname.startsWith('/projects/create')) {
     crumbs[0].current = false
     crumbs.push({ label: CREATE_CRUMB.label, link: CREATE_CRUMB.path, current: true })
+  }
+
+  if (/^\/projects\/\d+/.test(pathname)) {
+    crumbs[0].current = false
+    crumbs.push({ label: 'Project', link: '/projects', current: false })
+    crumbs.push({ label: projectName || 'Project', current: true })
   }
 
   return crumbs

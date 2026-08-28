@@ -54,6 +54,10 @@ class Project extends Model
         'closed_at',
         'closed_by',
         'closure_comment',
+        'closure_requested_at',
+        'closure_requested_by',
+        'closure_request_comment',
+        'closure_return_comment',
     ];
 
     protected $casts = [
@@ -65,6 +69,7 @@ class Project extends Model
         'execution_approved_at' => 'datetime',
         'matrix_returned_at' => 'datetime',
         'closed_at' => 'datetime',
+        'closure_requested_at' => 'datetime',
         'budget' => 'float',
         'planned_start_date' => 'date',
         'planned_end_date' => 'date',
@@ -225,6 +230,12 @@ class Project extends Model
                 ->incomplete()
                 ->count(),
             'plans_returned' => (clone $projects)->where('plan_review_status', 'changes_requested')->count(),
+            'overdue_activities' => ImplementationActivity::query()
+                ->whereIn('project_id', $projectIds)
+                ->whereNull('actual_end_date')
+                ->whereDate('planned_end_date', '<', now())
+                ->count(),
+            'closure_requests_pending' => (clone $projects)->whereNotNull('closure_requested_at')->count(),
         ];
     }
 
@@ -294,7 +305,12 @@ class Project extends Model
      */
     public function hasAllClosureDocsReviewed(): bool
     {
-        $documents = $this->documents->where('is_current', true);
+        // Initiation package is accepted at registration; closure gates apply to
+        // planning/execution deliverables only.
+        $documents = $this->documents
+            ->where('is_current', true)
+            ->filter(fn (Document $document) => strtolower((string) $document->phase) !== 'initiation');
+
         if ($documents->isEmpty()) {
             return false;
         }

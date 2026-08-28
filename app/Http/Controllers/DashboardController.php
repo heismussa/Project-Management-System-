@@ -24,8 +24,8 @@ class DashboardController extends Controller
             $plannerId = $role === 'Project Planner' ? $user->id : null;
             $metrics = array_merge($metrics, Project::getPlannerMetrics($plannerId));
             $pendingActions[] = [
-                'label' => 'Open implementation plan',
-                'path' => '/implementation-plan',
+                'label' => 'Open assigned projects',
+                'path' => '/projects',
             ];
         }
 
@@ -40,7 +40,7 @@ class DashboardController extends Controller
             $metrics = array_merge($metrics, Project::getImplementorMetrics());
             $pendingActions[] = [
                 'label' => 'Update activity progress',
-                'path' => '/implementation-plan',
+                'path' => '/projects',
             ];
         }
 

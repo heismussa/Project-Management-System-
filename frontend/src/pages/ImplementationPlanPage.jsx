@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { message, Modal, Space, Spin, Alert } from 'antd'
 import { Plus } from 'lucide-react'
 import dayjs from 'dayjs'
 import { deriveStatus } from '../lib/status'
-import { validateActualDatesWithinPlan } from '../lib/validation'
 import ActivityFormModal from '../components/activities/ActivityFormModal'
 import ActivityReviewDrawer from '../components/activities/ActivityReviewDrawer'
-import ActivityActualDatesModal from '../components/activities/ActivityActualDatesModal'
 import PlanExportButton from '../components/activities/PlanExportButton'
 import ActivitiesTable from '../components/activities/ActivitiesTable'
 import WorkflowBar from '../components/activities/WorkflowBar'
@@ -16,7 +15,6 @@ import ProjectPicker from '../components/common/ProjectPicker'
 import PreventMutation from '../components/common/PreventMutation'
 import { isSpecReadOnlyRole, useActiveRoleName } from '../components/common/RoleGuard'
 import { ROLES } from '../utility/Config.jsx'
-import { submitPlanForReview } from '../api/planner'
 import api from '../lib/axios'
 import {
   getStoredProjectId,
@@ -34,14 +32,19 @@ const BLANK_ACTIVITY = {
   responsible_person_id: null,
 }
 
-function ImplementationPlanPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
+function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = {}) {
+  const { id: routeId } = useParams()
+  const [searchParams] = useSearchParams()
   const roleName = useActiveRoleName()
   const canAddActivity = !isSpecReadOnlyRole(roleName) && roleName !== ROLES.PRV
-  const fileInputRef = useRef(null)
   const [projects, setProjects] = useState([])
   const [users, setUsers] = useState([])
   const [projectId, setProjectId] = useState(() => {
+    const fromRoute = Number(routeId)
+    if (Number.isFinite(fromRoute) && fromRoute > 0) {
+      storeProjectId(fromRoute)
+      return fromRoute
+    }
     const fromQuery = searchParams.get('projectId')
     if (fromQuery) {
       const parsed = Number(fromQuery)
@@ -60,12 +63,6 @@ function ImplementationPlanPage() {
   const [reviewTarget, setReviewTarget] = useState(null)
   const [reviewHistory, setReviewHistory] = useState([])
   const [docsTarget, setDocsTarget] = useState(null)
-  const [datesTarget, setDatesTarget] = useState(null)
-  const [uploadTarget, setUploadTarget] = useState(null)
-  const [pendingDocument, setPendingDocument] = useState(null)
-  const [actionsOpenId, setActionsOpenId] = useState(null)
-  const [submittingPlan, setSubmittingPlan] = useState(false)
-  const [savingDocument, setSavingDocument] = useState(false)
   const [filteredInfo, setFilteredInfo] = useState({})
 
   const people = users.map((user) => ({
@@ -85,6 +82,18 @@ function ImplementationPlanPage() {
 
   const loadProjectsAndUsers = useCallback(async () => {
     try {
+      // Embedded workspace already knows the project — skip the heavy GET /projects list.
+      if (embedded) {
+        const fromRoute = Number(routeId)
+        if (Number.isFinite(fromRoute) && fromRoute > 0) {
+          storeProjectId(fromRoute)
+          setProjectId(fromRoute)
+        }
+        const usersRes = await api.get('/users')
+        setUsers(unwrapList(usersRes.data))
+        return
+      }
+
       const [projectsRes, usersRes] = await Promise.all([
         api.get('/projects'),
         api.get('/users'),
@@ -92,6 +101,12 @@ function ImplementationPlanPage() {
       const projectList = unwrapList(projectsRes.data)
       setProjects(projectList)
       setUsers(unwrapList(usersRes.data))
+      const fromRoute = Number(routeId)
+      if (Number.isFinite(fromRoute) && fromRoute > 0) {
+        storeProjectId(fromRoute)
+        setProjectId(fromRoute)
+        return
+      }
       setProjectId((current) => {
         if (current && projectList.some((project) => project.id === current)) return current
         const first = projectList[0]?.id ?? null
@@ -101,7 +116,7 @@ function ImplementationPlanPage() {
     } catch (err) {
       setError(err.response?.data?.message || 'Could not load projects.')
     }
-  }, [])
+  }, [routeId, embedded])
 
   const loadActivities = useCallback(async (id) => {
     if (!id) {
@@ -131,27 +146,23 @@ function ImplementationPlanPage() {
   }, [projectId, loadActivities])
 
   useEffect(() => {
+    const fromRoute = Number(routeId)
+    if (Number.isFinite(fromRoute) && fromRoute > 0) {
+      storeProjectId(fromRoute)
+      setProjectId((current) => (current === fromRoute ? current : fromRoute))
+    }
+  }, [routeId])
+
+  useEffect(() => {
     const queryProjectId = searchParams.get('projectId')
-    const autoOpen = searchParams.get('autoOpenAddModal') === 'true'
-    if (!queryProjectId && !autoOpen) return
+    if (!queryProjectId) return
 
-    if (queryProjectId) {
-      const parsed = Number(queryProjectId)
-      if (!Number.isNaN(parsed)) {
-        storeProjectId(parsed)
-        setProjectId((current) => (current === parsed ? current : parsed))
-      }
+    const parsed = Number(queryProjectId)
+    if (!Number.isNaN(parsed)) {
+      storeProjectId(parsed)
+      setProjectId((current) => (current === parsed ? current : parsed))
     }
-
-    if (autoOpen) {
-      if (canAddActivity) {
-        setFormTarget({ ...BLANK_ACTIVITY })
-      }
-      const next = new URLSearchParams(searchParams)
-      next.delete('autoOpenAddModal')
-      setSearchParams(next, { replace: true })
-    }
-  }, [searchParams, setSearchParams, canAddActivity])
+  }, [searchParams])
 
   const handleProjectChange = (id) => {
     storeProjectId(id)
@@ -285,104 +296,7 @@ function ImplementationPlanPage() {
     }
   }
 
-  const handleUploadDocument = (activity) => {
-    setActionsOpenId(null)
-    setUploadTarget(activity)
-    setPendingDocument((current) =>
-      current?.activityId === activity.id ? current : null,
-    )
-    window.setTimeout(() => fileInputRef.current?.click(), 0)
-  }
-
-  const handlePendingFileSelected = (event) => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file || !uploadTarget) return
-
-    setPendingDocument({
-      activityId: uploadTarget.id,
-      file,
-      documentType: 'Implementation Plan',
-    })
-    message.info(`"${file.name}" ready to save for ${uploadTarget.name}.`)
-  }
-
-  const handleSaveDocument = async (activity) => {
-    if (!pendingDocument || pendingDocument.activityId !== activity.id) {
-      message.warning('Upload a document first.')
-      return
-    }
-
-    setActionsOpenId(null)
-    setSavingDocument(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', pendingDocument.file)
-      formData.append('project_id', projectId)
-      formData.append('activity_id', activity.id)
-      formData.append('document_type', pendingDocument.documentType)
-
-      await api.post('/documents', formData)
-      setPendingDocument(null)
-      message.success('Document saved')
-    } catch (err) {
-      message.error(err.response?.data?.message || 'Could not save document.')
-    } finally {
-      setSavingDocument(false)
-    }
-  }
-
-  const handleSubmitPlan = async () => {
-    if (!projectId) return
-
-    setActionsOpenId(null)
-    setSubmittingPlan(true)
-    try {
-      await submitPlanForReview(projectId)
-      message.success('Plan submitted for review')
-      await loadWorkflow(projectId)
-      await loadActivities(projectId)
-    } catch (err) {
-      message.error(err.response?.data?.message || 'Could not submit plan.')
-    } finally {
-      setSubmittingPlan(false)
-    }
-  }
-
-  const handleUpdateDates = (activity) => {
-    setActionsOpenId(null)
-    setDatesTarget(activity)
-  }
-
-  const handleSaveActualDates = async ({ actual_start_date, actual_end_date }) => {
-    if (!datesTarget) return
-
-    const validationError = validateActualDatesWithinPlan({
-      actual_start_date,
-      actual_end_date,
-      planned_start_date: datesTarget.planned_start_date,
-      planned_end_date: datesTarget.planned_end_date,
-    })
-
-    if (validationError) {
-      message.error(validationError)
-      return
-    }
-
-    try {
-      const response = await api.put(`/activities/${datesTarget.id}`, {
-        actual_start_date,
-        actual_end_date,
-        status: deriveStatus({ ...datesTarget, actual_start_date, actual_end_date }),
-      })
-      const updated = unwrapItem(response.data)
-      setActivities((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
-      setDatesTarget(null)
-      message.success('Activity dates updated')
-    } catch (err) {
-      message.error(err.response?.data?.message || 'Could not update dates.')
-    }
-  }
+  const planStatus = workflow?.plan_review_status
 
   const visibleActivities = activities.filter((activity) => {
     const phaseFilter = filteredInfo.phase
@@ -392,57 +306,51 @@ function ImplementationPlanPage() {
     return true
   })
 
+  const toolbar = (
+    <Space wrap size="middle" className="ms-auto justify-end">
+      {!embedded && (
+        <ProjectPicker projects={projects} value={projectId} onChange={handleProjectChange} />
+      )}
+      <PlanExportButton activities={activities} />
+      {canAddActivity && (
+        <PreventMutation fallback={null}>
+          <button
+            type="button"
+            disabled={!projectId || planStatus === 'pending_review'}
+            onClick={() => setFormTarget(BLANK_ACTIVITY)}
+            className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+            style={{ background: '#7A0C22', height: 42, padding: '0 22px' }}
+          >
+            <Plus size={16} />
+            Add activity
+          </button>
+        </PreventMutation>
+      )}
+    </Space>
+  )
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex w-full flex-wrap items-center justify-end gap-3">
-        <Space wrap size="middle" className="ms-auto justify-end">
-          <ProjectPicker projects={projects} value={projectId} onChange={handleProjectChange} />
-          <PlanExportButton activities={activities} />
-          {canAddActivity && (
-            <PreventMutation fallback={null}>
-              <button
-                type="button"
-                disabled={!projectId}
-                onClick={() => setFormTarget(BLANK_ACTIVITY)}
-                className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-                style={{ background: '#7A0C22', height: 42, padding: '0 22px' }}
-              >
-                <Plus size={16} />
-                Add activity
-              </button>
-            </PreventMutation>
-          )}
-        </Space>
-      </div>
+      {toolbarContainer ? (
+        createPortal(toolbar, toolbarContainer)
+      ) : (
+        <div className="flex w-full flex-wrap items-center justify-end gap-3">{toolbar}</div>
+      )}
 
       <WorkflowBar projectId={projectId} workflow={workflow} />
 
       {error && <Alert type="error" showIcon message={error} />}
 
-      <Spin spinning={loading || submittingPlan || savingDocument}>
+      <Spin spinning={loading}>
         <ActivitiesTable
           activities={activities}
           visibleActivities={visibleActivities}
           filteredInfo={filteredInfo}
           onTableChange={(_pagination, filters) => setFilteredInfo(filters)}
           onReview={openReview}
-          onUploadDocument={handleUploadDocument}
-          onSaveDocument={handleSaveDocument}
-          onSubmitPlan={handleSubmitPlan}
-          onUpdateDates={handleUpdateDates}
-          pendingDocumentActivityId={pendingDocument?.activityId ?? null}
-          actionsOpenId={actionsOpenId}
-          onActionsOpenChange={setActionsOpenId}
+          people={people}
         />
       </Spin>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pdf,.docx,.xlsx"
-        className="hidden"
-        onChange={handlePendingFileSelected}
-      />
 
       <ActivityFormModal
         open={formTarget !== null}
@@ -466,12 +374,6 @@ function ImplementationPlanPage() {
         onApproveChange={handleApproveChange}
         onRejectChange={handleRejectChange}
         onSubmitForReview={handleSubmitProgressReview}
-      />
-      <ActivityActualDatesModal
-        open={datesTarget !== null}
-        activity={datesTarget}
-        onCancel={() => setDatesTarget(null)}
-        onSave={handleSaveActualDates}
       />
       <ActivityDocumentsModal
         open={docsTarget !== null}

@@ -3,12 +3,16 @@ import { Table, Tooltip, ConfigProvider, Tag } from 'antd'
 import { Info } from 'lucide-react'
 import { STATUS, deriveStatus } from '../../lib/status'
 import { formatDate } from '../../lib/dates'
+import { getPersonName } from '../../data/people'
 import StatusBadge from '../common/StatusBadge'
 import ActivityActions from './ActivityActions'
-import { ROLES } from '../../utility/Config.jsx'
 import { canShowActivityActionColumn, useActiveRoleName } from '../common/RoleGuard'
 import { useAppTheme } from '../../theme/ThemeProvider'
 import { PMS_DARK_BG_CONTAINER, PMS_DARK_ROW_HOVER } from '../../theme/AppProviders'
+
+function personLookup(people, id) {
+  return people?.find((person) => person.id === id)
+}
 
 function compareDates(a, b) {
   return (a ?? '').localeCompare(b ?? '')
@@ -43,17 +47,10 @@ function ActivitiesTable({
   filteredInfo,
   onTableChange,
   onReview,
-  onUploadDocument,
-  onSaveDocument,
-  onSubmitPlan,
-  onUpdateDates,
-  pendingDocumentActivityId = null,
-  actionsOpenId = null,
-  onActionsOpenChange,
+  people = [],
 }) {
   const roleName = useActiveRoleName()
   const { isDark } = useAppTheme()
-  const isPlanner = roleName === ROLES.PPL
   const showActionColumn = canShowActivityActionColumn(roleName)
   const [selectedRowId, setSelectedRowId] = useState(null)
 
@@ -112,7 +109,15 @@ function ActivitiesTable({
         onHeaderCell: nowrapHeader,
       },
       {
-        title: 'Activity Status',
+        title: 'Responsible Person',
+        dataIndex: 'responsible_person_id',
+        key: 'responsible_person_id',
+        ellipsis: true,
+        onHeaderCell: nowrapHeader,
+        render: (id) => personLookup(people, id)?.name ?? getPersonName(id),
+      },
+      {
+        title: 'Project Status',
         key: 'status',
         width: STATUS_COLUMN_WIDTH,
         align: 'center',
@@ -135,34 +140,10 @@ function ActivitiesTable({
         width: ACTION_COLUMN_WIDTH,
         align: 'center',
         onHeaderCell: nowrapHeader,
-        render: (_, record) => (
-          <ActivityActions
-            isPlanner={isPlanner}
-            actionsOpen={actionsOpenId === record.id}
-            onActionsOpenChange={(open) => onActionsOpenChange?.(open ? record.id : null)}
-            canSaveDocument={pendingDocumentActivityId === record.id}
-            onReview={() => onReview(record)}
-            onUploadDocument={() => onUploadDocument?.(record)}
-            onSaveDocument={() => onSaveDocument?.(record)}
-            onSubmitPlan={() => onSubmitPlan?.(record)}
-            onUpdateDates={() => onUpdateDates?.(record)}
-          />
-        ),
+        render: (_, record) => <ActivityActions onReview={() => onReview(record)} />,
       },
     ]
-  }, [
-    showActionColumn,
-    isPlanner,
-    actionsOpenId,
-    filteredInfo.status,
-    pendingDocumentActivityId,
-    onActionsOpenChange,
-    onReview,
-    onUploadDocument,
-    onSaveDocument,
-    onSubmitPlan,
-    onUpdateDates,
-  ])
+  }, [showActionColumn, filteredInfo.status, people, onReview])
 
   return (
     <div

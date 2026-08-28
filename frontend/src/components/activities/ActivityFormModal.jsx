@@ -44,23 +44,23 @@ function ActivityFormModal({ open, activity, people, onCancel, onSave }) {
       open={open}
       onOk={handleOk}
       onCancel={handleCancel}
-      okText="Save"
+      okText="Submit"
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" className="mt-4">
+      <Form form={form} layout="vertical" className="mt-4" autoComplete="off">
         <Form.Item
           name="name"
           label="Activity name"
           rules={[{ required: true, message: 'Activity name is required' }]}
         >
-          <Input placeholder="e.g. Foundation excavation" />
+          <Input placeholder="e.g. Foundation excavation" autoComplete="off" />
         </Form.Item>
         <Form.Item
           name="expected_deliverable"
           label="Expected Deliverable"
           rules={[{ required: true, message: 'Expected deliverable is required' }]}
         >
-          <Input.TextArea rows={2} placeholder="e.g. Excavated foundation trench" />
+          <Input.TextArea rows={2} placeholder="e.g. Excavated foundation trench" autoComplete="off" />
         </Form.Item>
         <Form.Item
           name="plannedRange"

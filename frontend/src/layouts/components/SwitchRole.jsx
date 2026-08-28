@@ -14,7 +14,7 @@ export default function SwitchRole() {
       <div className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:ring-gray-600">
         No role assigned
         <div className="mt-1 text-xs font-normal text-gray-500">
-          Ask ICT Support to assign a role. Only Dashboard and Projects show until then.
+          Ask ICT Support to assign a role. Only Dashboard and Project Management show until then.
         </div>
       </div>
     )

@@ -1,0 +1,520 @@
+import { useCallback, useEffect, useState } from 'react'
+import {
+  Alert,
+  Button,
+  Drawer,
+  Form,
+  Input,
+  Modal,
+  Select,
+  Space,
+  Spin,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from 'antd'
+import dayjs from 'dayjs'
+import RoleGuard from '../common/RoleGuard'
+import ClosurePanel from '../projects/ClosurePanel'
+import ReviewStatusBadge from '../common/ReviewStatusBadge'
+import api from '../../lib/axios'
+import { fetchAuthorizedFileUrl, unwrapList } from '../../lib/apiHelpers'
+import { ROLES } from '../../utility/Config.jsx'
+import { useAuth } from '../../context/AuthContext'
+
+const { Title, Text } = Typography
+
+const MAROON = '#962c30'
+const PRIMARY_BTN = {
+  backgroundColor: MAROON,
+  borderColor: MAROON,
+  color: '#fff',
+  fontWeight: 600,
+}
+
+function hasPermission(user, code) {
+  return (user?.permissions || []).includes(code)
+}
+
+function Section({ title, children }) {
+  return (
+    <section className="mb-6">
+      <Title level={5} className="!mb-3">
+        {title}
+      </Title>
+      {children}
+    </section>
+  )
+}
+
+/**
+ * Flat review content — no nested tab strips. Only sections with work are shown.
+ */
+export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
+  const { user } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const [workflow, setWorkflow] = useState(null)
+  const [documents, setDocuments] = useState([])
+  const [activities, setActivities] = useState([])
+  const [closure, setClosure] = useState(null)
+  const [commentForm] = Form.useForm()
+  const [modal, setModal] = useState(null)
+  const [docTarget, setDocTarget] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(async () => {
+    if (!projectId) return
+    setLoading(true)
+    try {
+      const [workflowRes, docsRes, activitiesRes, closureRes] = await Promise.all([
+        api.get(`/projects/${projectId}/workflow`),
+        api.get(`/projects/${projectId}/documents`).catch(() => ({ data: { data: [] } })),
+        api.get(`/projects/${projectId}/activities`).catch(() => ({ data: { data: [] } })),
+        api.get(`/projects/${projectId}/closure-readiness`).catch(() => ({ data: { data: null } })),
+      ])
+      setWorkflow(workflowRes.data?.data)
+      setDocuments(unwrapList(docsRes.data))
+      setActivities(unwrapList(activitiesRes.data))
+      setClosure(closureRes.data?.data || null)
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not load review items.')
+    } finally {
+      setLoading(false)
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const pendingDocs = documents.filter((doc) => doc.review_status === 'pending' || doc.review_status === 'returned')
+  const pendingChanges = activities.filter((activity) => activity.plan_change_status === 'pending')
+  const pendingProgress = activities.filter((activity) => activity.progress_review_status === 'pending')
+  const blockers = workflow?.execution_blockers || []
+  const queue = workflow?.queue
+
+  const runAction = async (path, payload = {}, success) => {
+    setSaving(true)
+    try {
+      const response = await api.post(path, payload)
+      message.success(success || response.data.message)
+      setModal(null)
+      setDocTarget(null)
+      commentForm.resetFields()
+      await load()
+      onChanged?.()
+    } catch (err) {
+      const closeErrors = err.response?.data?.errors?.close
+      const executionErrors = err.response?.data?.errors?.execution || err.response?.data?.errors?.recommend
+      message.error(
+        (Array.isArray(closeErrors) && closeErrors[0]) ||
+          (Array.isArray(executionErrors) && executionErrors[0]) ||
+          err.response?.data?.message ||
+          'Action failed',
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const submitCommentModal = () => {
+    commentForm.validateFields().then((values) => {
+      if (modal === 'return') {
+        runAction(`/projects/${projectId}/plan/review`, { decision: 'returned', comment: values.comment })
+      } else if (modal === 'recommend') {
+        runAction(`/projects/${projectId}/recommend`, { comment: values.comment }, 'Coordinator recommendation recorded')
+      } else if (modal === 'signoff') {
+        runAction(`/projects/${projectId}/approve-execution`, { comment: values.comment }, 'DICT execution sign-off recorded')
+      } else if (modal === 'doc' && docTarget) {
+        runAction(`/documents/${docTarget.id}/review`, {
+          decision: values.decision,
+          comment: values.comment,
+        })
+      }
+    })
+  }
+
+  if (loading && !workflow) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center">
+        <Spin size="large" />
+      </div>
+    )
+  }
+
+  const showPlan = Boolean(workflow?.can_review_plan) || queue === 'plan_review'
+  const showRecommend = Boolean(workflow?.can_recommend) || queue === 'recommendation'
+  const showSignOff = Boolean(workflow?.can_sign_off_execution) || queue === 'execution_sign_off'
+  const showClosure = queue === 'closure_sign_off' || Boolean(workflow?.can_approve_closure)
+  const showProgress = pendingProgress.length > 0
+  const showChanges = pendingChanges.length > 0
+  const showDocs = pendingDocs.length > 0
+  const showBlockers = blockers.length > 0
+
+  const hasAny =
+    showPlan ||
+    showRecommend ||
+    showSignOff ||
+    showClosure ||
+    showProgress ||
+    showChanges ||
+    showDocs ||
+    showBlockers
+
+  return (
+    <div>
+      {!hasAny && (
+        <Alert
+          type="info"
+          showIcon
+          message="Nothing pending review on this project right now."
+          description={projectName ? `${projectName} has no open supervisor actions.` : undefined}
+        />
+      )}
+
+      {showProgress && (
+        <Section title={`Progress updates (${pendingProgress.length})`}>
+          <Table
+            rowKey="id"
+            size="small"
+            pagination={false}
+            dataSource={pendingProgress}
+            columns={[
+              { title: 'Activity', dataIndex: 'name' },
+              {
+                title: 'Actual start',
+                dataIndex: 'actual_start_date',
+                render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
+              },
+              {
+                title: 'Actual end',
+                dataIndex: 'actual_end_date',
+                render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
+              },
+              {
+                title: 'Action',
+                width: 200,
+                render: (_, record) => (
+                  <RoleGuard allow={[ROLES.PRV, ROLES.PAD]}>
+                    <Space>
+                      <Button
+                        size="small"
+                        type="primary"
+                        style={PRIMARY_BTN}
+                        loading={saving}
+                        onClick={() => runAction(`/activities/${record.id}/progress-review/approve`)}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="small"
+                        danger
+                        loading={saving}
+                        onClick={() =>
+                          runAction(`/activities/${record.id}/progress-review/reject`, { comment: 'Rejected' })
+                        }
+                      >
+                        Reject
+                      </Button>
+                    </Space>
+                  </RoleGuard>
+                ),
+              },
+            ]}
+          />
+        </Section>
+      )}
+
+      {showChanges && (
+        <Section title={`Plan changes (${pendingChanges.length})`}>
+          <Table
+            rowKey="id"
+            size="small"
+            pagination={false}
+            dataSource={pendingChanges}
+            columns={[
+              { title: 'Activity', dataIndex: 'name' },
+              {
+                title: 'Proposed change',
+                render: (_, record) => JSON.stringify(record.pending_changes || {}),
+              },
+              {
+                title: 'Action',
+                width: 200,
+                render: (_, record) => (
+                  <RoleGuard allow={[ROLES.PRV, ROLES.PAD]}>
+                    <Space>
+                      <Button
+                        size="small"
+                        type="primary"
+                        style={PRIMARY_BTN}
+                        loading={saving}
+                        onClick={() => runAction(`/activities/${record.id}/plan-changes/approve`)}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="small"
+                        danger
+                        loading={saving}
+                        onClick={() =>
+                          runAction(`/activities/${record.id}/plan-changes/reject`, { comment: 'Rejected' })
+                        }
+                      >
+                        Reject
+                      </Button>
+                    </Space>
+                  </RoleGuard>
+                ),
+              },
+            ]}
+          />
+        </Section>
+      )}
+
+      {showDocs && (
+        <Section title={`Documents (${pendingDocs.length})`}>
+          <Table
+            rowKey="id"
+            size="small"
+            pagination={false}
+            dataSource={pendingDocs}
+            columns={[
+              { title: 'File', dataIndex: 'file_name' },
+              { title: 'Type', dataIndex: 'document_type' },
+              {
+                title: 'Status',
+                dataIndex: 'review_status',
+                render: (value) => <ReviewStatusBadge status={value} />,
+              },
+              {
+                title: 'Action',
+                render: (_, record) => (
+                  <RoleGuard allow={[ROLES.PRV, ROLES.PAD]}>
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setDocTarget(record)
+                        setModal('doc')
+                      }}
+                    >
+                      Review
+                    </Button>
+                  </RoleGuard>
+                ),
+              },
+            ]}
+          />
+        </Section>
+      )}
+
+      {showPlan && (
+        <Section title="Implementation plan review">
+          <Text type="secondary" className="mb-3 block">
+            Approve the plan for the next stage, or return it to the planner with comments.
+          </Text>
+          <RoleGuard allow={[ROLES.PRV, ROLES.PAD]}>
+            <Space wrap>
+              <Button
+                type="primary"
+                style={PRIMARY_BTN}
+                loading={saving}
+                disabled={!workflow?.can_review_plan}
+                onClick={() => runAction(`/projects/${projectId}/plan/review`, { decision: 'approved' })}
+              >
+                Approve plan
+              </Button>
+              <Button disabled={!workflow?.can_review_plan} onClick={() => setModal('return')}>
+                Return with comments
+              </Button>
+            </Space>
+          </RoleGuard>
+          {workflow?.plan_review_comment && (
+            <Alert className="mt-3" type="warning" showIcon message="Latest return comment" description={workflow.plan_review_comment} />
+          )}
+        </Section>
+      )}
+
+      {showRecommend && (
+        <Section title="Coordinator recommendation">
+          <RoleGuard allow={[ROLES.PCO, ROLES.PAD]}>
+            <Button
+              type="primary"
+              style={PRIMARY_BTN}
+              loading={saving}
+              disabled={!hasPermission(user, 'projects.recommend') || !workflow?.can_recommend}
+              onClick={() => setModal('recommend')}
+            >
+              Recommend execution
+            </Button>
+          </RoleGuard>
+        </Section>
+      )}
+
+      {showSignOff && (
+        <Section title="DICT execution sign-off">
+          {showBlockers && (
+            <Alert
+              className="mb-3"
+              type="warning"
+              showIcon
+              message="Execution gates"
+              description={
+                <ul className="mb-0 list-disc pl-5">
+                  {blockers.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              }
+            />
+          )}
+          <RoleGuard allow={[ROLES.PAP, ROLES.PAD]}>
+            <Button
+              type="primary"
+              style={PRIMARY_BTN}
+              loading={saving}
+              disabled={!hasPermission(user, 'projects.approve') || !workflow?.can_sign_off_execution}
+              onClick={() => setModal('signoff')}
+            >
+              Sign off execution
+            </Button>
+          </RoleGuard>
+        </Section>
+      )}
+
+      {showBlockers && !showSignOff && (
+        <Section title={`Blockers (${blockers.length})`}>
+          <Alert
+            type="warning"
+            showIcon
+            message="Execution gates"
+            description={
+              <ul className="mb-0 list-disc pl-5">
+                {blockers.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            }
+          />
+        </Section>
+      )}
+
+      {showClosure && (
+        <Section title="Project closure">
+          <ClosurePanel projectId={projectId} closure={closure} workflow={workflow} onChanged={load} />
+        </Section>
+      )}
+
+      <Modal
+        title={
+          {
+            return: 'Return plan with comments',
+            recommend: 'Coordinator recommendation',
+            signoff: 'DICT execution sign-off',
+            doc: 'Review document',
+          }[modal] || 'Comment'
+        }
+        open={modal !== null}
+        confirmLoading={saving}
+        onCancel={() => {
+          setModal(null)
+          setDocTarget(null)
+          commentForm.resetFields()
+        }}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="primary" loading={saving} onClick={submitCommentModal} style={PRIMARY_BTN}>
+              OK
+            </Button>
+            {modal === 'doc' && docTarget && (
+              <Button
+                onClick={async () => {
+                  try {
+                    const url = await fetchAuthorizedFileUrl(docTarget.id)
+                    window.open(url, '_blank', 'noopener,noreferrer')
+                  } catch {
+                    message.error('Could not open document.')
+                  }
+                }}
+              >
+                View
+              </Button>
+            )}
+            <Button
+              onClick={() => {
+                setModal(null)
+                setDocTarget(null)
+                commentForm.resetFields()
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        }
+      >
+        <Form form={commentForm} layout="vertical" initialValues={{ decision: 'approved' }}>
+          {modal === 'doc' && (
+            <Form.Item name="decision" label="Decision" rules={[{ required: true }]}>
+              <Select
+                options={[
+                  { value: 'approved', label: 'Approve' },
+                  { value: 'returned', label: 'Return with comments' },
+                ]}
+              />
+            </Form.Item>
+          )}
+          <Form.Item
+            name="comment"
+            label="Comment"
+            rules={modal === 'return' ? [{ required: true, message: 'A return comment is required' }] : []}
+          >
+            <Input.TextArea rows={3} />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  )
+}
+
+export default function ReviewWorkspaceDrawer({ open, project, onClose, onCompleted }) {
+  const phase = project?.phase || project?.workflow?.phase
+
+  return (
+    <Drawer
+      title={null}
+      open={open}
+      onClose={onClose}
+      width={Math.min(720, typeof window !== 'undefined' ? window.innerWidth - 24 : 720)}
+      destroyOnHidden
+      styles={{ body: { paddingTop: 16 } }}
+    >
+      {project && (
+        <>
+          <div className="mb-5 border-b border-gray-200 pb-4">
+            <Text type="secondary" className="text-xs uppercase tracking-wide">
+              Review
+            </Text>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <Title level={4} className="!mb-0">
+                Project: {project.name}
+              </Title>
+              {phase && <Tag color="#962c30">Phase: {phase}</Tag>}
+            </div>
+            {(project.workflow?.queue || project.queue) && (
+              <Text type="secondary" className="mt-1 block text-sm">
+                Queue: {String(project.workflow?.queue || project.queue).replaceAll('_', ' ')}
+              </Text>
+            )}
+          </div>
+
+          <ReviewWorkspacePanel
+            projectId={project.id}
+            projectName={project.name}
+            onChanged={onCompleted}
+          />
+        </>
+      )}
+    </Drawer>
+  )
+}

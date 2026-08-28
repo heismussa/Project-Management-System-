@@ -43,6 +43,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/projects/{project}/recommend', [ProjectController::class, 'recommend']);
         Route::post('/projects/{project}/approve-execution', [ProjectController::class, 'approveExecution']);
         Route::post('/projects/{project}/close', [ProjectController::class, 'close']);
+        Route::post('/projects/{project}/closure/request', [ProjectController::class, 'requestClosure']);
+        Route::post('/projects/{project}/closure/return', [ProjectController::class, 'returnClosure']);
 
         Route::post('/activities', [ImplementationActivityController::class, 'store']);
         Route::put('/activities/{id}', [ImplementationActivityController::class, 'update']);

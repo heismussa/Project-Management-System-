@@ -9,6 +9,8 @@ import AdministratorDashboard from '../components/dashboard/AdministratorDashboa
 import ReviewerDashboard from '../components/dashboard/ReviewerDashboard'
 import ViewOnlyDashboard from '../components/dashboard/ViewOnlyDashboard'
 import IctSupportDashboard from '../components/dashboard/IctSupportDashboard'
+import PlannerDashboard from '../components/dashboard/PlannerDashboard'
+import CoordinatorDashboard from '../components/dashboard/CoordinatorDashboard'
 
 const { Title, Paragraph } = Typography
 
@@ -33,6 +35,8 @@ function DashboardPage() {
   const isReviewer = activeRole?.name === ROLES.PRV
   const isViewOnly = activeRole?.name === ROLES.PVO
   const isIctSupport = activeRole?.name === ROLES.IS
+  const isPlanner = activeRole?.name === ROLES.PPL
+  const isCoordinator = activeRole?.name === ROLES.PCO
   const [payload, setPayload] = useState(null)
 
   useEffect(() => {
@@ -63,6 +67,14 @@ function DashboardPage() {
 
   if (isReviewer) {
     return <ReviewerDashboard />
+  }
+
+  if (isPlanner) {
+    return <PlannerDashboard />
+  }
+
+  if (isCoordinator) {
+    return <CoordinatorDashboard />
   }
 
   if (isViewOnly) {

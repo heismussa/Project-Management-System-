@@ -44,10 +44,12 @@ export default function MainHeader() {
           if (!cancelled) setNotifications([])
         })
     }
-    load()
-    const timer = window.setInterval(load, 60000)
+    // Defer so first paint / critical page APIs are not competing with the bell badge.
+    const start = window.setTimeout(load, 800)
+    const timer = window.setInterval(load, 120000)
     return () => {
       cancelled = true
+      window.clearTimeout(start)
       window.clearInterval(timer)
     }
   }, [])
