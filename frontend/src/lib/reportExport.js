@@ -1,5 +1,7 @@
-import html2pdf from 'html2pdf.js'
-import ExcelJS from 'exceljs'
+// html2pdf.js and exceljs are large (they pull in html2canvas/jsPDF and a
+// full spreadsheet writer) and are only ever needed once someone actually
+// clicks an export button, so they're loaded on demand here instead of
+// being bundled into every page that renders PlanExportButton.
 
 // Today: renders the printable report DOM node to a PDF client-side.
 //
@@ -9,6 +11,7 @@ import ExcelJS from 'exceljs'
 // of running html2pdf locally. Callers only depend on this function's
 // signature — callers won't need to change.
 export async function exportReport({ element, filename }) {
+  const { default: html2pdf } = await import('html2pdf.js')
   await html2pdf()
     .set({
       margin: 10,
@@ -29,6 +32,7 @@ export async function exportReport({ element, filename }) {
 // download the returned file. `sheets` shape (name/columns/rows) is kept
 // deliberately simple so it maps onto a backend response just as easily.
 export async function exportExcel({ sheets, filename }) {
+  const { default: ExcelJS } = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
   sheets.forEach(({ name, columns, rows }) => {
     const worksheet = workbook.addWorksheet(name)

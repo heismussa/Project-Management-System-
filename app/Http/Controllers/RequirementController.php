@@ -29,6 +29,7 @@ class RequirementController extends Controller
             'project_id' => 'required|exists:projects,id',
             'requirement_code' => 'required|string',
             'description' => 'required|string',
+            'remarks' => 'nullable|string',
         ]);
 
         $validated['implementation_status'] = 'Pending';

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { createPortal } from 'react-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { message, Modal, Space, Spin, Alert } from 'antd'
 import { Plus } from 'lucide-react'
 import dayjs from 'dayjs'
@@ -31,13 +32,19 @@ const BLANK_ACTIVITY = {
   responsible_person_id: null,
 }
 
-function ImplementationPlanPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
+function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = {}) {
+  const { id: routeId } = useParams()
+  const [searchParams] = useSearchParams()
   const roleName = useActiveRoleName()
   const canAddActivity = !isSpecReadOnlyRole(roleName) && roleName !== ROLES.PRV
   const [projects, setProjects] = useState([])
   const [users, setUsers] = useState([])
   const [projectId, setProjectId] = useState(() => {
+    const fromRoute = Number(routeId)
+    if (Number.isFinite(fromRoute) && fromRoute > 0) {
+      storeProjectId(fromRoute)
+      return fromRoute
+    }
     const fromQuery = searchParams.get('projectId')
     if (fromQuery) {
       const parsed = Number(fromQuery)
@@ -75,6 +82,18 @@ function ImplementationPlanPage() {
 
   const loadProjectsAndUsers = useCallback(async () => {
     try {
+      // Embedded workspace already knows the project — skip the heavy GET /projects list.
+      if (embedded) {
+        const fromRoute = Number(routeId)
+        if (Number.isFinite(fromRoute) && fromRoute > 0) {
+          storeProjectId(fromRoute)
+          setProjectId(fromRoute)
+        }
+        const usersRes = await api.get('/users')
+        setUsers(unwrapList(usersRes.data))
+        return
+      }
+
       const [projectsRes, usersRes] = await Promise.all([
         api.get('/projects'),
         api.get('/users'),
@@ -82,6 +101,12 @@ function ImplementationPlanPage() {
       const projectList = unwrapList(projectsRes.data)
       setProjects(projectList)
       setUsers(unwrapList(usersRes.data))
+      const fromRoute = Number(routeId)
+      if (Number.isFinite(fromRoute) && fromRoute > 0) {
+        storeProjectId(fromRoute)
+        setProjectId(fromRoute)
+        return
+      }
       setProjectId((current) => {
         if (current && projectList.some((project) => project.id === current)) return current
         const first = projectList[0]?.id ?? null
@@ -91,7 +116,7 @@ function ImplementationPlanPage() {
     } catch (err) {
       setError(err.response?.data?.message || 'Could not load projects.')
     }
-  }, [])
+  }, [routeId, embedded])
 
   const loadActivities = useCallback(async (id) => {
     if (!id) {
@@ -121,27 +146,23 @@ function ImplementationPlanPage() {
   }, [projectId, loadActivities])
 
   useEffect(() => {
+    const fromRoute = Number(routeId)
+    if (Number.isFinite(fromRoute) && fromRoute > 0) {
+      storeProjectId(fromRoute)
+      setProjectId((current) => (current === fromRoute ? current : fromRoute))
+    }
+  }, [routeId])
+
+  useEffect(() => {
     const queryProjectId = searchParams.get('projectId')
-    const autoOpen = searchParams.get('autoOpenAddModal') === 'true'
-    if (!queryProjectId && !autoOpen) return
+    if (!queryProjectId) return
 
-    if (queryProjectId) {
-      const parsed = Number(queryProjectId)
-      if (!Number.isNaN(parsed)) {
-        storeProjectId(parsed)
-        setProjectId((current) => (current === parsed ? current : parsed))
-      }
+    const parsed = Number(queryProjectId)
+    if (!Number.isNaN(parsed)) {
+      storeProjectId(parsed)
+      setProjectId((current) => (current === parsed ? current : parsed))
     }
-
-    if (autoOpen) {
-      if (canAddActivity) {
-        setFormTarget({ ...BLANK_ACTIVITY })
-      }
-      const next = new URLSearchParams(searchParams)
-      next.delete('autoOpenAddModal')
-      setSearchParams(next, { replace: true })
-    }
-  }, [searchParams, setSearchParams, canAddActivity])
+  }, [searchParams])
 
   const handleProjectChange = (id) => {
     storeProjectId(id)
@@ -149,11 +170,38 @@ function ImplementationPlanPage() {
   }
 
   const handleSaveForm = async (values) => {
+    const { rtm_requirement, rtm_comment, documents, projectDocuments, ...activityValues } = values
     try {
       if (formTarget.id == null) {
-        const response = await api.post('/activities', { ...values, project_id: projectId })
+        const response = await api.post('/activities', { ...activityValues, project_id: projectId })
         const created = unwrapItem(response.data)
         setActivities((prev) => [...prev, created])
+        if (rtm_requirement?.trim()) {
+          await api.post('/requirements', {
+            project_id: projectId,
+            requirement_code: `RTM-${created.id}`,
+            description: rtm_requirement.trim(),
+            remarks: rtm_comment?.trim() || undefined,
+          })
+        }
+        if (documents?.length) {
+          for (const file of documents) {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('project_id', projectId)
+            formData.append('activity_id', created.id)
+            await api.post('/documents', formData)
+          }
+        }
+        for (const [documentType, files] of Object.entries(projectDocuments || {})) {
+          for (const file of files) {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('project_id', projectId)
+            formData.append('document_type', documentType)
+            await api.post('/documents', formData)
+          }
+        }
         message.success('Activity added')
       } else {
         const response = await api.put(`/activities/${formTarget.id}`, values)
@@ -275,6 +323,8 @@ function ImplementationPlanPage() {
     }
   }
 
+  const planStatus = workflow?.plan_review_status
+
   const visibleActivities = activities.filter((activity) => {
     const phaseFilter = filteredInfo.phase
     if (phaseFilter?.length && !phaseFilter.includes(activity.phase)) return false
@@ -283,28 +333,36 @@ function ImplementationPlanPage() {
     return true
   })
 
+  const toolbar = (
+    <Space wrap size="middle" className="ms-auto justify-end">
+      {!embedded && (
+        <ProjectPicker projects={projects} value={projectId} onChange={handleProjectChange} />
+      )}
+      <PlanExportButton activities={activities} />
+      {canAddActivity && (
+        <PreventMutation fallback={null}>
+          <button
+            type="button"
+            disabled={!projectId || planStatus === 'pending_review'}
+            onClick={() => setFormTarget(BLANK_ACTIVITY)}
+            className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+            style={{ background: '#7A0C22', height: 42, padding: '0 22px' }}
+          >
+            <Plus size={16} />
+            Add activity
+          </button>
+        </PreventMutation>
+      )}
+    </Space>
+  )
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex w-full flex-wrap items-center justify-end gap-3">
-        <Space wrap size="middle" className="ms-auto justify-end">
-          <ProjectPicker projects={projects} value={projectId} onChange={handleProjectChange} />
-          <PlanExportButton activities={activities} />
-          {canAddActivity && (
-            <PreventMutation fallback={null}>
-              <button
-                type="button"
-                disabled={!projectId}
-                onClick={() => setFormTarget(BLANK_ACTIVITY)}
-                className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-                style={{ background: '#7A0C22', height: 42, padding: '0 22px' }}
-              >
-                <Plus size={16} />
-                Add activity
-              </button>
-            </PreventMutation>
-          )}
-        </Space>
-      </div>
+      {toolbarContainer ? (
+        createPortal(toolbar, toolbarContainer)
+      ) : (
+        <div className="flex w-full flex-wrap items-center justify-end gap-3">{toolbar}</div>
+      )}
 
       <WorkflowBar projectId={projectId} workflow={workflow} />
 

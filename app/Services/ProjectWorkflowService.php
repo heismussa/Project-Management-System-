@@ -233,6 +233,11 @@ class ProjectWorkflowService
             'execution_started_at' => $project->execution_started_at,
             'execution_approved_at' => $project->execution_approved_at,
             'closed_at' => $project->closed_at,
+            'closure_requested_at' => $project->closure_requested_at,
+            'closure_request_comment' => $project->closure_request_comment,
+            'closure_return_comment' => $project->closure_return_comment,
+            'can_request_closure' => $project->isReadyToClose() && ! $project->closure_requested_at && ! $closed,
+            'can_approve_closure' => $project->isReadyToClose() && (bool) $project->closure_requested_at && ! $closed,
             'matrix_return_comment' => $project->matrix_return_comment,
             'matrix_returned_at' => $project->matrix_returned_at,
             'can_review_plan' => $project->plan_review_status === 'pending_review' && ! $closed,
@@ -249,10 +254,35 @@ class ProjectWorkflowService
         ];
     }
 
+    /**
+     * Lightweight summary for project list endpoints — avoids closure/execution
+     * gate scans that were making GET /projects slow for every row.
+     */
+    public static function workflowListPayload(Project $project): array
+    {
+        $track = self::reviewTrack($project);
+        $inExecution = (bool) $project->execution_started_at;
+        $closed = (bool) $project->closed_at;
+
+        return [
+            'plan_review_status' => $project->plan_review_status,
+            'phase' => $project->phase,
+            'status' => $project->status,
+            'review_track' => $track,
+            'queue' => self::queueName($project, $track, $inExecution, $closed),
+            'closure_requested_at' => $project->closure_requested_at,
+            'closure_return_comment' => $project->closure_return_comment,
+            'closed_at' => $project->closed_at,
+        ];
+    }
+
     private static function queueName(Project $project, string $track, bool $inExecution, bool $closed): string
     {
         if ($closed) {
             return 'closed';
+        }
+        if ($project->closure_requested_at) {
+            return 'closure_sign_off';
         }
         if ($inExecution) {
             return 'in_execution';

@@ -1,5 +1,5 @@
 import { Tag } from 'antd'
-import { PLAN_STATUS } from '../../context/ProjectContext'
+import { PLAN_STATUS } from '../../lib/planStatus'
 
 function PlanStatusBadge({ status }) {
   const entry = PLAN_STATUS[status]

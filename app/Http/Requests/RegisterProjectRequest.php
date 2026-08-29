@@ -16,7 +16,7 @@ class RegisterProjectRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'annual_plan_reference' => ['required', 'string', 'max:100'],
+            'annual_plan_reference' => ['nullable', 'string', 'max:100'],
             'category' => ['required', Rule::in(ProjectCatalog::CATEGORIES)],
             'project_type' => ['required', Rule::in(ProjectCatalog::PROJECT_TYPES)],
             'activity_name' => ['required', Rule::in(ProjectCatalog::activitiesFor($this->input('category')))],

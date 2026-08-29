@@ -69,7 +69,7 @@ function ChecklistRow({ item }) {
   )
 }
 
-export default function InitiationDocumentsPanel({ projectId }) {
+export default function InitiationDocumentsPanel({ projectId, hideProceed = false, onProceeded = null }) {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
   const uploadKeyRef = useRef(null)
@@ -141,7 +141,11 @@ export default function InitiationDocumentsPanel({ projectId }) {
       await api.post(`/projects/${projectId}/advance-to-planning`)
       message.success('Project advanced to Planning.')
       storeProjectId(projectId)
-      navigate(`/implementation-plan?projectId=${projectId}`)
+      if (onProceeded) {
+        onProceeded()
+      } else {
+        navigate('/projects', { replace: true })
+      }
     } catch (err) {
       const blockers = err.response?.data?.errors?.blockers
       if (Array.isArray(blockers) && blockers.length) {
@@ -173,7 +177,7 @@ export default function InitiationDocumentsPanel({ projectId }) {
       </div>
 
       {disabled && (
-        <Text type="secondary">Register the project first — documents can be attached once it has been saved.</Text>
+        <Text type="secondary">Complete Details & assignment first — documents can be attached once the project is saved.</Text>
       )}
 
       {!disabled && (
@@ -233,19 +237,21 @@ export default function InitiationDocumentsPanel({ projectId }) {
             </div>
           </div>
 
-          <div className="mt-6 flex items-center gap-3">
-            <Tooltip
-              title={
-                ready
-                  ? 'All required initiation documents are attached.'
-                  : `Missing: ${blockers.map((b) => b.replace('Missing required document: ', '').replace(/\.$/, '')).join(', ')}`
-              }
-            >
-              <Button type="primary" disabled={!ready} loading={advancing} onClick={proceedToPlanning}>
-                Proceed to Planning
-              </Button>
-            </Tooltip>
-          </div>
+          {!hideProceed && (
+            <div className="mt-6 flex items-center gap-3">
+              <Tooltip
+                title={
+                  ready
+                    ? 'All required initiation documents are attached.'
+                    : `Missing: ${blockers.map((b) => b.replace('Missing required document: ', '').replace(/\.$/, '')).join(', ')}`
+                }
+              >
+                <Button type="primary" disabled={!ready} loading={advancing} onClick={proceedToPlanning}>
+                  Proceed to Planning
+                </Button>
+              </Tooltip>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -54,7 +54,8 @@ body,
   min-width: 0 !important;
   height: 100% !important;
   overflow: auto !important;
-  padding: 16px 24px 24px 32px !important;
+  /* Compact outer gutters: tighter top under yellow bar, narrower sides */
+  padding: 6px 12px 12px 12px !important;
   background-color: #f3f4f6;
 }
 

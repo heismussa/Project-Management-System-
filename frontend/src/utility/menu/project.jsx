@@ -2,16 +2,20 @@ import { ROLES } from '../Config.jsx'
 import {
   LayoutDashboard,
   FolderKanban,
-  ClipboardList,
-  Network,
-  FileText,
   ClipboardCheck,
+  Inbox,
+  Database,
   Settings as SettingsIcon,
   Users,
   ShieldCheck,
   KeyRound,
 } from 'lucide-react'
 
+/**
+ * Minimalist sidebar: high-level queues/dashboards only.
+ * Secondary tools (notifications, reports, nested workspaces) live in header
+ * overlays or row-level drawers — not as standalone menu links.
+ */
 export default function Project() {
   return [
     {
@@ -19,6 +23,32 @@ export default function Project() {
       url: '/',
       roles: [],
       icon: LayoutDashboard,
+    },
+    {
+      label: 'Project Management',
+      url: '/projects',
+      roles: [],
+      icon: FolderKanban,
+    },
+    {
+      label: 'Activity Queue',
+      url: '/reviews',
+      // Reviewer's activity/plan review now lives inline in Project Management
+      // (the Details popup) — this queue is only for Approver execution sign-off.
+      roles: [ROLES.PAP, ROLES.PAD],
+      icon: ClipboardCheck,
+    },
+    {
+      label: 'Recommendations',
+      url: '/recommendations',
+      roles: [ROLES.PCO, ROLES.PAD],
+      icon: Inbox,
+    },
+    {
+      label: 'Master data',
+      url: '/admin/master-data',
+      roles: [ROLES.IS, ROLES.PAD],
+      icon: Database,
     },
     {
       label: 'User management',
@@ -39,39 +69,9 @@ export default function Project() {
       icon: KeyRound,
     },
     {
-      label: 'Projects',
-      url: '/projects',
-      roles: [],
-      icon: FolderKanban,
-    },
-    {
-      label: 'Implementation Plan',
-      url: '/implementation-plan',
-      roles: [ROLES.PPL, ROLES.PIM, ROLES.PRV, ROLES.PCO, ROLES.PAP, ROLES.PVO, ROLES.PAD],
-      icon: ClipboardList,
-    },
-    {
-      label: 'Traceability Matrix',
-      url: '/traceability-matrix',
-      roles: [ROLES.PPL, ROLES.PRV, ROLES.PIM, ROLES.PCO, ROLES.PAP, ROLES.PVO, ROLES.PAD],
-      icon: Network,
-    },
-    {
-      label: 'Documents',
-      url: '/documents',
-      roles: [ROLES.PRV, ROLES.PPL, ROLES.PIM, ROLES.PCO, ROLES.PAP, ROLES.PVO, ROLES.PAD],
-      icon: FileText,
-    },
-    {
-      label: 'Reviews',
-      url: '/reviews',
-      roles: [ROLES.PRV, ROLES.PCO, ROLES.PAP, ROLES.PAD],
-      icon: ClipboardCheck,
-    },
-    {
       label: 'Settings',
       url: '/settings',
-      roles: [ROLES.IS, ROLES.PRV, ROLES.PVO],
+      roles: [ROLES.IS, ROLES.PVO],
       icon: SettingsIcon,
     },
   ]

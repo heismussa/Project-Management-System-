@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { Table, Space, Button, Popover, Tag, Alert, Modal, Form, Input, Spin, Divider, message } from 'antd'
 import {
   CheckOutlined,
@@ -51,11 +52,19 @@ function normalizeRequirement(requirement) {
   }
 }
 
-function TraceabilityTable() {
+function TraceabilityTable({ embedded = false } = {}) {
+  const { id: routeId } = useParams()
   const roleName = useActiveRoleName()
   const readOnly = isSpecReadOnlyRole(roleName)
   const [projects, setProjects] = useState([])
-  const [projectId, setProjectId] = useState(getStoredProjectId)
+  const [projectId, setProjectId] = useState(() => {
+    const fromRoute = Number(routeId)
+    if (Number.isFinite(fromRoute) && fromRoute > 0) {
+      storeProjectId(fromRoute)
+      return fromRoute
+    }
+    return getStoredProjectId()
+  })
   const [requirements, setRequirements] = useState([])
   const [matrixReturn, setMatrixReturn] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -70,9 +79,21 @@ function TraceabilityTable() {
 
   const loadProjects = useCallback(async () => {
     try {
+      const fromRoute = Number(routeId)
+      if (embedded && Number.isFinite(fromRoute) && fromRoute > 0) {
+        storeProjectId(fromRoute)
+        setProjectId(fromRoute)
+        return
+      }
+
       const response = await api.get('/projects')
       const projectList = unwrapList(response.data)
       setProjects(projectList)
+      if (Number.isFinite(fromRoute) && fromRoute > 0) {
+        storeProjectId(fromRoute)
+        setProjectId(fromRoute)
+        return
+      }
       setProjectId((current) => {
         if (current && projectList.some((project) => project.id === current)) return current
         const first = projectList[0]?.id ?? null
@@ -82,7 +103,7 @@ function TraceabilityTable() {
     } catch (err) {
       setError(err.response?.data?.message || 'Could not load projects.')
     }
-  }, [])
+  }, [routeId, embedded])
 
   const loadMatrix = useCallback(async (id) => {
     if (!id) {
@@ -343,7 +364,9 @@ function TraceabilityTable() {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
         <Space wrap>
-          <ProjectPicker projects={projects} value={projectId} onChange={(id) => { storeProjectId(id); setProjectId(id) }} />
+          {!embedded && (
+            <ProjectPicker projects={projects} value={projectId} onChange={(id) => { storeProjectId(id); setProjectId(id) }} />
+          )}
           {!readOnly && (
             <>
               <Button type="primary" icon={<PlusOutlined />} disabled={!projectId} onClick={() => setAddOpen(true)}>

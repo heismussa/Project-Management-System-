@@ -21,7 +21,7 @@ import { deriveStatus } from '../../lib/status'
 import { disabledActualStartDate } from '../../lib/validation'
 import { formatDate } from '../../lib/dates'
 import { getPersonName } from '../../data/people'
-import { uploadActivityDocumentStub } from '../../api/activityDocumentsStub'
+import api from '../../lib/axios'
 import StatusBadge from '../common/StatusBadge'
 import PreventMutation from '../common/PreventMutation'
 
@@ -134,13 +134,24 @@ function ActivityReviewDrawer({
     }
   }
 
-  const handleStubUpload = async ({ file, onSuccess, onError }) => {
+  const handleDocumentUpload = async ({ file, onSuccess, onError }) => {
+    if (!activity?.project_id) {
+      onError?.(new Error('Missing project'))
+      message.error('Cannot upload: activity is missing project_id.')
+      return
+    }
     try {
-      const result = await uploadActivityDocumentStub(activity.id, file)
-      onSuccess(result)
-      message.info(`"${file.name}" queued (stubbed — no real upload yet).`)
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('project_id', activity.project_id)
+      formData.append('activity_id', activity.id)
+      formData.append('document_type', 'Activity Evidence')
+      await api.post('/documents', formData)
+      onSuccess?.(file)
+      message.success(`"${file.name}" uploaded.`)
     } catch (err) {
-      onError(err)
+      onError?.(err)
+      message.error(err.response?.data?.message || 'Upload failed.')
     }
   }
 
@@ -293,7 +304,7 @@ function ActivityReviewDrawer({
             Documents can be attached once this activity is marked complete.
           </Text>
         )}
-        <Dragger multiple disabled={!isCompleted} customRequest={handleStubUpload} className="mt-2">
+        <Dragger multiple disabled={!isCompleted} customRequest={handleDocumentUpload} className="mt-2">
           <p className="ant-upload-drag-icon">
             <InboxOutlined />
           </p>

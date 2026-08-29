@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DocumentController extends Controller
 {
-    public function index(Request $request, $projectId): JsonResponse
+    public function index(Request $request, int $projectId): JsonResponse
     {
         $query = Document::where('project_id', $projectId)
             ->with(['uploader:id,name', 'reviewer:id,name', 'activity:id,name'])
