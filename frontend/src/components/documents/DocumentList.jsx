@@ -185,9 +185,6 @@ function DocumentList() {
         </Space>
       </div>
 
-      
-      
-
       <Input
         className="mb-4 max-w-sm"
         placeholder="Search by file name or document type"
