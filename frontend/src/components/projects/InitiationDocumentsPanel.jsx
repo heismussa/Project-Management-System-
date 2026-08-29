@@ -69,7 +69,7 @@ function ChecklistRow({ item }) {
   )
 }
 
-export default function InitiationDocumentsPanel({ projectId, hideProceed = false }) {
+export default function InitiationDocumentsPanel({ projectId, hideProceed = false, onProceeded = null }) {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
   const uploadKeyRef = useRef(null)
@@ -141,7 +141,11 @@ export default function InitiationDocumentsPanel({ projectId, hideProceed = fals
       await api.post(`/projects/${projectId}/advance-to-planning`)
       message.success('Project advanced to Planning.')
       storeProjectId(projectId)
-      navigate('/projects', { replace: true })
+      if (onProceeded) {
+        onProceeded()
+      } else {
+        navigate('/projects', { replace: true })
+      }
     } catch (err) {
       const blockers = err.response?.data?.errors?.blockers
       if (Array.isArray(blockers) && blockers.length) {

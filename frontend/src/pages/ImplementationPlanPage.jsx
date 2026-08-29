@@ -170,11 +170,38 @@ function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = 
   }
 
   const handleSaveForm = async (values) => {
+    const { rtm_requirement, rtm_comment, documents, projectDocuments, ...activityValues } = values
     try {
       if (formTarget.id == null) {
-        const response = await api.post('/activities', { ...values, project_id: projectId })
+        const response = await api.post('/activities', { ...activityValues, project_id: projectId })
         const created = unwrapItem(response.data)
         setActivities((prev) => [...prev, created])
+        if (rtm_requirement?.trim()) {
+          await api.post('/requirements', {
+            project_id: projectId,
+            requirement_code: `RTM-${created.id}`,
+            description: rtm_requirement.trim(),
+            remarks: rtm_comment?.trim() || undefined,
+          })
+        }
+        if (documents?.length) {
+          for (const file of documents) {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('project_id', projectId)
+            formData.append('activity_id', created.id)
+            await api.post('/documents', formData)
+          }
+        }
+        for (const [documentType, files] of Object.entries(projectDocuments || {})) {
+          for (const file of files) {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('project_id', projectId)
+            formData.append('document_type', documentType)
+            await api.post('/documents', formData)
+          }
+        }
         message.success('Activity added')
       } else {
         const response = await api.put(`/activities/${formTarget.id}`, values)

@@ -33,7 +33,9 @@ export default function Project() {
     {
       label: 'Activity Queue',
       url: '/reviews',
-      roles: [ROLES.PRV, ROLES.PAP, ROLES.PAD],
+      // Reviewer's activity/plan review now lives inline in Project Management
+      // (the Details popup) — this queue is only for Approver execution sign-off.
+      roles: [ROLES.PAP, ROLES.PAD],
       icon: ClipboardCheck,
     },
     {

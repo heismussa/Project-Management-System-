@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Select, Space, Steps } from 'antd'
+import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Steps, message } from 'antd'
 import api from '../lib/axios'
 import { unwrapItem, unwrapList } from '../lib/apiHelpers'
 import { useAuth } from '../context/AuthContext'
@@ -49,6 +49,23 @@ export default function ProjectRegistration() {
       .catch(() => setError('Could not load users for planner assignment.'))
   }, [])
 
+  const closeRegistration = () => {
+    if (project?.id) {
+      message.info(`"${project.name}" is saved — you can finish registration later from Project Management.`)
+      navigate('/projects')
+      return
+    }
+
+    Modal.confirm({
+      title: 'Close without saving?',
+      content: 'Nothing has been saved yet — the details entered so far will be lost.',
+      okText: 'Close',
+      okButtonProps: { danger: true },
+      cancelText: 'Keep editing',
+      onOk: () => navigate('/projects'),
+    })
+  }
+
   const planners = useMemo(() => usersWithRole(users, ROLES.PPL), [users])
   const coordinators = useMemo(() => usersWithRole(users, ROLES.PCO), [users])
   const approvers = useMemo(() => usersWithRole(users, ROLES.PAP), [users])
@@ -76,12 +93,13 @@ export default function ProjectRegistration() {
     setSaving(true)
     setError('')
     try {
-      const values = form.getFieldsValue(true)
+      const { plannedRange, ...values } = form.getFieldsValue(true)
+      const [plannedStart, plannedEnd] = plannedRange || []
       const payload = {
         ...values,
         annual_plan_reference: values.annual_plan_reference || null,
-        planned_start_date: values.planned_start_date?.format?.('YYYY-MM-DD') ?? values.planned_start_date ?? null,
-        planned_end_date: values.planned_end_date?.format?.('YYYY-MM-DD') ?? values.planned_end_date ?? null,
+        planned_start_date: plannedStart ? plannedStart.format('YYYY-MM-DD') : null,
+        planned_end_date: plannedEnd ? plannedEnd.format('YYYY-MM-DD') : null,
         initiation_document_id: values.initiation_document_id || null,
       }
       const response = await api.post('/projects', payload)
@@ -225,11 +243,8 @@ export default function ProjectRegistration() {
                 <InputNumber className="w-full" min={0} />
               </Form.Item>
 
-              <Form.Item name="planned_start_date" label="Planned Start">
-                <DatePicker className="w-full" />
-              </Form.Item>
-              <Form.Item name="planned_end_date" label="Planned End">
-                <DatePicker className="w-full" />
+              <Form.Item name="plannedRange" label="Planned Start / Planned End" className="sm:col-span-2">
+                <DatePicker.RangePicker className="w-full" />
               </Form.Item>
 
               <Form.Item name="description" label="Description" className="sm:col-span-2">
@@ -237,9 +252,12 @@ export default function ProjectRegistration() {
               </Form.Item>
 
               <div className="sm:col-span-2">
-                <Button type="primary" loading={saving} onClick={goToDocuments}>
-                  Next
-                </Button>
+                <Space>
+                  <Button onClick={closeRegistration}>Close</Button>
+                  <Button type="primary" loading={saving} onClick={goToDocuments}>
+                    Next
+                  </Button>
+                </Space>
               </div>
             </div>
           )}
@@ -249,6 +267,7 @@ export default function ProjectRegistration() {
           <div className="mt-2">
             <InitiationDocumentsPanel projectId={project?.id ?? null} hideProceed />
             <Space className="mt-6">
+              <Button onClick={closeRegistration}>Close</Button>
               <Button onClick={() => setStep(0)}>Back</Button>
               <Button type="primary" loading={finishing} disabled={!project?.id} onClick={finishRegistration}>
                 Register project

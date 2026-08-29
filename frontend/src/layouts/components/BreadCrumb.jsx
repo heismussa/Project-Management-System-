@@ -1,24 +1,9 @@
 import { Link } from 'react-router-dom'
-import { Home, ChevronLeft, ChevronRight } from 'lucide-react'
-import { useSidebar } from '../SidebarContext'
+import { Home } from 'lucide-react'
 
 export default function BreadCrumb({ crumbs = [], className = '' }) {
-  const { sideBarShown, toggleSideBar } = useSidebar()
-
   return (
     <nav className={`flex min-w-0 items-stretch gap-[10px] ${className}`.trim()} aria-label="Breadcrumb">
-      <button
-        type="button"
-        onClick={toggleSideBar}
-        aria-label={sideBarShown === 1 ? 'Collapse sidebar' : 'Expand sidebar'}
-        className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary shadow-sm md:flex"
-      >
-        {sideBarShown === 1 ? (
-          <ChevronLeft className="h-5 w-5 shrink-0 text-white" aria-hidden="true" />
-        ) : (
-          <ChevronRight className="h-5 w-5 shrink-0 text-white" aria-hidden="true" />
-        )}
-      </button>
       <ol
         role="list"
         className="flex h-9 min-w-0 flex-1 items-center space-x-4 overflow-x-auto rounded-md border border-gray-200 bg-white px-5 shadow-sm dark:border-gray-700 dark:bg-gray-800"

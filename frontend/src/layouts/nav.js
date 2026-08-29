@@ -98,7 +98,7 @@ export function pathAllowedForRole(pathname, roleName) {
     return true
   }
   if (pathname.startsWith('/reviews')) {
-    return [ROLES.PRV, ROLES.PCO, ROLES.PAP, ROLES.PAD].includes(roleName)
+    return [ROLES.PAP, ROLES.PAD].includes(roleName)
   }
   if (pathname.startsWith('/recommendations')) {
     return roleName === ROLES.PCO || roleName === ROLES.PAD
