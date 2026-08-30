@@ -5,7 +5,6 @@ export const people = [
   { id: 4, name: 'Amily Hussein', role: 'Project Coordinator' },
   { id: 5, name: 'Musa Hamis', role: 'Project Planner' },
   { id: 6, name: 'Luqman Salim', role: 'Project Approver' },
-  { id: 7, name: 'Joyce', role: 'Project Implementor' },
 ]
 
 export function getPersonName(id) {

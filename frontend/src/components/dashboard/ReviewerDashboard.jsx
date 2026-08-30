@@ -1,134 +1,209 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Typography, message } from 'antd'
+import { AlertTriangle, Calendar } from 'lucide-react'
 import api from '../../lib/axios'
 import { unwrapItem } from '../../lib/apiHelpers'
+import { DASHBOARD_CARD_STYLE } from './chartConstants'
 
-const { Title, Text } = Typography
+const { Text } = Typography
 
 const MAROON = '#962c30'
+const DEEP_MAROON = '#650018'
+const AMBER = '#ffc20a'
 const GREEN = '#068737'
+const BLUE = '#1677ff'
+const RED = '#b3261e'
 
 const QUEUE_CARDS = [
-  { key: 'new_registrations', label: 'New registrations', description: 'Initiation docs missing', path: '/projects?lifecycleStage=initiation' },
-  { key: 'plans_pending', label: 'Plans pending review', description: 'Awaiting your decision', path: '/reviews' },
-  { key: 'matrices_pending', label: 'Requirement matrices', description: 'Awaiting approval', path: '/reviews' },
-  { key: 'documents_pending', label: 'Documents pending', description: 'Needs your review', path: '/reviews' },
-  { key: 'returned_unresolved', label: 'Returned unresolved', description: 'Needs follow-up', path: '/projects' },
-  { key: 'closure_signoffs', label: 'Closure sign-offs', description: 'All gates passed', path: '/reviews' },
+  { key: 'new_registrations', label: 'New registrations', description: 'Initiation docs missing', path: '/projects?lifecycleStage=initiation', color: MAROON },
+  { key: 'plans_pending', label: 'Plans pending review', description: 'Awaiting your decision', path: '/reviews', color: AMBER },
+  { key: 'matrices_pending', label: 'Requirement matrices', description: 'Awaiting approval', path: '/projects', color: GREEN },
+  { key: 'documents_pending', label: 'Documents for review', description: 'Pending your review', path: '/projects', color: DEEP_MAROON },
+  { key: 'returned_unresolved', label: 'Returned items', description: 'Unresolved', path: '/projects', color: RED },
+  { key: 'closure_signoffs', label: 'Ready for closure', description: 'All gates passed', path: '/reviews', color: BLUE },
+]
+
+const URGENT_ROWS = [
+  { key: 'overdue_reviews', label: 'Overdue reviews' },
+  { key: 'returned_over_5_days', label: 'Returned over 5 days' },
+  { key: 'plans_due_today', label: 'Plans due today' },
+]
+
+const UPCOMING_ROWS = [
+  { key: 'due_today', label: 'Due today' },
+  { key: 'next_3_days', label: 'Next 3 days' },
+  { key: 'next_7_days', label: 'Next 7 days' },
 ]
 
 function QueueCard({ label, description, value, onClick }) {
   return (
     <Card
       hoverable
-      className="page-shell-card"
       onClick={onClick}
-      styles={{ body: { padding: 16 } }}
+      style={{ ...DASHBOARD_CARD_STYLE, height: 108 }}
+      styles={{ body: { height: '100%', padding: '14px 18px', display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}
       role="button"
       tabIndex={0}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') onClick()
       }}
     >
-      <div style={{ fontSize: 11, fontWeight: 600, color: MAROON }}>{label}</div>
-      <div className="mt-1" style={{ fontSize: 24, fontWeight: 500 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: MAROON }}>{label}</div>
+      <div className="mt-1" style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.15 }}>
         {value}
       </div>
-      <Text type="secondary" style={{ fontSize: 10 }}>
+      <Text type="secondary" style={{ fontSize: 11 }}>
         {description}
       </Text>
     </Card>
   )
 }
 
-function TurnaroundCard({ label, value, unit }) {
+// CSS-based grouped bar chart — bar/gridline heights are plain percentages,
+// so it fills whatever height the card grid gives it exactly, with no SVG
+// viewBox math and no letterboxing.
+function ReviewLoadChart({ reviewLoad }) {
+  const maxValue = Math.max(10, ...reviewLoad.flatMap((row) => [row.received, row.reviewed, row.returned]))
+  const gridMax = Math.ceil(maxValue / 10) * 10
+  const gridSteps = gridMax / 10
+  const steps = Array.from({ length: gridSteps + 1 }, (_, step) => step * 10)
+
   return (
-    <div className="flex flex-col items-center text-center">
-      <Text type="secondary" className="text-xs">
-        {label}
-      </Text>
-      <div className="mt-1 text-2xl font-semibold">{value}</div>
-      <Text type="secondary" className="text-xs">
-        {unit}
-      </Text>
+    <div className="flex h-full w-full flex-1 flex-col" role="img" aria-label="Review load by month">
+      <div className="relative flex min-h-0 flex-1">
+        <div className="relative w-8 shrink-0">
+          {steps.map((value) => (
+            <div
+              key={value}
+              className="absolute right-1 translate-y-1/2"
+              style={{ bottom: `${(value / gridMax) * 100}%`, fontSize: 10, color: '#98A2B3' }}
+            >
+              {value}
+            </div>
+          ))}
+        </div>
+
+        <div className="relative min-w-0 flex-1">
+          {steps.map((value) => (
+            <div
+              key={value}
+              className="absolute left-0 right-0 border-t"
+              style={{ bottom: `${(value / gridMax) * 100}%`, borderColor: '#EAECF0' }}
+            />
+          ))}
+
+          <div className="flex h-full items-end justify-between gap-1 px-1">
+            {reviewLoad.map((row) => (
+              <div key={row.month} className="flex h-full flex-1 items-end justify-center gap-1">
+                <div
+                  className="w-4 rounded-t-sm"
+                  style={{ height: `${(row.received / gridMax) * 100}%`, background: MAROON }}
+                />
+                <div
+                  className="w-4 rounded-t-sm"
+                  style={{ height: `${(row.reviewed / gridMax) * 100}%`, background: GREEN }}
+                />
+                <div
+                  className="w-4 rounded-t-sm"
+                  style={{ height: `${(row.returned / gridMax) * 100}%`, background: AMBER }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-1 flex pl-8">
+        {reviewLoad.map((row) => (
+          <div key={row.month} className="flex-1 text-center" style={{ fontSize: 10, color: '#98A2B3' }}>
+            {row.month}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
-// Catmull-Rom -> cubic-Bezier conversion for a smooth, non-jagged polyline.
-function smoothPath(points) {
-  if (points.length < 2) return ''
-  let d = `M ${points[0].x} ${points[0].y}`
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i === 0 ? i : i - 1]
-    const p1 = points[i]
-    const p2 = points[i + 1]
-    const p3 = points[i + 2 < points.length ? i + 2 : i + 1]
-    const cp1x = p1.x + (p2.x - p0.x) / 6
-    const cp1y = p1.y + (p2.y - p0.y) / 6
-    const cp2x = p2.x - (p3.x - p1.x) / 6
-    const cp2y = p2.y - (p3.y - p1.y) / 6
-    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
-  }
-  return d
+function ReviewLoadPanel({ reviewLoad }) {
+  return (
+    <Card
+      className="page-shell-card !mt-0 h-full"
+      styles={{ body: { height: '100%', display: 'flex', flexDirection: 'column' } }}
+    >
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <Text strong style={{ color: MAROON }}>
+          Review load overview
+        </Text>
+        <div className="flex items-center gap-4 text-xs">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: MAROON }} />
+            Received
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: GREEN }} />
+            Reviewed
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: AMBER }} />
+            Returned
+          </span>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1">
+        <ReviewLoadChart reviewLoad={reviewLoad} />
+      </div>
+    </Card>
+  )
 }
 
-const CHART_WIDTH = 760
-const CHART_HEIGHT = 160
-const CHART_LEFT = 32
-const CHART_TOP = 10
-const CHART_BOTTOM_LABELS = 22
-
-function ReviewLoadChart({ reviewLoad }) {
-  const maxValue = Math.max(10, ...reviewLoad.flatMap((row) => [row.received, row.completed]))
-  const gridMax = Math.ceil(maxValue / 10) * 10
-  const gridSteps = gridMax / 10
-  const plotWidth = CHART_WIDTH - CHART_LEFT - 10
-  const plotHeight = CHART_HEIGHT
-
-  const xFor = (index) => CHART_LEFT + (index / (reviewLoad.length - 1)) * plotWidth
-  const yFor = (value) => CHART_TOP + plotHeight - (value / gridMax) * plotHeight
-
-  const receivedPoints = reviewLoad.map((row, index) => ({ x: xFor(index), y: yFor(row.received) }))
-  const completedPoints = reviewLoad.map((row, index) => ({ x: xFor(index), y: yFor(row.completed) }))
-
+function UrgentAttentionPanel({ urgent, navigate }) {
   return (
-    <svg
-      viewBox={`0 0 ${CHART_WIDTH} ${CHART_TOP + CHART_HEIGHT + CHART_BOTTOM_LABELS}`}
-      className="w-full"
-      role="img"
-      aria-label="Review load by month"
-    >
-      {Array.from({ length: gridSteps + 1 }, (_, step) => {
-        const value = step * 10
-        const y = yFor(value)
-        return (
-          <g key={value}>
-            <line x1={CHART_LEFT} y1={y} x2={CHART_WIDTH - 10} y2={y} stroke="#EAECF0" strokeWidth={1} />
-            <text x={CHART_LEFT - 8} y={y + 3} textAnchor="end" fontSize={10} fill="#98A2B3">
-              {value}
-            </text>
-          </g>
-        )
-      })}
+    <Card className="page-shell-card !mt-0 flex flex-1 flex-col">
+      <div className="flex items-center gap-2 text-sm font-bold" style={{ color: MAROON }}>
+        <AlertTriangle size={16} />
+        Urgent attention
+      </div>
+      <div className="mt-3 flex flex-1 flex-col justify-between gap-2">
+        {URGENT_ROWS.map((row) => (
+          <button
+            key={row.key}
+            type="button"
+            className="flex items-center justify-between rounded-md px-3 py-3 text-left text-sm"
+            style={{ background: '#fcebeb' }}
+            onClick={() => navigate('/projects')}
+          >
+            <span>{row.label}</span>
+            <span className="font-semibold">{urgent[row.key] ?? 0}</span>
+          </button>
+        ))}
+      </div>
+    </Card>
+  )
+}
 
-      {reviewLoad.map((row, index) => (
-        <text
-          key={row.month}
-          x={xFor(index)}
-          y={CHART_TOP + plotHeight + 16}
-          textAnchor="middle"
-          fontSize={10}
-          fill="#98A2B3"
-        >
-          {row.month}
-        </text>
-      ))}
-
-      <path d={smoothPath(receivedPoints)} fill="none" stroke={MAROON} strokeWidth={2} />
-      <path d={smoothPath(completedPoints)} fill="none" stroke={GREEN} strokeWidth={2} />
-    </svg>
+function UpcomingDeadlinesPanel({ upcoming, navigate }) {
+  return (
+    <Card className="page-shell-card !mt-0 flex flex-1 flex-col">
+      <div className="flex items-center gap-2 text-sm font-bold" style={{ color: MAROON }}>
+        <Calendar size={16} />
+        Upcoming deadlines
+      </div>
+      <div className="mt-3 flex flex-1 flex-col justify-between gap-2">
+        {UPCOMING_ROWS.map((row) => (
+          <button
+            key={row.key}
+            type="button"
+            className="flex items-center justify-between rounded-md px-3 py-3 text-left text-sm"
+            style={{ background: '#fff4d8' }}
+            onClick={() => navigate('/projects')}
+          >
+            <span>{row.label}</span>
+            <span className="font-semibold">{upcoming[row.key] ?? 0}</span>
+          </button>
+        ))}
+      </div>
+    </Card>
   )
 }
 
@@ -139,7 +214,6 @@ function ReviewerDashboard() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     api
       .get('/dashboard', { params: { role: 'Project Reviewer' } })
       .then((response) => {
@@ -159,57 +233,35 @@ function ReviewerDashboard() {
 
   if (loading || !reviewer) {
     return (
-      <Card className="page-shell-card" loading={loading}>
+      <Card className="page-shell-card !mt-0" loading={loading}>
         {!loading && <Text type="secondary">No dashboard data available.</Text>}
       </Card>
     )
   }
 
-  const { queue, review_load: reviewLoad, turnaround } = reviewer
+  const { queue, urgent, upcoming, review_load: reviewLoad } = reviewer
 
   return (
-    <div className="flex flex-col gap-3">
-      <Title level={5} className="!mb-0" style={{ fontSize: 15, fontWeight: 500 }}>
-        Your review queue
-      </Title>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="flex min-h-[calc(100vh-180px)] flex-col gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {QUEUE_CARDS.map((card) => (
           <QueueCard
             key={card.key}
             label={card.label}
             description={card.description}
-            value={queue[card.key]}
+            value={queue[card.key] ?? 0}
             onClick={() => navigate(card.path)}
           />
         ))}
       </div>
 
-      <Card className="page-shell-card">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <Text strong>Review load overview</Text>
-          <div className="flex items-center gap-4 text-sm">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: MAROON }} />
-              Received
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: GREEN }} />
-              Completed
-            </span>
-          </div>
+      <div className="grid flex-1 auto-rows-fr grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
+        <ReviewLoadPanel reviewLoad={reviewLoad} />
+        <div className="flex h-full flex-col gap-3">
+          <UrgentAttentionPanel urgent={urgent} navigate={navigate} />
+          <UpcomingDeadlinesPanel upcoming={upcoming} navigate={navigate} />
         </div>
-        <ReviewLoadChart reviewLoad={reviewLoad} />
-      </Card>
-
-      <Card className="page-shell-card" title="Turnaround performance">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <TurnaroundCard label="Avg review time" value={turnaround.avg_review_days} unit="days" />
-          <TurnaroundCard label="Reviewed this month" value={turnaround.reviewed_this_month} unit="reviews" />
-          <TurnaroundCard label="Backlog" value={turnaround.backlog} unit="items" />
-          <TurnaroundCard label="Return rate" value={`${turnaround.return_rate}%`} unit="of decisions" />
-        </div>
-      </Card>
+      </div>
     </div>
   )
 }

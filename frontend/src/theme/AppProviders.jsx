@@ -41,14 +41,19 @@ export default function AppProviders({ children }) {
           Table: {
             headerBg: '#962c30',
             headerColor: '#ffffff',
-            headerSplitColor: 'rgba(255,255,255,.22)',
+            headerSplitColor: 'rgba(255,255,255,.55)',
+            cellPaddingInline: 12,
+            fontSize: 14,
             ...(isDark
               ? {
                   colorBgContainer: PMS_DARK_BG_CONTAINER,
                   rowHoverBg: PMS_DARK_ROW_HOVER,
                   borderColor: PMS_DARK_BORDER,
                 }
-              : {}),
+              : {
+                  rowHoverBg: '#fafafa',
+                  borderColor: 'rgba(0, 0, 0, 0.04)',
+                }),
           },
         },
       }}

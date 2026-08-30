@@ -79,11 +79,8 @@ class User extends Authenticatable implements MustVerifyEmail
         $disabled = static::where('is_active', false)->count();
         $passwordResets = UserActivityLog::where('action', 'password_reset')->count();
 
-        $withoutRoles = static::whereDoesntHave('activeRoles')->count();
-
         $roleNames = [
             'Project Planner',
-            'Project Implementor',
             'Project Reviewer',
             'Project ViewOnly',
             'Project Coordinator',
@@ -108,7 +105,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
         $recentActivity = UserActivityLog::with('user:id,name')
             ->latest('created_at')
-            ->limit(15)
+            ->limit(5)
             ->get()
             ->map(fn (UserActivityLog $log) => [
                 'user' => $log->user?->name ?? 'Unknown user',
@@ -124,7 +121,6 @@ class User extends Authenticatable implements MustVerifyEmail
                 'disabled_accounts' => $disabled,
                 'password_resets' => $passwordResets,
             ],
-            'users_without_roles' => $withoutRoles,
             'users_by_role' => $usersByRole,
             'recent_activity' => $recentActivity,
             'notification_engine' => [

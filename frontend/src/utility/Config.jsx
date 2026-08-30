@@ -7,6 +7,5 @@ export const ROLES = {
   PPL: 'Project Planner',
   PCO: 'Project Coordinator',
   PAP: 'Project Approver',
-  PIM: 'Project Implementor',
   PVO: 'Project ViewOnly',
 }

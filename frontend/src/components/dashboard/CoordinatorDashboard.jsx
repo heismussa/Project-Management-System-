@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Card, Col, Row, Statistic, Table, Tag, Typography, message } from 'antd'
+import { Card, Col, Row, Statistic, Table, Tag, message } from 'antd'
 import api from '../../lib/axios'
 import { storeProjectId, unwrapList } from '../../lib/apiHelpers'
 import ReviewWorkspaceDrawer from '../reviews/ReviewWorkspaceDrawer'
-
-const { Title, Paragraph } = Typography
+import { DASHBOARD_CARD_STYLE } from './chartConstants'
 
 export default function CoordinatorDashboard() {
   const [projects, setProjects] = useState([])
@@ -39,24 +38,19 @@ export default function CoordinatorDashboard() {
 
   return (
     <div>
-      <Title level={4} className="!mb-1">
-        Coordinator inbox
-      </Title>
-      <Paragraph type="secondary">SDMM and IDMM projects waiting for a recommendation.</Paragraph>
-
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={8}>
-          <Card className="page-shell-card">
+          <Card className="page-shell-card" style={DASHBOARD_CARD_STYLE}>
             <Statistic title="Awaiting recommendation" value={inbox.length} />
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card className="page-shell-card">
+          <Card className="page-shell-card" style={DASHBOARD_CARD_STYLE}>
             <Statistic title="SDMM" value={byTrack.SDMM || 0} />
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card className="page-shell-card">
+          <Card className="page-shell-card" style={DASHBOARD_CARD_STYLE}>
             <Statistic title="IDMM" value={byTrack.IDMM || 0} />
           </Card>
         </Col>
@@ -64,6 +58,7 @@ export default function CoordinatorDashboard() {
 
       <Card className="page-shell-card mt-4" title="Recommendations inbox">
         <Table
+          className="pms-house-table"
           rowKey="id"
           dataSource={inbox}
           locale={{ emptyText: 'No projects waiting for recommendation.' }}

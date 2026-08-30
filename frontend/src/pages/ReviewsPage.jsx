@@ -4,6 +4,8 @@ import { Button, Card, Table, Tag, message } from 'antd'
 import ReviewWorkspaceDrawer, { ReviewWorkspacePanel } from '../components/reviews/ReviewWorkspaceDrawer'
 import api from '../lib/axios'
 import { getStoredProjectId, storeProjectId, unwrapList } from '../lib/apiHelpers'
+import { useActiveRoleName } from '../components/common/RoleGuard'
+import { ROLES } from '../utility/Config.jsx'
 
 const QUEUE_LABELS = {
   plan_review: 'Plan review',
@@ -21,6 +23,8 @@ const REVIEW_BTN_STYLE = {
 
 function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
   const { id: routeId } = useParams()
+  const roleName = useActiveRoleName()
+  const isApprover = roleName === ROLES.PAP
   const [searchParams] = useSearchParams()
   const [projects, setProjects] = useState([])
   const [reviewTarget, setReviewTarget] = useState(null)
@@ -70,13 +74,14 @@ function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
         const queue = project.workflow?.queue
         if (!QUEUE_LABELS[queue]) return false
         if (queueFilter) return queue === queueFilter
+        if (isApprover) return (project.workflow?.review_track || project.review_track) === 'DICT'
         return true
       })
       .map((project) => ({
         ...project,
         queue: project.workflow?.queue,
       }))
-  }, [projects, queueFilter])
+  }, [projects, queueFilter, isApprover])
 
   if (embedded) {
     return (
@@ -92,6 +97,7 @@ function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
     <div>
       <Card className="page-shell-card">
         <Table
+          className="pms-house-table"
           rowKey="id"
           pagination={{ pageSize: 8 }}
           dataSource={queueRows}

@@ -20,8 +20,7 @@ export default function Login() {
       const response = await api.post('/login', { login: email, password });
       const user = response.data.user;
       login(user, response.data.token);
-      const hasRole = (user?.roles || []).length > 0 || Boolean(user?.role);
-      navigate(hasRole ? '/' : '/unassigned');
+      navigate('/');
     } catch (err) {
       setErrorMessage(
         err.response?.data?.message

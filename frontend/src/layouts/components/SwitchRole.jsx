@@ -1,12 +1,11 @@
 import { Dropdown } from 'antd'
 import { ChevronDown } from 'lucide-react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { formatRoleLabel, pathAllowedForRole } from '../nav'
+import { formatRoleLabel } from '../nav'
 
 export default function SwitchRole() {
   const { assignedRoles, activeRole, switchRole } = useAuth()
-  const location = useLocation()
   const navigate = useNavigate()
 
   if (!assignedRoles.length) {
@@ -27,9 +26,7 @@ export default function SwitchRole() {
 
   const selectRole = (role) => {
     switchRole(role)
-    if (!pathAllowedForRole(location.pathname, role.name)) {
-      navigate('/', { replace: true })
-    }
+    navigate('/', { replace: true })
   }
 
   const button = (

@@ -157,16 +157,16 @@ function ActivitiesTable({
               headerBg: '#962c30',
               headerColor: '#ffffff',
               headerSplitColor: 'rgba(255,255,255,.22)',
-              rowHoverBg: isDark ? PMS_DARK_ROW_HOVER : '#FFFDF9',
+              rowHoverBg: isDark ? PMS_DARK_ROW_HOVER : '#fafafa',
               colorBgContainer: isDark ? PMS_DARK_BG_CONTAINER : undefined,
-              cellPaddingInline: 16,
+              cellPaddingInline: 12,
               fontSize: 14,
             },
           },
         }}
       >
         <Table
-          className="plan-table"
+          className="plan-table pms-house-table"
           rowKey="id"
           columns={columns}
           dataSource={visibleActivities}

@@ -4,7 +4,7 @@ import { Card, Progress, Table, Typography, message } from 'antd'
 import api from '../../lib/axios'
 import { storeProjectId, unwrapItem } from '../../lib/apiHelpers'
 import PhaseBarChart from './PhaseBarChart'
-import { BRAND_MAROON } from './chartConstants'
+import { BRAND_MAROON, DASHBOARD_CARD_STYLE } from './chartConstants'
 
 const { Title, Text } = Typography
 
@@ -19,7 +19,7 @@ function ClickableStat({ label, value, onClick, accent }) {
   return (
     <Card
       hoverable
-      className="page-shell-card"
+      className="page-shell-card" style={DASHBOARD_CARD_STYLE}
       onClick={onClick}
       styles={{ body: { padding: 20 } }}
       role="button"
@@ -43,7 +43,6 @@ function AdministratorDashboard() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     api
       .get('/dashboard', { params: { role: 'Project Administrator' } })
       .then((response) => {
@@ -203,6 +202,7 @@ function AdministratorDashboard() {
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.35fr_1fr]">
         <Card className="page-shell-card" title="Transition blockers">
           <Table
+            className="pms-house-table"
             rowKey={(record) => `${record.project_id}-${record.reason}`}
             size="small"
             pagination={false}

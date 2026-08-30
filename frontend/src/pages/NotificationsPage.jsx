@@ -27,6 +27,7 @@ export default function NotificationsPage() {
       <Paragraph type="secondary">Deadline and workflow alerts for your account.</Paragraph>
       <Card className="page-shell-card">
         <Table
+          className="pms-house-table"
           rowKey="id"
           loading={loading}
           dataSource={items}

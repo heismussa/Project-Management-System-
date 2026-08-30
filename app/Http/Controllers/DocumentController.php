@@ -170,6 +170,40 @@ class DocumentController extends Controller
         ]);
     }
 
+    public function replace(Request $request, Document $document): JsonResponse
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:pdf,docx,xlsx', 'max:10240'],
+        ]);
+
+        $file = $validated['file'];
+        $path = $file->store('documents', 'public');
+
+        $document->update(['is_current' => false]);
+
+        $replacement = Document::create([
+            'project_id' => $document->project_id,
+            'activity_id' => $document->activity_id,
+            'requirement_id' => $document->requirement_id,
+            'document_type' => $document->document_type,
+            'phase' => $document->phase,
+            'file_name' => $file->getClientOriginalName(),
+            'file_url' => $path,
+            'file_type' => $file->getClientMimeType(),
+            'file_size' => $file->getSize(),
+            'version_number' => $document->version_number + 1,
+            'is_current' => true,
+            'review_status' => 'pending',
+            'uploaded_by' => $request->user()->id,
+            'uploaded_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Document replaced.',
+            'data' => $replacement->load(['uploader:id,name', 'activity:id,name']),
+        ], 201);
+    }
+
     public function destroy(Document $document): JsonResponse
     {
         if ($document->file_url) {

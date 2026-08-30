@@ -19,7 +19,6 @@ class UserSeeder extends Seeder
             ['email' => 'planner@nssf.or.tz', 'name' => 'Project Planner', 'password' => 'password123', 'role' => 'Project Planner'],
             ['email' => 'coordinator@nssf.or.tz', 'name' => 'Project Coordinator', 'password' => 'password123', 'role' => 'Project Coordinator'],
             ['email' => 'approver@nssf.or.tz', 'name' => 'Project Approver', 'password' => 'password123', 'role' => 'Project Approver'],
-            ['email' => 'implementor@nssf.or.tz', 'name' => 'Project Implementor', 'password' => 'password123', 'role' => 'Project Implementor'],
             ['email' => 'viewonly@nssf.or.tz', 'name' => 'Project ViewOnly', 'password' => 'password123', 'role' => 'Project ViewOnly'],
         ];
 

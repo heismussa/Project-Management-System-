@@ -36,14 +36,6 @@ class DashboardController extends Controller
             ];
         }
 
-        if (in_array($role, ['Project Implementor', 'Project Administrator'], true)) {
-            $metrics = array_merge($metrics, Project::getImplementorMetrics());
-            $pendingActions[] = [
-                'label' => 'Update activity progress',
-                'path' => '/projects',
-            ];
-        }
-
         if (in_array($role, ['ICT Support', 'Project Administrator'], true)) {
             $pendingActions[] = [
                 'label' => 'Manage users and roles',

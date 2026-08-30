@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Button, Card, Form, Input, Table, Typography, message } from 'antd'
+import { Button, Card, Form, Input, message } from 'antd'
+import DataTable from '../components/common/DataTable'
 import {
   DEFAULT_ANNUAL_PLAN_REFERENCES,
   getAnnualPlanReferences,
@@ -8,8 +9,6 @@ import {
   saveAnnualPlanReferences,
   saveExtraActivities,
 } from '../lib/projectCatalog'
-
-const { Title, Paragraph } = Typography
 
 const APR_STORAGE_KEY = 'pms-annual-plan-items'
 
@@ -40,14 +39,6 @@ export default function MasterDataPage() {
 
   return (
     <div>
-      <Title level={4} className="!mb-1">
-        Master data
-      </Title>
-      <Paragraph type="secondary">
-        Annual Plan picklist and extra activity names used during registration. Values are stored in this browser until
-        a central import endpoint is available.
-      </Paragraph>
-
       <Card className="page-shell-card mb-4" title="Annual Plan references">
         <Form form={aprForm} layout="inline" className="mb-4" onFinish={addApr}>
           <Form.Item name="reference" rules={[{ required: true, message: 'Enter a reference' }]}>
@@ -59,18 +50,19 @@ export default function MasterDataPage() {
             </Button>
           </Form.Item>
         </Form>
-        <Table
+        <DataTable
           rowKey={(value) => value}
-          pagination={false}
-          dataSource={apr}
+          data={apr}
+          hideSearch
           columns={[
             {
               title: 'Reference',
-              render: (value) => value,
+              render: (_, record) => record,
             },
             {
               title: 'Source',
-              render: (value) => (DEFAULT_ANNUAL_PLAN_REFERENCES.includes(value) ? 'Default' : 'Custom'),
+              width: 140,
+              render: (_, record) => (DEFAULT_ANNUAL_PLAN_REFERENCES.includes(record) ? 'Default' : 'Custom'),
             },
           ]}
         />
@@ -87,12 +79,12 @@ export default function MasterDataPage() {
             </Button>
           </Form.Item>
         </Form>
-        <Table
+        <DataTable
           rowKey={(value) => value}
-          pagination={false}
-          dataSource={activities}
-          locale={{ emptyText: 'No extra activities yet.' }}
-          columns={[{ title: 'Activity', render: (value) => value }]}
+          data={activities}
+          hideSearch
+          emptyText="No extra activities yet."
+          columns={[{ title: 'Activity', render: (_, record) => record }]}
         />
       </Card>
     </div>

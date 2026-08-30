@@ -4,11 +4,10 @@ import { Spin } from 'antd'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 import Login from './pages/login'
-import UnassignedPage from './pages/UnassignedPage'
 import DashboardPage from './pages/DashboardPage'
 import ProjectsPage from './pages/ProjectsPage'
 import AppLayout from './layouts/AppLayout'
-import { getAssignedRoles, pathAllowedForRole } from './layouts/nav'
+import { pathAllowedForRole } from './layouts/nav'
 
 const ProjectRegistration = lazy(() => import('./pages/ProjectRegistration'))
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'))
@@ -19,10 +18,6 @@ const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
 const MasterDataPage = lazy(() => import('./pages/MasterDataPage'))
 const LegacyProjectRedirect = lazy(() => import('./pages/LegacyProjectRedirect'))
-
-function hasAssignedRole(user) {
-  return getAssignedRoles(user).length > 0
-}
 
 function PageFallback() {
   return (
@@ -35,8 +30,7 @@ function PageFallback() {
 function PublicOnly({ children }) {
   const { user, isLoadingAuth } = useAuth()
   if (isLoadingAuth) return null
-  if (user && hasAssignedRole(user)) return <Navigate to="/" replace />
-  if (user && !hasAssignedRole(user)) return <Navigate to="/unassigned" replace />
+  if (user) return <Navigate to="/" replace />
   return children
 }
 
@@ -44,16 +38,7 @@ function ProtectedRoute({ children }) {
   const { user, isLoadingAuth } = useAuth()
   if (isLoadingAuth) return null
   if (!user) return <Navigate to="/login" replace />
-  if (!hasAssignedRole(user)) return <Navigate to="/unassigned" replace />
   return children
-}
-
-function UnassignedRoute() {
-  const { user, isLoadingAuth } = useAuth()
-  if (isLoadingAuth) return null
-  if (!user) return <Navigate to="/login" replace />
-  if (hasAssignedRole(user)) return <Navigate to="/" replace />
-  return <UnassignedPage />
 }
 
 function RolePageRoute({ children }) {
@@ -81,8 +66,6 @@ export default function App() {
                 </PublicOnly>
               }
             />
-            <Route path="/unassigned" element={<UnassignedRoute />} />
-
             <Route
               element={
                 <ProtectedRoute>

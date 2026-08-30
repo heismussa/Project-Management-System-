@@ -16,7 +16,6 @@ class RoleSeeder extends Seeder
             'Project Planner' => ['projects.plan', 'requirements.submit', 'projects.view_all'],
             'Project Coordinator' => ['projects.recommend', 'projects.view_all'],
             'Project Approver' => ['projects.approve', 'projects.view_all'],
-            'Project Implementor' => ['projects.implement', 'projects.view_all'],
             'Project ViewOnly' => ['projects.view_all'],
             'Project Administrator' => Permission::all()->pluck('code')->toArray(),
         ];

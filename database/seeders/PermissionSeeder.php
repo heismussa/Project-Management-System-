@@ -23,7 +23,6 @@ class PermissionSeeder extends Seeder
             ['code' => 'requirements.submit', 'name' => 'Submit Requirements', 'module' => 'planning', 'description' => 'Submit SRS requirements'],
             ['code' => 'projects.recommend', 'name' => 'Recommend Project Execution', 'module' => 'coordination', 'description' => 'Recommend execution stage'],
             ['code' => 'projects.approve', 'name' => 'Approve Project', 'module' => 'approval', 'description' => 'Approve or reject project'],
-            ['code' => 'projects.implement', 'name' => 'Implement Project', 'module' => 'execution', 'description' => 'Execute implementation activities'],
             ['code' => 'projects.close', 'name' => 'Close Project', 'module' => 'closure', 'description' => 'Close a project after readiness gates pass'],
             ['code' => 'admin.manage_users', 'name' => 'Manage Users and Roles', 'module' => 'admin', 'description' => 'Manage accounts, roles, and permission overrides'],
         ];

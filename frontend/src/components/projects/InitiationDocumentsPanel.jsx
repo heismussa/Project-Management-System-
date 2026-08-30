@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Space, Tooltip, Typography, message } from 'antd'
-import {
-  CheckCircleFilled,
-  CloseCircleFilled,
-  EyeOutlined,
-  MinusCircleFilled,
-  ReloadOutlined,
-  UploadOutlined,
-} from '@ant-design/icons'
+import { CheckCircleFilled, CloseCircleFilled, EyeOutlined, MinusCircleFilled, UploadOutlined } from '@ant-design/icons'
 import api from '../../lib/axios'
 import { fetchAuthorizedFileUrl, storeProjectId, unwrapItem } from '../../lib/apiHelpers'
 
@@ -74,7 +67,6 @@ export default function InitiationDocumentsPanel({ projectId, hideProceed = fals
   const fileInputRef = useRef(null)
   const uploadKeyRef = useRef(null)
   const [readiness, setReadiness] = useState(null)
-  const [loading, setLoading] = useState(false)
   const [uploadingKey, setUploadingKey] = useState(null)
   const [advancing, setAdvancing] = useState(null)
 
@@ -83,14 +75,11 @@ export default function InitiationDocumentsPanel({ projectId, hideProceed = fals
       setReadiness(null)
       return
     }
-    setLoading(true)
     try {
       const response = await api.get(`/projects/${projectId}/initiation-readiness`)
       setReadiness(unwrapItem(response.data))
     } catch {
       message.error('Could not load initiation readiness.')
-    } finally {
-      setLoading(false)
     }
   }, [projectId])
 
@@ -167,13 +156,8 @@ export default function InitiationDocumentsPanel({ projectId, hideProceed = fals
     <div className={disabled ? 'pointer-events-none opacity-50' : ''}>
       <input ref={fileInputRef} type="file" accept=".pdf,.docx,.xlsx" className="hidden" onChange={handleFileSelected} />
 
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4">
         <Text strong className="text-base">Initiation Documents</Text>
-        {!disabled && (
-          <Button size="small" icon={<ReloadOutlined />} onClick={loadReadiness} loading={loading}>
-            Refresh
-          </Button>
-        )}
       </div>
 
       {disabled && (

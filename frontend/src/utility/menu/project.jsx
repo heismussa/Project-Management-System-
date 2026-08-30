@@ -5,10 +5,7 @@ import {
   ClipboardCheck,
   Inbox,
   Database,
-  Settings as SettingsIcon,
   Users,
-  ShieldCheck,
-  KeyRound,
 } from 'lucide-react'
 
 /**
@@ -27,21 +24,30 @@ export default function Project() {
     {
       label: 'Project Management',
       url: '/projects',
-      roles: [],
+      roles: [ROLES.IS, ROLES.PAD, ROLES.PRV, ROLES.PVO],
       icon: FolderKanban,
     },
     {
-      label: 'Activity Queue',
+      label: 'Assigned Projects',
+      url: '/projects',
+      roles: [ROLES.PPL],
+      icon: FolderKanban,
+    },
+    {
+      label: 'Recommendations',
       url: '/reviews',
       // Reviewer's activity/plan review now lives inline in Project Management
-      // (the Details popup) — this queue is only for Approver execution sign-off.
+      // (the Details popup) — this queue is Approver execution sign-off (DICT
+      // only) for PAP; Administrator lands on the same page but unfiltered,
+      // so they see every track (SDMM/IDMM/DICT) — no separate admin entry
+      // needed for the Coordinator-only /recommendations queue below.
       roles: [ROLES.PAP, ROLES.PAD],
       icon: ClipboardCheck,
     },
     {
       label: 'Recommendations',
       url: '/recommendations',
-      roles: [ROLES.PCO, ROLES.PAD],
+      roles: [ROLES.PCO],
       icon: Inbox,
     },
     {
@@ -55,24 +61,6 @@ export default function Project() {
       url: '/user-management',
       roles: [ROLES.IS, ROLES.PAD],
       icon: Users,
-    },
-    {
-      label: 'Role management',
-      url: '/role-management',
-      roles: [ROLES.IS],
-      icon: ShieldCheck,
-    },
-    {
-      label: 'Password reset',
-      url: '/password-reset',
-      roles: [ROLES.IS],
-      icon: KeyRound,
-    },
-    {
-      label: 'Settings',
-      url: '/settings',
-      roles: [ROLES.IS, ROLES.PVO],
-      icon: SettingsIcon,
     },
   ]
 }

@@ -30,7 +30,6 @@ class ProjectSeeder extends Seeder
         $planner = User::where('email', 'planner@nssf.or.tz')->first();
         $coordinator = User::where('email', 'coordinator@nssf.or.tz')->first();
         $approver = User::where('email', 'approver@nssf.or.tz')->first();
-        $implementor = User::where('email', 'implementor@nssf.or.tz')->first();
 
         // 1) Execution, ongoing, overdue activity at 1 day, a pending document.
         $p1 = $this->makeProject([
@@ -52,8 +51,8 @@ class ProjectSeeder extends Seeder
             'actual_start_date' => now()->subDays(20),
             'overall_implementation_score' => 72,
         ], $reviewer, $planner, $coordinator, $approver);
-        $this->activity($p1, 'API Gateway Rollout', $implementor, now()->subDays(1), null);
-        $this->activity($p1, 'Portal UAT Sign-off', $implementor, now()->addDays(5), null);
+        $this->activity($p1, 'API Gateway Rollout', $planner, now()->subDays(1), null);
+        $this->activity($p1, 'Portal UAT Sign-off', $planner, now()->addDays(5), null);
         $this->requirement($p1, 'REQ-101-1', 'Completed', 'Pass');
         $this->requirement($p1, 'REQ-101-2', 'Completed', 'Pass');
         $this->requirement($p1, 'REQ-101-3', 'Completed', 'Fail');
@@ -79,7 +78,7 @@ class ProjectSeeder extends Seeder
             'actual_start_date' => now()->subDays(15),
             'overall_implementation_score' => 45,
         ], $reviewer, $planner, $coordinator, $approver);
-        $this->activity($p2, 'Leave Module Cutover', $implementor, now()->subDays(3), null);
+        $this->activity($p2, 'Leave Module Cutover', $planner, now()->subDays(3), null);
         $this->requirement($p2, 'REQ-102-1', 'Completed', 'Pass');
         $this->requirement($p2, 'REQ-102-2', 'Pending', null);
 
@@ -103,7 +102,7 @@ class ProjectSeeder extends Seeder
             'actual_start_date' => now()->subDays(30),
             'overall_implementation_score' => 88,
         ], $reviewer, $planner, $coordinator, $approver);
-        $this->activity($p3, 'Legacy Records Import', $implementor, now()->subDays(6), null);
+        $this->activity($p3, 'Legacy Records Import', $planner, now()->subDays(6), null);
         $this->requirement($p3, 'REQ-103-1', 'Completed', 'Pass');
         $this->requirement($p3, 'REQ-103-2', 'Completed', 'Pass');
 
@@ -127,7 +126,7 @@ class ProjectSeeder extends Seeder
             'actual_start_date' => now()->subDays(10),
             'overall_implementation_score' => 60,
         ], $reviewer, $planner, $coordinator, $approver);
-        $this->activity($p4, 'Vendor API Certification', $implementor, now()->addDays(3), null);
+        $this->activity($p4, 'Vendor API Certification', $planner, now()->addDays(3), null);
         $this->requirement($p4, 'REQ-104-1', 'Pending', null);
         $this->requirement($p4, 'REQ-104-2', 'Pending', null);
 
@@ -152,7 +151,7 @@ class ProjectSeeder extends Seeder
             'actual_end_date' => now()->subDays(2),
             'overall_implementation_score' => 95,
         ], $reviewer, $planner, $coordinator, $approver);
-        $this->activity($p5, 'Report Templates Delivered', $implementor, now()->subDays(45), now()->subDays(5), 'completed');
+        $this->activity($p5, 'Report Templates Delivered', $planner, now()->subDays(45), now()->subDays(5), 'completed');
         $this->requirement($p5, 'REQ-105-1', 'Completed', 'Pass');
         $this->requirement($p5, 'REQ-105-2', 'Completed', 'Pass');
         $this->document($p5, 'Implementation Plan', 'approved', now()->subDays(10));

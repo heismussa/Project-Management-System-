@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Table, Button, Input, Descriptions, Modal, Space, Form, Select, message } from 'antd'
-import { UploadOutlined, DownloadOutlined, EyeOutlined, SearchOutlined } from '@ant-design/icons'
+import { Button, Descriptions, Input, Modal, Space, Form, Select, message } from 'antd'
+import { UploadOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import DataTable from '../common/DataTable'
 import ReviewStatusBadge from '../common/ReviewStatusBadge'
 import DocumentUploadModal from './DocumentUploadModal'
 import ProjectPicker from '../common/ProjectPicker'
@@ -31,7 +32,6 @@ function DocumentList({ embedded = false } = {}) {
     return getStoredProjectId()
   })
   const [documents, setDocuments] = useState([])
-  const [search, setSearch] = useState('')
   const [uploadOpen, setUploadOpen] = useState(false)
   const [viewTarget, setViewTarget] = useState(null)
   const [reviewForm] = Form.useForm()
@@ -108,22 +108,15 @@ function DocumentList({ embedded = false } = {}) {
     })
   }
 
-  const query = search.trim().toLowerCase()
-  const filtered = documents.filter((doc) => {
-    if (!query) return true
-    return (
-      doc.file_name?.toLowerCase().includes(query) ||
-      doc.document_type?.toLowerCase().includes(query)
-    )
-  })
-
   const columns = [
-    { title: 'File name', dataIndex: 'file_name', key: 'file_name' },
-    { title: 'Type', dataIndex: 'document_type', key: 'document_type' },
+    { title: 'File name', dataIndex: 'file_name', key: 'file_name', width: 220 },
+    { title: 'Type', dataIndex: 'document_type', key: 'document_type', width: 140 },
     {
       title: 'Activity',
       key: 'activity',
+      width: 160,
       render: (_, record) => record.activity?.name || 'Project-level',
+      searchValue: (record) => record.activity?.name || 'Project-level',
     },
     {
       title: 'Version',
@@ -145,16 +138,20 @@ function DocumentList({ embedded = false } = {}) {
     {
       title: 'Uploaded by',
       key: 'uploaded_by',
+      width: 160,
       render: (_, record) => record.uploader?.name || '—',
+      searchValue: (record) => record.uploader?.name || '',
     },
     {
       title: 'Uploaded at',
       dataIndex: 'uploaded_at',
+      width: 170,
       render: (value) => (value ? dayjs(value).format('MMM D, YYYY h:mm A') : '—'),
     },
     {
       title: 'Actions',
       key: 'actions',
+      width: 100,
       render: (_, record) => (
         <Button
           size="small"
@@ -175,15 +172,7 @@ function DocumentList({ embedded = false } = {}) {
         <h2 className="mb-4 text-lg font-semibold text-gray-800 dark:text-gray-100">Project Documents</h2>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Input
-          className="max-w-sm flex-1"
-          placeholder="Search by file name or document type"
-          prefix={<SearchOutlined />}
-          allowClear
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <Space wrap>
           {!embedded && (
             <ProjectPicker
@@ -203,9 +192,13 @@ function DocumentList({ embedded = false } = {}) {
         </Space>
       </div>
 
-      <div className="page-shell-card p-4" style={{ marginTop: 0 }}>
-        <Table rowKey="id" className="ictms-table" columns={columns} dataSource={filtered} pagination={false} scroll={{ x: 'max-content' }} />
-      </div>
+      <DataTable
+        columns={columns}
+        data={documents}
+        rowKey="id"
+        searchPlaceholder="Search by file name or document type"
+        emptyText="No current documents."
+      />
 
       <DocumentUploadModal
         open={uploadOpen}

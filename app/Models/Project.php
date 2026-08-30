@@ -240,21 +240,6 @@ class Project extends Model
     }
 
     /**
-     * Person 4 contract consumed by Person 1 dashboard.
-     */
-    public static function getImplementorMetrics(): array
-    {
-        return [
-            'in_execution' => static::query()->where('phase', 'Execution')->whereNull('closed_at')->count(),
-            'overdue_activities' => ImplementationActivity::query()
-                ->whereNull('actual_start_date')
-                ->whereDate('planned_start_date', '<', now())
-                ->count(),
-            'completion_docs' => Document::query()->whereNotNull('activity_id')->count(),
-        ];
-    }
-
-    /**
      * Person 3 contract — Person 2 closure engine calls this.
      */
     public function hasCompletedAllActivities(): bool
@@ -441,8 +426,8 @@ class Project extends Model
 
     /**
      * Aggregates for the Administrator dashboard at "/". Kept on the model,
-     * alongside getReviewerMetrics()/getPlannerMetrics()/getImplementorMetrics(),
-     * so it's queried the same way the rest of the dashboard contracts are.
+     * alongside getReviewerMetrics()/getPlannerMetrics(), so it's queried the
+     * same way the rest of the dashboard contracts are.
      */
     public static function administratorDashboard(): array
     {
@@ -513,48 +498,191 @@ class Project extends Model
     }
 
     /**
-     * Aggregates for the Reviewer dashboard at "/". The six queue counts,
-     * the monthly review-load line chart, and turnaround metrics — all
-     * sourced from the reviews table, keyed on reviewed_at.
+     * Aggregates for the Reviewer dashboard at "/": the six queue counts,
+     * the unified pending/returned queue behind the "awaiting review" table
+     * and the urgent/upcoming panels, the monthly review-load line chart,
+     * and turnaround metrics — all sourced from the reviews table, keyed on
+     * reviewed_at.
      */
     public static function reviewerDashboard(): array
     {
-        $newRegistrations = static::where('lifecycle_stage', 'initiation')
+        $today = now()->startOfDay();
+        $slaDays = 3;
+        // No stored due-date column for review items — a due date is derived
+        // as submission + this SLA, consistently for overdue/upcoming and for
+        // the awaiting-review table.
+        $dueAt = fn ($submittedAt) => $submittedAt ? Carbon::parse($submittedAt)->addDays($slaDays)->startOfDay() : null;
+
+        $newRegistrationProjects = static::where('lifecycle_stage', 'initiation')
             ->get()
-            ->filter(fn (Project $project) => ! $project->initiationReadiness()['ready'])
-            ->count();
+            ->filter(fn (Project $project) => ! $project->initiationReadiness()['ready']);
 
-        $plansPending = static::where('plan_status', 'pending_review')->count();
+        $plansPendingProjects = static::where('plan_status', 'pending_review')->get();
 
-        $matricesPending = Requirement::whereNull('review_decision')->distinct('project_id')->count('project_id');
+        $matricesPendingProjectIds = Requirement::whereNull('review_decision')->distinct()->pluck('project_id');
+        $matricesPendingProjects = static::whereIn('id', $matricesPendingProjectIds)->get();
 
-        $documentsPending = Document::where('review_status', 'pending')->count();
+        $documentsPendingList = Document::where('review_status', 'pending')
+            ->where('is_current', true)
+            ->with('project:id,name')
+            ->get();
 
-        // "no newer version submitted" — replacing a document flips the old
-        // row's is_current off, so a still-current returned row means the
-        // return has gone unaddressed.
-        $returnedUnresolved = Document::where('review_status', 'returned')->where('is_current', true)->count();
+        $returnedDocuments = Document::where('review_status', 'returned')
+            ->where('is_current', true)
+            ->with('project:id,name')
+            ->get();
 
-        $closureSignoffs = static::whereNull('closed_at')
+        $returnedPlanProjects = static::where('plan_status', 'changes_requested')->get();
+
+        // Same "no newer submission" logic as documents: a requirement whose
+        // decision is still needs_revision/rejected hasn't been fixed yet.
+        $returnedMatrixProjects = static::whereNotNull('matrix_returned_at')
             ->get()
-            ->filter(fn (Project $project) => $project->isReadyToClose())
-            ->count();
+            ->filter(fn (Project $project) => Requirement::where('project_id', $project->id)
+                ->whereIn('review_decision', ['needs_revision', 'rejected'])
+                ->exists());
 
-        $reviews = Review::whereYear('reviewed_at', now()->year)->get(['project_id', 'entity_type', 'decision', 'reviewed_at']);
+        $closureSignoffProjects = static::whereNull('closed_at')
+            ->get()
+            ->filter(fn (Project $project) => $project->isReadyToClose());
 
-        $reviewLoad = collect(range(1, 12))->map(function (int $month) use ($reviews) {
-            $inMonth = $reviews->filter(fn (Review $review) => $review->reviewed_at->month === $month);
+        $pending = collect();
+
+        foreach ($newRegistrationProjects as $project) {
+            $submittedAt = $project->created_at;
+            $pending->push([
+                'project' => $project->name,
+                'project_id' => $project->id,
+                'type' => 'Registration',
+                'submitted_at' => $submittedAt,
+                'due_at' => $dueAt($submittedAt),
+                'status' => 'Pending',
+            ]);
+        }
+
+        foreach ($plansPendingProjects as $project) {
+            $submittedAt = $project->plan_submitted_at ?? $project->updated_at;
+            $pending->push([
+                'project' => $project->name,
+                'project_id' => $project->id,
+                'type' => 'Plan',
+                'submitted_at' => $submittedAt,
+                'due_at' => $dueAt($submittedAt),
+                'status' => $project->plan_pending_reapproval ? 'In review' : 'Pending',
+            ]);
+        }
+
+        foreach ($matricesPendingProjects as $project) {
+            $requirements = Requirement::where('project_id', $project->id)->get(['review_decision', 'updated_at']);
+            $submittedAt = $requirements->whereNull('review_decision')->min('updated_at');
+            $pending->push([
+                'project' => $project->name,
+                'project_id' => $project->id,
+                'type' => 'Matrix',
+                'submitted_at' => $submittedAt,
+                'due_at' => $dueAt($submittedAt),
+                'status' => $requirements->whereNotNull('review_decision')->isNotEmpty() ? 'In review' : 'Pending',
+            ]);
+        }
+
+        foreach ($documentsPendingList as $document) {
+            $pending->push([
+                'project' => $document->project?->name ?? '—',
+                'project_id' => $document->project_id,
+                'type' => 'Document',
+                'submitted_at' => $document->uploaded_at,
+                'due_at' => $dueAt($document->uploaded_at),
+                'status' => 'Pending',
+            ]);
+        }
+
+        $returned = collect();
+
+        foreach ($returnedDocuments as $document) {
+            $returned->push([
+                'project' => $document->project?->name ?? '—',
+                'project_id' => $document->project_id,
+                'type' => 'Document',
+                'submitted_at' => $document->reviewed_at,
+                'status' => 'Returned',
+            ]);
+        }
+
+        foreach ($returnedPlanProjects as $project) {
+            $returned->push([
+                'project' => $project->name,
+                'project_id' => $project->id,
+                'type' => 'Plan',
+                'submitted_at' => $project->plan_reviewed_at,
+                'status' => 'Returned',
+            ]);
+        }
+
+        foreach ($returnedMatrixProjects as $project) {
+            $returned->push([
+                'project' => $project->name,
+                'project_id' => $project->id,
+                'type' => 'Matrix',
+                'submitted_at' => $project->matrix_returned_at,
+                'status' => 'Returned',
+            ]);
+        }
+
+        $awaitingReview = $pending->concat($returned)
+            ->filter(fn (array $item) => $item['submitted_at'] !== null)
+            ->sortByDesc(fn (array $item) => Carbon::parse($item['submitted_at'])->timestamp)
+            ->take(8)
+            ->map(fn (array $item) => [
+                'project' => $item['project'],
+                'project_id' => $item['project_id'],
+                'type' => $item['type'],
+                'submitted_at' => Carbon::parse($item['submitted_at'])->toISOString(),
+                'status' => $item['status'],
+            ])
+            ->values()
+            ->all();
+
+        $overdueReviews = $pending->filter(fn (array $item) => $item['due_at'] && $item['due_at']->lt($today))->count();
+
+        $returnedOverFiveDays = $returned->filter(
+            fn (array $item) => $item['submitted_at'] && Carbon::parse($item['submitted_at'])->lt($today->copy()->subDays(5))
+        )->count();
+
+        $plansDueToday = $pending->filter(
+            fn (array $item) => $item['type'] === 'Plan' && $item['due_at'] && $item['due_at']->isSameDay($today)
+        )->count();
+
+        $dueTodayCount = $pending->filter(fn (array $item) => $item['due_at'] && $item['due_at']->isSameDay($today))->count();
+        $dueNext3Days = $pending->filter(
+            fn (array $item) => $item['due_at'] && $item['due_at']->gt($today) && $item['due_at']->lte($today->copy()->addDays(3))
+        )->count();
+        $dueNext7Days = $pending->filter(
+            fn (array $item) => $item['due_at'] && $item['due_at']->gt($today->copy()->addDays(3)) && $item['due_at']->lte($today->copy()->addDays(7))
+        )->count();
+
+        // Per-requirement decisions land on entity_type "requirement"; a
+        // bulk matrix return lands on "matrix" — both are the reviewer's own
+        // decisions, so both count toward review load and turnaround.
+        $reviewerEntityTypes = ['plan', 'document', 'requirement', 'matrix', 'closure'];
+
+        $yearReviews = Review::whereIn('entity_type', $reviewerEntityTypes)
+            ->whereYear('reviewed_at', now()->year)
+            ->get(['project_id', 'entity_type', 'decision', 'reviewed_at']);
+
+        $reviewLoad = collect(range(1, 8))->map(function (int $month) use ($yearReviews) {
+            $inMonth = $yearReviews->filter(fn (Review $review) => $review->reviewed_at->month === $month);
 
             return [
                 'month' => Carbon::create(2000, $month, 1)->format('M'),
                 'received' => $inMonth->where('decision', 'submitted')->count(),
-                'completed' => $inMonth->where('decision', '!=', 'submitted')->count(),
+                'reviewed' => $inMonth->where('decision', 'approved')->count(),
+                'returned' => $inMonth->whereIn('decision', ['returned', 'rejected', 'needs_revision'])->count(),
             ];
         })->values()->all();
 
-        $completedReviews = Review::where('decision', '!=', 'submitted')->get(['project_id', 'entity_type', 'decision', 'reviewed_at']);
-        $submittedByKey = Review::where('decision', 'submitted')
-            ->get(['project_id', 'entity_type', 'reviewed_at'])
+        $allReviews = Review::whereIn('entity_type', $reviewerEntityTypes)->get(['project_id', 'entity_type', 'decision', 'reviewed_at']);
+        $completedReviews = $allReviews->where('decision', '!=', 'submitted');
+        $submittedByKey = $allReviews->where('decision', 'submitted')
             ->groupBy(fn (Review $review) => $review->project_id.'-'.$review->entity_type);
 
         $turnaroundDays = $completedReviews
@@ -569,13 +697,19 @@ class Project extends Model
             })
             ->filter(fn ($days) => $days !== null);
 
-        $reviewedThisMonth = Review::where('decision', '!=', 'submitted')
-            ->whereYear('reviewed_at', now()->year)
-            ->whereMonth('reviewed_at', now()->month)
+        $reviewedThisMonth = $completedReviews
+            ->filter(fn (Review $review) => $review->reviewed_at->isSameMonth(now()) && $review->reviewed_at->isSameYear(now()))
             ->count();
 
         $totalDecisions = $completedReviews->count();
-        $returnedDecisions = $completedReviews->whereIn('decision', ['rejected', 'needs_revision'])->count();
+        $returnedDecisions = $completedReviews->whereIn('decision', ['returned', 'rejected', 'needs_revision'])->count();
+
+        $newRegistrations = $newRegistrationProjects->count();
+        $plansPending = $plansPendingProjects->count();
+        $matricesPending = $matricesPendingProjectIds->count();
+        $documentsPending = $documentsPendingList->count();
+        $returnedUnresolved = $returnedDocuments->count() + $returnedPlanProjects->count() + $returnedMatrixProjects->count();
+        $closureSignoffs = $closureSignoffProjects->count();
 
         return [
             'queue' => [
@@ -586,10 +720,22 @@ class Project extends Model
                 'returned_unresolved' => $returnedUnresolved,
                 'closure_signoffs' => $closureSignoffs,
             ],
+            'awaiting_review' => $awaitingReview,
+            'urgent' => [
+                'overdue_reviews' => $overdueReviews,
+                'returned_over_5_days' => $returnedOverFiveDays,
+                'plans_due_today' => $plansDueToday,
+            ],
+            'upcoming' => [
+                'due_today' => $dueTodayCount,
+                'next_3_days' => $dueNext3Days,
+                'next_7_days' => $dueNext7Days,
+            ],
             'review_load' => $reviewLoad,
             'turnaround' => [
                 'avg_review_days' => $turnaroundDays->isNotEmpty() ? round($turnaroundDays->avg(), 1) : 0,
                 'reviewed_this_month' => $reviewedThisMonth,
+                'returned' => $returnedDecisions,
                 'backlog' => $newRegistrations + $plansPending + $matricesPending + $documentsPending + $returnedUnresolved + $closureSignoffs,
                 'return_rate' => $totalDecisions > 0 ? round(($returnedDecisions / $totalDecisions) * 100, 1) : 0,
             ],

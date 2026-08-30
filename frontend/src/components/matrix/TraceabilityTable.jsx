@@ -397,7 +397,7 @@ function TraceabilityTable({ embedded = false } = {}) {
       <Spin spinning={loading}>
         <div className="page-shell-card p-0">
           <Table
-            className="matrix-table"
+            className="matrix-table pms-house-table"
             rowKey="id"
             columns={columns}
             dataSource={requirements}

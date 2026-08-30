@@ -4,6 +4,7 @@ import { EyeOutlined } from '@ant-design/icons'
 import api from '../../lib/axios'
 import { unwrapItem } from '../../lib/apiHelpers'
 import PhaseBarChart from './PhaseBarChart'
+import { DASHBOARD_CARD_STYLE } from './chartConstants'
 
 const { Text } = Typography
 
@@ -20,7 +21,7 @@ const REQUIREMENT_SEGMENTS = [
 
 function MetricCard({ label, value }) {
   return (
-    <Card className="page-shell-card" styles={{ body: { padding: 20 } }}>
+    <Card className="page-shell-card" style={DASHBOARD_CARD_STYLE} styles={{ body: { padding: 20 } }}>
       <Text type="secondary">{label}</Text>
       <div className="mt-1 text-3xl font-semibold">{value}</div>
     </Card>
@@ -66,7 +67,6 @@ function ViewOnlyDashboard() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     api
       .get('/dashboard', { params: { role: 'Project ViewOnly' } })
       .then((response) => {
@@ -177,6 +177,7 @@ function ViewOnlyDashboard() {
       {/* 5 — project progress table */}
       <Card className="page-shell-card" title="Project progress">
         <Table
+          className="pms-house-table"
           rowKey="id"
           size="small"
           dataSource={projects}

@@ -86,6 +86,7 @@ export default function ReportsPage() {
 
       <Card className="page-shell-card">
         <Table
+          className="pms-house-table"
           rowKey="name"
           dataSource={rows}
           columns={[

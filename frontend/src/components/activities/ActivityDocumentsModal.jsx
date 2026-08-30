@@ -1,8 +1,9 @@
-import { Modal, Table, Button, Space, message } from 'antd'
+import { Modal, Spin, Button, message } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import dayjs from 'dayjs'
 import ReviewStatusBadge from '../common/ReviewStatusBadge'
 import DocumentUploadModal from '../documents/DocumentUploadModal'
+import DataTable from '../common/DataTable'
 import api from '../../lib/axios'
 import { unwrapList } from '../../lib/apiHelpers'
 
@@ -44,26 +45,29 @@ function ActivityDocumentsModal({ open, activity, projectId, onCancel }) {
             Upload document
           </Button>
         </div>
-        <Table
-          rowKey="id"
-          loading={loading}
-          pagination={false}
-          dataSource={documents}
-          columns={[
-            { title: 'File', dataIndex: 'file_name' },
-            { title: 'Type', dataIndex: 'document_type' },
-            {
-              title: 'Review',
-              dataIndex: 'review_status',
-              render: (value) => <ReviewStatusBadge status={value} />,
-            },
-            {
-              title: 'Uploaded',
-              dataIndex: 'uploaded_at',
-              render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
-            },
-          ]}
-        />
+        <Spin spinning={loading}>
+          <DataTable
+            rowKey="id"
+            data={documents}
+            searchPlaceholder="Search documents..."
+            columns={[
+              { title: 'File', dataIndex: 'file_name' },
+              { title: 'Type', dataIndex: 'document_type', width: 160 },
+              {
+                title: 'Review',
+                dataIndex: 'review_status',
+                width: 130,
+                render: (value) => <ReviewStatusBadge status={value} />,
+              },
+              {
+                title: 'Uploaded',
+                dataIndex: 'uploaded_at',
+                width: 130,
+                render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
+              },
+            ]}
+          />
+        </Spin>
       </Modal>
       <DocumentUploadModal
         open={uploadOpen}

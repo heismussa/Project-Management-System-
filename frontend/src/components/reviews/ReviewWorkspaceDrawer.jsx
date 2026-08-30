@@ -9,7 +9,6 @@ import {
   Select,
   Space,
   Spin,
-  Table,
   Tag,
   Typography,
   message,
@@ -18,8 +17,9 @@ import dayjs from 'dayjs'
 import RoleGuard from '../common/RoleGuard'
 import ClosurePanel from '../projects/ClosurePanel'
 import ReviewStatusBadge from '../common/ReviewStatusBadge'
+import DataTable from '../common/DataTable'
 import api from '../../lib/axios'
-import { fetchAuthorizedFileUrl, unwrapList } from '../../lib/apiHelpers'
+import { unwrapList } from '../../lib/apiHelpers'
 import { ROLES } from '../../utility/Config.jsx'
 import { useAuth } from '../../context/AuthContext'
 
@@ -175,21 +175,22 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
 
       {showProgress && (
         <Section title={`Progress updates (${pendingProgress.length})`}>
-          <Table
+          <DataTable
             rowKey="id"
-            size="small"
-            pagination={false}
-            dataSource={pendingProgress}
+            data={pendingProgress}
+            hideSearch
             columns={[
               { title: 'Activity', dataIndex: 'name' },
               {
                 title: 'Actual start',
                 dataIndex: 'actual_start_date',
+                width: 130,
                 render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
               },
               {
                 title: 'Actual end',
                 dataIndex: 'actual_end_date',
+                width: 130,
                 render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
               },
               {
@@ -228,11 +229,10 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
 
       {showChanges && (
         <Section title={`Plan changes (${pendingChanges.length})`}>
-          <Table
+          <DataTable
             rowKey="id"
-            size="small"
-            pagination={false}
-            dataSource={pendingChanges}
+            data={pendingChanges}
+            hideSearch
             columns={[
               { title: 'Activity', dataIndex: 'name' },
               {
@@ -275,17 +275,17 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
 
       {showDocs && (
         <Section title={`Documents (${pendingDocs.length})`}>
-          <Table
+          <DataTable
             rowKey="id"
-            size="small"
-            pagination={false}
-            dataSource={pendingDocs}
+            data={pendingDocs}
+            hideSearch
             columns={[
               { title: 'File', dataIndex: 'file_name' },
-              { title: 'Type', dataIndex: 'document_type' },
+              { title: 'Type', dataIndex: 'document_type', width: 160 },
               {
                 title: 'Status',
                 dataIndex: 'review_status',
+                width: 130,
                 render: (value) => <ReviewStatusBadge status={value} />,
               },
               {
@@ -427,20 +427,6 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
             <Button type="primary" loading={saving} onClick={submitCommentModal} style={PRIMARY_BTN}>
               OK
             </Button>
-            {modal === 'doc' && docTarget && (
-              <Button
-                onClick={async () => {
-                  try {
-                    const url = await fetchAuthorizedFileUrl(docTarget.id)
-                    window.open(url, '_blank', 'noopener,noreferrer')
-                  } catch {
-                    message.error('Could not open document.')
-                  }
-                }}
-              >
-                View
-              </Button>
-            )}
             <Button
               onClick={() => {
                 setModal(null)

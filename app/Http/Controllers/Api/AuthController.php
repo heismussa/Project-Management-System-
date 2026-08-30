@@ -182,7 +182,6 @@ class AuthController extends Controller
             'coordinator@nssf.or.tz' => 'Project Coordinator',
             'approver@nssf.or.tz' => 'Project Approver',
             'planner@nssf.or.tz' => 'Project Planner',
-            'implementor@nssf.or.tz' => 'Project Implementor',
             'viewonly@nssf.or.tz' => 'Project ViewOnly',
         ];
 

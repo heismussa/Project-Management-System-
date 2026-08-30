@@ -11,10 +11,9 @@ use Illuminate\Support\Facades\Hash;
 
 /**
  * Volume for the ICT Support dashboard: users spread across every role
- * (plus a handful with none, and a handful disabled), account-activity
- * history for the "Recent account activity" table, and notification rows
- * for the "Notification engine" panel. ~64 users total once combined with
- * UserSeeder's 9 named accounts.
+ * (plus a handful with none, and a handful disabled), and account-activity
+ * history for the "Recent account activity" table. ~45 users total once
+ * combined with UserSeeder's 8 named accounts.
  */
 class UserBulkSeeder extends Seeder
 {
@@ -28,7 +27,6 @@ class UserBulkSeeder extends Seeder
 
         $roleAllocation = [
             'Project Planner' => 14,
-            'Project Implementor' => 12,
             'Project ViewOnly' => 8,
             'Project Reviewer' => 6,
             'Project Coordinator' => 5,

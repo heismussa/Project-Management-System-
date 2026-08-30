@@ -1,4 +1,5 @@
 import { Select } from 'antd'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { ROLES } from '../../utility/Config.jsx'
 
@@ -10,6 +11,7 @@ const DEV_ROLE_OPTIONS = Object.values(ROLES).map((name) => ({ value: name, labe
 // VITE_USE_MOCK_AUTH so it can't ship to a real environment.
 export default function DevRoleSwitcher() {
   const { activeRole, switchRole } = useAuth()
+  const navigate = useNavigate()
 
   if (import.meta.env.VITE_USE_MOCK_AUTH !== 'true') return null
 
@@ -18,7 +20,10 @@ export default function DevRoleSwitcher() {
       size="small"
       value={activeRole?.name}
       placeholder="Dev: switch role"
-      onChange={(name) => switchRole({ id: name, name })}
+      onChange={(name) => {
+        switchRole({ id: name, name })
+        navigate('/', { replace: true })
+      }}
       options={DEV_ROLE_OPTIONS}
       style={{ width: 190 }}
       popupMatchSelectWidth={false}

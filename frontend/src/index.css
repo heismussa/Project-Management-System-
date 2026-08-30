@@ -107,6 +107,31 @@ body {
   vertical-align: middle;
 }
 
+/* House table style (DataTable.jsx spec) applied to AntD Table instances
+   that keep antd's sorting/filtering/pagination instead of migrating to
+   DataTable. Colors/padding/fontSize come from the ConfigProvider Table
+   tokens in AppProviders.jsx; this covers the pixel heights and borders
+   those tokens don't expose. */
+.pms-house-table .ant-table-thead > tr > th {
+  height: 45px;
+  font-weight: 600;
+  border-right: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.pms-house-table .ant-table-thead > tr > th:last-child {
+  border-right: none;
+}
+
+.pms-house-table .ant-table-tbody > tr > td {
+  height: 52px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  vertical-align: middle;
+}
+
+.pms-house-table .ant-table-tbody > tr:hover > td {
+  background: #fafafa;
+}
+
 .nav-link.active {
   background-color: #962c30;
   color: #fff;

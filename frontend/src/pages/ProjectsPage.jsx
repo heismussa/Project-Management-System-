@@ -30,6 +30,7 @@ import { formatDate } from '../lib/dates'
 import ActivityFormModal from '../components/activities/ActivityFormModal'
 import InitiationDocumentsPanel from '../components/projects/InitiationDocumentsPanel'
 import ClosurePanel from '../components/projects/ClosurePanel'
+import DataTable from '../components/common/DataTable'
 
 const REQUIRED_DOCUMENT_TYPES = ['Implementation Plan', 'SRS']
 
@@ -94,7 +95,6 @@ function ProjectsPage() {
   const view = searchParams.get('view') === 'completed' ? 'completed' : 'ongoing'
   const [reassignTarget, setReassignTarget] = useState(null)
   const [detailTarget, setDetailTarget] = useState(null)
-  const [detailDownloading, setDetailDownloading] = useState(false)
   const [detailDocuments, setDetailDocuments] = useState([])
   const [detailDocumentsLoading, setDetailDocumentsLoading] = useState(false)
   const [detailActivities, setDetailActivities] = useState([])
@@ -123,12 +123,15 @@ function ProjectsPage() {
   const [documentReviewTarget, setDocumentReviewTarget] = useState(null)
   const [documentReviewComment, setDocumentReviewComment] = useState('')
   const [documentReviewSaving, setDocumentReviewSaving] = useState(false)
+  const [replacingDocId, setReplacingDocId] = useState(null)
+  const [downloadingDocId, setDownloadingDocId] = useState(null)
   const [actionsOpenId, setActionsOpenId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
 
   const isPlannerRole = activeRole?.name === ROLES.PPL
   const isReviewerRole = activeRole?.name === ROLES.PRV
+  const isViewerRole = activeRole?.name === ROLES.PVO
   const canReassign =
     hasPermission(user, 'projects.assign_planner') || hasPermission(user, 'projects.reassign_planner')
   const isCompletedView = view === 'completed'
@@ -298,31 +301,6 @@ function ProjectsPage() {
     loadUsersForReassign()
   }
 
-  const downloadProjectFiles = async (record) => {
-    setDetailDownloading(true)
-    try {
-      const response = await api.get(`/projects/${record.id}/documents`)
-      const documents = unwrapList(response.data).filter((doc) => doc.is_current !== false)
-      if (!documents.length) {
-        message.info('No documents available to download for this project.')
-        return
-      }
-      for (const doc of documents) {
-        const url = await fetchAuthorizedFileUrl(doc.id)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = doc.file_name || `project-${record.id}-document`
-        link.click()
-        URL.revokeObjectURL(url)
-      }
-      message.success(documents.length === 1 ? 'File downloaded.' : `${documents.length} files downloaded.`)
-    } catch (err) {
-      message.error(err.response?.data?.message || 'Could not download files.')
-    } finally {
-      setDetailDownloading(false)
-    }
-  }
-
   // Opens the file inline in a new tab (blob URL) so the reviewer/planner can
   // keep working in the original tab; the browser's own viewer supplies a
   // download control instead of forcing an attachment download here.
@@ -335,7 +313,26 @@ function ProjectsPage() {
     }
   }
 
+  const handleReplaceDocument = async (doc, { file, onSuccess, onError }) => {
+    if (!detailTarget) return
+    setReplacingDocId(doc.id)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const response = await api.post(`/documents/${doc.id}/replace`, formData)
+      onSuccess?.(response.data)
+      message.success('Document replaced.')
+      loadDetailDocuments(detailTarget.id)
+    } catch (err) {
+      onError?.(err)
+      message.error(err.response?.data?.message || 'Could not replace document.')
+    } finally {
+      setReplacingDocId(null)
+    }
+  }
+
   const downloadSingleDocument = async (doc) => {
+    setDownloadingDocId(doc.id)
     try {
       const url = await fetchAuthorizedFileUrl(doc.id)
       const link = document.createElement('a')
@@ -345,6 +342,8 @@ function ProjectsPage() {
       URL.revokeObjectURL(url)
     } catch {
       message.error('Could not download document.')
+    } finally {
+      setDownloadingDocId(null)
     }
   }
 
@@ -802,6 +801,7 @@ function ProjectsPage() {
           onChange={(event) => setSearch(event.target.value)}
         />
         <Table
+          className="pms-house-table"
           rowKey="id"
           loading={loading}
           columns={columns}
@@ -905,39 +905,26 @@ function ProjectsPage() {
               </div>
             ) : (
               <div className="mt-4 rounded border border-gray-200 p-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="text-sm font-bold" style={{ color: '#800000' }}>
-                      Documents
-                    </div>
-                    <div className="text-xs text-gray-500">{detailDocuments.length} current file(s)</div>
+                <div>
+                  <div className="text-sm font-bold" style={{ color: '#800000' }}>
+                    Documents
                   </div>
-                  {detailDocuments.length > 1 && (
-                    <Button
-                      size="small"
-                      icon={<DownloadOutlined />}
-                      type="default"
-                      loading={detailDownloading}
-                      onClick={() => downloadProjectFiles(detailTarget)}
-                    >
-                      Download all
-                    </Button>
-                  )}
+                  <div className="text-xs text-gray-500">{detailDocuments.length} current file(s)</div>
                 </div>
 
                 {detailDocumentsLoading ? (
                   <div className="mt-2">
                     <Spin size="small" />
                   </div>
-                ) : detailDocuments.length > 0 ? (
-                  <Table
+                ) : (
+                  <DataTable
                     className="mt-2"
-                    size="small"
                     rowKey="id"
-                    pagination={false}
-                    dataSource={detailDocuments}
+                    data={detailDocuments}
+                    hideSearch
+                    emptyText="No current documents."
                     columns={[
-                      { title: 'File', dataIndex: 'file_name', key: 'file_name', ellipsis: true },
+                      { title: 'File', dataIndex: 'file_name', key: 'file_name' },
                       { title: 'Type', dataIndex: 'document_type', key: 'document_type', width: 160 },
                       {
                         title: 'Uploaded',
@@ -945,48 +932,42 @@ function ProjectsPage() {
                         width: 130,
                         render: (_, docRecord) => formatDate(docRecord.uploaded_at),
                       },
-                      ...(isReviewerRole
+                      ...(isReviewerRole || isViewerRole
                         ? [
                             {
-                              title: 'Review',
-                              key: 'review_status',
-                              width: 110,
-                              render: (_, docRecord) => {
-                                const status = docRecord.review_status
-                                if (status === 'approved') return <Tag color="green">Approved</Tag>
-                                if (status === 'returned') return <Tag color="red">Returned</Tag>
-                                return <Tag color="gold">Pending</Tag>
-                              },
+                              title: 'Actions',
+                              key: 'actions',
+                              width: 100,
+                              render: (_, docRecord) =>
+                                isReviewerRole ? (
+                                  <Upload
+                                    showUploadList={false}
+                                    accept=".pdf,.docx,.xlsx"
+                                    customRequest={(options) => handleReplaceDocument(docRecord, options)}
+                                  >
+                                    <Button
+                                      size="small"
+                                      icon={<UploadOutlined />}
+                                      loading={replacingDocId === docRecord.id}
+                                    >
+                                      Replace
+                                    </Button>
+                                  </Upload>
+                                ) : (
+                                  <Button
+                                    size="small"
+                                    icon={<DownloadOutlined />}
+                                    loading={downloadingDocId === docRecord.id}
+                                    onClick={() => downloadSingleDocument(docRecord)}
+                                  >
+                                    Download
+                                  </Button>
+                                ),
                             },
                           ]
                         : []),
-                      {
-                        title: 'Actions',
-                        key: 'actions',
-                        width: isReviewerRole ? 220 : 160,
-                        render: (_, docRecord) => (
-                          <Space size="small">
-                            <Button size="small" icon={<EyeOutlined />} onClick={() => viewDocument(docRecord)}>
-                              View
-                            </Button>
-                            <Button
-                              size="small"
-                              icon={<DownloadOutlined />}
-                              aria-label="Download document"
-                              onClick={() => downloadSingleDocument(docRecord)}
-                            />
-                            {isReviewerRole && docRecord.review_status !== 'approved' && (
-                              <Button size="small" onClick={() => openDocumentReview(docRecord)}>
-                                Review
-                              </Button>
-                            )}
-                          </Space>
-                        ),
-                      },
                     ]}
                   />
-                ) : (
-                  <div className="mt-2 text-sm text-gray-700">No current documents.</div>
                 )}
               </div>
             )}
@@ -1021,14 +1002,13 @@ function ProjectsPage() {
                 </div>
               ) : (
                 detailActivities.length > 0 && (
-                  <Table
+                  <DataTable
                     className="mt-2"
-                    size="small"
                     rowKey="id"
-                    pagination={false}
-                    dataSource={detailActivities}
+                    data={detailActivities}
+                    hideSearch
                     columns={[
-                      { title: 'Activity', dataIndex: 'name', key: 'name', ellipsis: true },
+                      { title: 'Activity', dataIndex: 'name', key: 'name' },
                       {
                         title: 'Planned Start',
                         key: 'planned_start_date',

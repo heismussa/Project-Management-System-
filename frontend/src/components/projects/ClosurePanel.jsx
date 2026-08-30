@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Alert, Button, Form, Input, Modal, Space, Table, Tag, message } from 'antd'
+import { Alert, Button, Form, Input, Modal, Space, Tag, message } from 'antd'
+import DataTable from '../common/DataTable'
 import RoleGuard, { useActiveRoleName } from '../common/RoleGuard'
 import { ROLES } from '../../utility/Config.jsx'
 import api from '../../lib/axios'
@@ -59,16 +60,18 @@ export default function ClosurePanel({ projectId, closure, workflow, onChanged }
         <Alert type="warning" showIcon message="Closure returned" description={workflow.closure_return_comment} />
       )}
 
-      <Table
+      <DataTable
         rowKey="key"
-        pagination={false}
-        dataSource={checks}
+        data={checks}
+        hideSearch
         columns={[
           { title: 'Gate', dataIndex: 'label' },
           {
             title: 'Result',
             dataIndex: 'passed',
+            width: 140,
             render: (passed) => <Tag color={passed ? 'green' : 'red'}>{passed ? 'Passed' : 'Blocked'}</Tag>,
+            searchValue: (record) => (record.passed ? 'Passed' : 'Blocked'),
           },
         ]}
       />

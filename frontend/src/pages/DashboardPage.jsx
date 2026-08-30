@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Col, Row, Statistic, Typography } from 'antd'
+import { Card, Col, Row, Statistic } from 'antd'
 import api from '../lib/axios'
 import { unwrapItem } from '../lib/apiHelpers'
 import { useAuth } from '../context/AuthContext'
@@ -11,8 +11,7 @@ import ViewOnlyDashboard from '../components/dashboard/ViewOnlyDashboard'
 import IctSupportDashboard from '../components/dashboard/IctSupportDashboard'
 import PlannerDashboard from '../components/dashboard/PlannerDashboard'
 import CoordinatorDashboard from '../components/dashboard/CoordinatorDashboard'
-
-const { Title, Paragraph } = Typography
+import { DASHBOARD_CARD_STYLE } from '../components/dashboard/chartConstants'
 
 const METRIC_LABELS = {
   new_registrations: 'New registrations',
@@ -25,7 +24,6 @@ const METRIC_LABELS = {
   active_activities: 'Activities',
   pending_matrix_items: 'Pending matrix items',
   overdue_activities: 'Overdue activities',
-  completion_docs: 'Completion documents',
 }
 
 function DashboardPage() {
@@ -87,17 +85,10 @@ function DashboardPage() {
 
   return (
     <div>
-      <Title level={4} className="!mb-1">
-        Dashboard
-      </Title>
-      <Paragraph type="secondary">
-        Project overview and key metrics for {activeRole?.name || 'your account'}.
-      </Paragraph>
-
       <Row gutter={[16, 16]}>
         {metrics.map((metric) => (
           <Col xs={24} sm={12} lg={8} key={metric.key}>
-            <Card className="page-shell-card">
+            <Card className="page-shell-card" style={DASHBOARD_CARD_STYLE}>
               <Statistic title={metric.label} value={metric.value} />
             </Card>
           </Col>
