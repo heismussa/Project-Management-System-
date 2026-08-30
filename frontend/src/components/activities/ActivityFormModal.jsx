@@ -94,6 +94,12 @@ function ActivityFormModal({ open, activity, people, requiredProjectDocTypes = [
       okText={isCreate ? 'Add Activity' : 'Save'}
       cancelText="Close"
       confirmLoading={saving}
+      footer={(_, { OkBtn, CancelBtn }) => (
+        <>
+          <OkBtn />
+          <CancelBtn />
+        </>
+      )}
       destroyOnHidden
       width={720}
       centered

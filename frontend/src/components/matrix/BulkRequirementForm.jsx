@@ -33,6 +33,12 @@ function BulkRequirementForm({ open, onCancel, onSubmit }) {
       confirmLoading={submitting}
       onCancel={handleCancel}
       okText="Add requirements"
+      footer={(_, { OkBtn, CancelBtn }) => (
+        <>
+          <OkBtn />
+          <CancelBtn />
+        </>
+      )}
       width={640}
       destroyOnHidden
     >

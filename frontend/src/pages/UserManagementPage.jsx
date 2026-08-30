@@ -306,6 +306,12 @@ function UserManagementPage() {
         okText="Create"
         cancelText="Close"
         confirmLoading={saving}
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <>
+            <OkBtn />
+            <CancelBtn />
+          </>
+        )}
         destroyOnHidden
       >
         <Form form={createForm} layout="vertical" onFinish={handleCreate} className="pt-2">
@@ -354,6 +360,12 @@ function UserManagementPage() {
         okText="Save"
         cancelText="Close"
         confirmLoading={saving}
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <>
+            <OkBtn />
+            <CancelBtn />
+          </>
+        )}
         destroyOnHidden
       >
         <Form form={assignForm} layout="vertical" onFinish={handleAssign} className="pt-2">
@@ -386,6 +398,12 @@ function UserManagementPage() {
         okText="Update"
         cancelText="Close"
         confirmLoading={saving}
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <>
+            <OkBtn />
+            <CancelBtn />
+          </>
+        )}
         destroyOnHidden
       >
         <Form form={passwordForm} layout="vertical" onFinish={handlePassword} className="pt-2">

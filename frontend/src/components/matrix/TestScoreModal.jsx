@@ -34,6 +34,12 @@ function TestScoreModal({ open, requirement, onCancel, onSave }) {
       onOk={handleOk}
       onCancel={handleCancel}
       okText="Save"
+      footer={(_, { OkBtn, CancelBtn }) => (
+        <>
+          <OkBtn />
+          <CancelBtn />
+        </>
+      )}
       destroyOnHidden
     >
       <Form form={form} layout="vertical" className="mt-4">

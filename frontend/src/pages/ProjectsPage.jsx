@@ -125,6 +125,9 @@ function ProjectsPage() {
   const [documentReviewSaving, setDocumentReviewSaving] = useState(false)
   const [replacingDocId, setReplacingDocId] = useState(null)
   const [downloadingDocId, setDownloadingDocId] = useState(null)
+  const [previewDoc, setPreviewDoc] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [actionsOpenId, setActionsOpenId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
@@ -301,16 +304,25 @@ function ProjectsPage() {
     loadUsersForReassign()
   }
 
-  // Opens the file inline in a new tab (blob URL) so the reviewer/planner can
-  // keep working in the original tab; the browser's own viewer supplies a
-  // download control instead of forcing an attachment download here.
   const viewDocument = async (doc) => {
+    setPreviewDoc(doc)
+    setPreviewUrl(null)
+    setPreviewLoading(true)
     try {
       const url = await fetchAuthorizedFileUrl(doc.id)
-      window.open(url, '_blank', 'noopener,noreferrer')
+      setPreviewUrl(url)
     } catch {
       message.error('Could not open document.')
+      setPreviewDoc(null)
+    } finally {
+      setPreviewLoading(false)
     }
+  }
+
+  const closePreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewDoc(null)
+    setPreviewUrl(null)
   }
 
   const handleReplaceDocument = async (doc, { file, onSuccess, onError }) => {
@@ -1134,17 +1146,13 @@ function ProjectsPage() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             {isRejectingActivity ? (
               <>
-                <Button onClick={() => setIsRejectingActivity(false)}>Back</Button>
                 <Button danger loading={activityReviewSaving} onClick={() => submitActivityReview('reject')}>
                   Confirm reject
                 </Button>
+                <Button onClick={() => setIsRejectingActivity(false)}>Back</Button>
               </>
             ) : (
               <>
-                <Button onClick={closeActivityReview}>Cancel</Button>
-                <Button danger loading={activityReviewSaving} onClick={() => submitActivityReview('reject')}>
-                  Reject
-                </Button>
                 <Button
                   type="primary"
                   style={{ backgroundColor: '#800000', borderColor: '#800000' }}
@@ -1153,6 +1161,10 @@ function ProjectsPage() {
                 >
                   Approve
                 </Button>
+                <Button danger loading={activityReviewSaving} onClick={() => submitActivityReview('reject')}>
+                  Reject
+                </Button>
+                <Button onClick={closeActivityReview}>Cancel</Button>
               </>
             )}
           </div>
@@ -1413,10 +1425,6 @@ function ProjectsPage() {
         destroyOnHidden
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button onClick={closeDocumentReview}>Cancel</Button>
-            <Button danger loading={documentReviewSaving} onClick={() => submitDocumentReview('returned')}>
-              Return with comments
-            </Button>
             <Button
               type="primary"
               style={{ backgroundColor: '#800000', borderColor: '#800000' }}
@@ -1425,6 +1433,10 @@ function ProjectsPage() {
             >
               Approve
             </Button>
+            <Button danger loading={documentReviewSaving} onClick={() => submitDocumentReview('returned')}>
+              Return with comments
+            </Button>
+            <Button onClick={closeDocumentReview}>Cancel</Button>
           </div>
         }
       >
@@ -1461,6 +1473,12 @@ function ProjectsPage() {
         }}
         onOk={() => form.submit()}
         confirmLoading={saving}
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <>
+            <OkBtn />
+            <CancelBtn />
+          </>
+        )}
         destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={submitReassign} className="pt-2">
@@ -1475,6 +1493,42 @@ function ProjectsPage() {
             />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={previewDoc?.file_name}
+        open={previewDoc !== null}
+        onCancel={closePreview}
+        destroyOnHidden
+        width={860}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button
+              icon={<DownloadOutlined />}
+              loading={downloadingDocId === previewDoc?.id}
+              onClick={() => previewDoc && downloadSingleDocument(previewDoc)}
+            >
+              Download
+            </Button>
+            <Button onClick={closePreview}>Close</Button>
+          </div>
+        }
+      >
+        {previewLoading ? (
+          <div className="flex justify-center py-16">
+            <Spin />
+          </div>
+        ) : previewUrl && previewDoc?.file_name?.toLowerCase().endsWith('.pdf') ? (
+          <iframe
+            src={previewUrl}
+            title={previewDoc.file_name}
+            style={{ width: '100%', height: '70vh', border: 'none' }}
+          />
+        ) : previewUrl ? (
+          <div className="py-16 text-center text-sm text-gray-500">
+            Preview isn't available for this file type — use Download to view it.
+          </div>
+        ) : null}
       </Modal>
     </div>
   )

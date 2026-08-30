@@ -49,6 +49,12 @@ function RequirementProgressModal({ open, requirement, history, plannedStartDate
       onOk={handleOk}
       onCancel={handleCancel}
       okText="Save update"
+      footer={(_, { OkBtn, CancelBtn }) => (
+        <>
+          <OkBtn />
+          <CancelBtn />
+        </>
+      )}
       destroyOnHidden
     >
       <Form form={form} layout="vertical" className="mt-4">

@@ -103,6 +103,12 @@ export default function ClosurePanel({ projectId, closure, workflow, onChanged }
           setModal(null)
           form.resetFields()
         }}
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <>
+            <OkBtn />
+            <CancelBtn />
+          </>
+        )}
       >
         <Form form={form} layout="vertical">
           <Form.Item

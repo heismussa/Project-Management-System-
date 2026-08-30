@@ -436,6 +436,12 @@ function TraceabilityTable({ embedded = false } = {}) {
           setAddOpen(false)
         }}
         okText="Add"
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <>
+            <OkBtn />
+            <CancelBtn />
+          </>
+        )}
         destroyOnHidden
       >
         <Form form={addForm} layout="vertical" className="mt-4">
@@ -465,6 +471,12 @@ function TraceabilityTable({ embedded = false } = {}) {
           setReturnModalOpen(false)
         }}
         okText="Return matrix"
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <>
+            <OkBtn />
+            <CancelBtn />
+          </>
+        )}
         destroyOnHidden
       >
         <p className="mb-3 text-sm text-gray-600">

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Space, Tooltip, Typography, message } from 'antd'
-import { CheckCircleFilled, CloseCircleFilled, EyeOutlined, MinusCircleFilled, UploadOutlined } from '@ant-design/icons'
+import { Button, Modal, Space, Spin, Tooltip, Typography, message } from 'antd'
+import {
+  CheckCircleFilled,
+  CloseCircleFilled,
+  DownloadOutlined,
+  EyeOutlined,
+  MinusCircleFilled,
+  UploadOutlined,
+} from '@ant-design/icons'
 import api from '../../lib/axios'
 import { fetchAuthorizedFileUrl, storeProjectId, unwrapItem } from '../../lib/apiHelpers'
 
@@ -69,6 +76,9 @@ export default function InitiationDocumentsPanel({ projectId, hideProceed = fals
   const [readiness, setReadiness] = useState(null)
   const [uploadingKey, setUploadingKey] = useState(null)
   const [advancing, setAdvancing] = useState(null)
+  const [previewDoc, setPreviewDoc] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   const loadReadiness = useCallback(async () => {
     if (!projectId) {
@@ -115,12 +125,32 @@ export default function InitiationDocumentsPanel({ projectId, hideProceed = fals
   }
 
   const viewDocument = async (document) => {
+    setPreviewDoc(document)
+    setPreviewUrl(null)
+    setPreviewLoading(true)
     try {
       const url = await fetchAuthorizedFileUrl(document.id)
-      window.open(url, '_blank', 'noopener')
+      setPreviewUrl(url)
     } catch {
       message.error('Could not open file.')
+      setPreviewDoc(null)
+    } finally {
+      setPreviewLoading(false)
     }
+  }
+
+  const closePreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewDoc(null)
+    setPreviewUrl(null)
+  }
+
+  const downloadPreview = () => {
+    if (!previewUrl || !previewDoc) return
+    const link = document.createElement('a')
+    link.href = previewUrl
+    link.download = previewDoc.file_name || 'document'
+    link.click()
   }
 
   const proceedToPlanning = async () => {
@@ -238,6 +268,38 @@ export default function InitiationDocumentsPanel({ projectId, hideProceed = fals
           )}
         </>
       )}
+
+      <Modal
+        title={previewDoc?.file_name}
+        open={previewDoc !== null}
+        onCancel={closePreview}
+        destroyOnHidden
+        width={860}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button icon={<DownloadOutlined />} onClick={downloadPreview}>
+              Download
+            </Button>
+            <Button onClick={closePreview}>Close</Button>
+          </div>
+        }
+      >
+        {previewLoading ? (
+          <div className="flex justify-center py-16">
+            <Spin />
+          </div>
+        ) : previewUrl && previewDoc?.file_name?.toLowerCase().endsWith('.pdf') ? (
+          <iframe
+            src={previewUrl}
+            title={previewDoc.file_name}
+            style={{ width: '100%', height: '70vh', border: 'none' }}
+          />
+        ) : previewUrl ? (
+          <div className="py-16 text-center text-sm text-gray-500">
+            Preview isn't available for this file type — use Download to view it.
+          </div>
+        ) : null}
+      </Modal>
     </div>
   )
 }

@@ -251,12 +251,12 @@ export default function ProjectRegistration() {
                 <Input.TextArea rows={3} />
               </Form.Item>
 
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-2 flex justify-end">
                 <Space>
-                  <Button onClick={closeRegistration}>Close</Button>
                   <Button type="primary" loading={saving} onClick={goToDocuments}>
                     Next
                   </Button>
+                  <Button onClick={closeRegistration}>Close</Button>
                 </Space>
               </div>
             </div>
@@ -266,13 +266,15 @@ export default function ProjectRegistration() {
         {step === 1 && (
           <div className="mt-2">
             <InitiationDocumentsPanel projectId={project?.id ?? null} hideProceed />
-            <Space className="mt-6">
-              <Button onClick={closeRegistration}>Close</Button>
-              <Button onClick={() => setStep(0)}>Back</Button>
-              <Button type="primary" loading={finishing} disabled={!project?.id} onClick={finishRegistration}>
-                Register project
-              </Button>
-            </Space>
+            <div className="mt-6 flex justify-end">
+              <Space>
+                <Button type="primary" loading={finishing} disabled={!project?.id} onClick={finishRegistration}>
+                  Register project
+                </Button>
+                <Button onClick={() => setStep(0)}>Back</Button>
+                <Button onClick={closeRegistration}>Close</Button>
+              </Space>
+            </div>
           </div>
         )}
       </Card>

@@ -61,7 +61,7 @@ class DocumentController extends Controller
             'project_id' => $validated['project_id'],
             'activity_id' => $validated['activity_id'] ?? null,
             'requirement_id' => $validated['requirement_id'] ?? null,
-            'document_type' => $validated['document_type'] ?: $this->inferType($file->getClientOriginalName()),
+            'document_type' => $validated['document_type'] ?? $this->inferType($file->getClientOriginalName()),
             'file_name' => $file->getClientOriginalName(),
             'file_url' => $path,
             'file_type' => $file->getClientMimeType(),
