@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Card, Progress, Table, Typography, message } from 'antd'
 import api from '../../lib/axios'
 import { storeProjectId, unwrapItem } from '../../lib/apiHelpers'
-import PhaseBarChart from './PhaseBarChart'
 import { BRAND_MAROON, DASHBOARD_CARD_STYLE } from './chartConstants'
 
 const { Title, Text } = Typography
@@ -73,7 +72,7 @@ function AdministratorDashboard() {
     )
   }
 
-  const { status_counts: statusCounts, phase_counts: phaseCounts } = admin
+  const { status_counts: statusCounts } = admin
 
   return (
     <div className="flex flex-col gap-3">
@@ -165,15 +164,8 @@ function AdministratorDashboard() {
         </div>
       </Card>
 
-      {/* Row 3 — phase bars (1.25fr) beside status legend (1fr) */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.25fr_1fr]">
-        <Card className="page-shell-card" title="Projects by phase">
-          <PhaseBarChart
-            phaseCounts={phaseCounts}
-            onSelect={(stage) => navigate(projectsUrl({ lifecycleStage: stage }))}
-          />
-        </Card>
-
+      {/* Row 3 — status legend */}
+      <div className="grid grid-cols-1 gap-3">
         <Card className="page-shell-card" title="By status">
           <div className="flex flex-col gap-2">
             {['ongoing', 'completed', 'not_started'].map((key) => (
@@ -213,6 +205,7 @@ function AdministratorDashboard() {
               className: 'cursor-pointer',
             })}
             columns={[
+              { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
               { title: 'Project', dataIndex: 'project_name' },
               { title: 'Blocker', dataIndex: 'reason' },
               {

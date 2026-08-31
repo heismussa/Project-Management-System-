@@ -57,6 +57,13 @@ function ActivitiesTable({
   const columns = useMemo(() => {
     const baseColumns = [
       {
+        title: 'SN',
+        key: 'sn',
+        width: 56,
+        align: 'center',
+        render: (_, __, index) => index + 1,
+      },
+      {
         title: 'Activity Done',
         dataIndex: 'name',
         key: 'name',

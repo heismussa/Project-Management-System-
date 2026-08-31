@@ -235,6 +235,14 @@ function TraceabilityTable({ embedded = false } = {}) {
 
   const columns = [
     {
+      title: 'SN',
+      key: 'sn',
+      fixed: 'left',
+      width: 56,
+      align: 'center',
+      render: (_, __, index) => index + 1,
+    },
+    {
       title: 'Code',
       dataIndex: 'requirement_code',
       key: 'requirement_code',

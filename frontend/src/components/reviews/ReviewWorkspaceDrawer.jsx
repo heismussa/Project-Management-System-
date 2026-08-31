@@ -22,6 +22,7 @@ import api from '../../lib/axios'
 import { unwrapList } from '../../lib/apiHelpers'
 import { ROLES } from '../../utility/Config.jsx'
 import { useAuth } from '../../context/AuthContext'
+import { formatRoleLabel } from '../../layouts/nav.js'
 
 const { Title, Text } = Typography
 
@@ -48,11 +49,28 @@ function Section({ title, children }) {
   )
 }
 
+/** Shown in place of the action button when the signed-in role isn't the one that
+ * owns this step, so a stuck-looking empty section reads as "waiting on someone
+ * else" instead of "broken". */
+function AwaitingRoleNotice({ activeRoleName, allow }) {
+  if (allow.includes(activeRoleName)) return null
+  const roleNames = allow.filter((role) => role !== ROLES.PAD).map(formatRoleLabel)
+  return (
+    <Alert
+      type="info"
+      showIcon
+      message={`Waiting on ${roleNames.join(' or ')}`}
+      description="You don't hold that role on this account. Switch to it (or have someone who does) to take this action."
+    />
+  )
+}
+
 /**
  * Flat review content — no nested tab strips. Only sections with work are shown.
  */
 export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
-  const { user } = useAuth()
+  const { user, activeRole } = useAuth()
+  const activeRoleName = activeRole?.name ?? user?.role ?? null
   const [loading, setLoading] = useState(false)
   const [workflow, setWorkflow] = useState(null)
   const [documents, setDocuments] = useState([])
@@ -330,6 +348,7 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
               </Button>
             </Space>
           </RoleGuard>
+          <AwaitingRoleNotice activeRoleName={activeRoleName} allow={[ROLES.PRV, ROLES.PAD]} />
           {workflow?.plan_review_comment && (
             <Alert className="mt-3" type="warning" showIcon message="Latest return comment" description={workflow.plan_review_comment} />
           )}
@@ -349,6 +368,7 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
               Recommend execution
             </Button>
           </RoleGuard>
+          <AwaitingRoleNotice activeRoleName={activeRoleName} allow={[ROLES.PCO, ROLES.PAD]} />
         </Section>
       )}
 
@@ -380,6 +400,7 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
               Sign off execution
             </Button>
           </RoleGuard>
+          <AwaitingRoleNotice activeRoleName={activeRoleName} allow={[ROLES.PAP, ROLES.PAD]} />
         </Section>
       )}
 
@@ -464,8 +485,6 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
 }
 
 export default function ReviewWorkspaceDrawer({ open, project, onClose, onCompleted }) {
-  const phase = project?.phase || project?.workflow?.phase
-
   return (
     <Drawer
       title={null}
@@ -485,7 +504,6 @@ export default function ReviewWorkspaceDrawer({ open, project, onClose, onComple
               <Title level={4} className="!mb-0">
                 Project: {project.name}
               </Title>
-              {phase && <Tag color="#962c30">Phase: {phase}</Tag>}
             </div>
             {(project.workflow?.queue || project.queue) && (
               <Text type="secondary" className="mt-1 block text-sm">

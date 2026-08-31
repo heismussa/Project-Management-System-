@@ -15,6 +15,8 @@ function getValue(record, dataIndex) {
  * text). No built-in sorting/pagination — tables that need those keep
  * AntD's `<Table>` restyled to match instead of using this component.
  */
+const SN_COLUMN = { key: '__sn', title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 }
+
 export default function DataTable({
   columns,
   data,
@@ -23,9 +25,11 @@ export default function DataTable({
   emptyText = 'No records found.',
   onRowClick,
   hideSearch = false,
+  hideSN = false,
   className,
 }) {
   const [search, setSearch] = useState('')
+  const allColumns = hideSN ? columns : [SN_COLUMN, ...columns]
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -59,13 +63,13 @@ export default function DataTable({
       <div className="pms-datatable-scroll">
         <table className="pms-datatable">
           <colgroup>
-            {columns.map((column) => (
+            {allColumns.map((column) => (
               <col key={column.key ?? column.dataIndex} style={{ width: column.width }} />
             ))}
           </colgroup>
           <thead>
             <tr>
-              {columns.map((column) => (
+              {allColumns.map((column) => (
                 <th key={column.key ?? column.dataIndex} style={{ textAlign: column.align || 'left' }}>
                   {column.title}
                 </th>
@@ -75,7 +79,7 @@ export default function DataTable({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="pms-datatable-empty">
+                <td colSpan={allColumns.length} className="pms-datatable-empty">
                   {emptyText}
                 </td>
               </tr>
@@ -86,7 +90,7 @@ export default function DataTable({
                   className={onRowClick ? 'pms-datatable-row-clickable' : undefined}
                   onClick={onRowClick ? () => onRowClick(record) : undefined}
                 >
-                  {columns.map((column) => (
+                  {allColumns.map((column) => (
                     <td key={column.key ?? column.dataIndex} style={{ textAlign: column.align || 'left' }}>
                       {column.render
                         ? column.render(getValue(record, column.dataIndex), record, index)

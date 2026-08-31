@@ -151,10 +151,9 @@ function DocumentList({ embedded = false } = {}) {
     {
       title: 'Actions',
       key: 'actions',
-      width: 100,
+      width: 120,
       render: (_, record) => (
         <Button
-          size="small"
           type="primary"
           icon={<EyeOutlined />}
           style={{ background: DOCUMENT_ACCENT, borderColor: DOCUMENT_ACCENT }}

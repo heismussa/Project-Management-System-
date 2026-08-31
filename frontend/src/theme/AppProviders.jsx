@@ -43,7 +43,7 @@ export default function AppProviders({ children }) {
             headerColor: '#ffffff',
             headerSplitColor: 'rgba(255,255,255,.55)',
             cellPaddingInline: 12,
-            fontSize: 14,
+            fontSize: 15,
             ...(isDark
               ? {
                   colorBgContainer: PMS_DARK_BG_CONTAINER,

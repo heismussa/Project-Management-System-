@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { Alert, Segmented, Spin, Tag, Typography, message } from 'antd'
+import { Alert, Segmented, Spin, Typography, message } from 'antd'
 import api from '../lib/axios'
 import { storeProjectId, unwrapItem } from '../lib/apiHelpers'
 import { useActiveRoleName } from '../components/common/RoleGuard'
@@ -104,9 +104,6 @@ function ProjectDetailPage() {
             <Title level={4} className="!mb-0">
               Project: {project?.name || '…'}
             </Title>
-            {(project?.phase || workflow?.phase) && (
-              <Tag color="#962c30">Phase: {project?.phase || workflow?.phase}</Tag>
-            )}
           </div>
         </div>
         <ReviewWorkspacePanel projectId={projectId} projectName={project?.name} onChanged={load} />

@@ -14,12 +14,7 @@ const QUEUE_LABELS = {
   closure_sign_off: 'Closure sign-off',
 }
 
-const REVIEW_BTN_STYLE = {
-  backgroundColor: '#962c30',
-  borderColor: '#962c30',
-  color: '#fff',
-  fontWeight: 700,
-}
+const REVIEW_BTN_STYLE = { backgroundColor: '#800000', borderColor: '#800000' }
 
 function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
   const { id: routeId } = useParams()
@@ -103,6 +98,7 @@ function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
           dataSource={queueRows}
           locale={{ emptyText: 'Nothing in this queue.' }}
           columns={[
+            { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
             { title: 'Project', dataIndex: 'name' },
             {
               title: 'Queue',
@@ -116,12 +112,11 @@ function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
             { title: 'Planner', render: (_, record) => record.planner?.name || '—' },
             {
               title: 'Action',
-              width: 110,
+              width: 130,
               align: 'center',
               render: (_, record) => (
                 <Button
-                  size="small"
-                  className="!text-white hover:!text-white hover:!opacity-90"
+                  type="primary"
                   style={REVIEW_BTN_STYLE}
                   onClick={() => {
                     storeProjectId(record.id)

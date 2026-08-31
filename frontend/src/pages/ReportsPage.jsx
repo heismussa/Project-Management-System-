@@ -90,6 +90,7 @@ export default function ReportsPage() {
           rowKey="name"
           dataSource={rows}
           columns={[
+            { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
             { title: 'Project', dataIndex: 'name' },
             { title: 'APR', dataIndex: 'apr' },
             { title: 'Status', dataIndex: 'status', render: (value) => <Tag>{value}</Tag> },

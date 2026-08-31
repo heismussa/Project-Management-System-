@@ -48,6 +48,7 @@ const LIFECYCLE_STAGE_LABELS = { initiation: 'Initiation', planning: 'Planning',
 
 const STATUS_COLOR = {
   Initiated: 'default',
+  Planning: 'purple',
   'Plan Submitted': 'gold',
   'Plan Returned': 'orange',
   'Plan Approved': 'green',
@@ -683,6 +684,14 @@ function ProjectsPage() {
 
   const columns = [
     {
+      title: 'SN',
+      key: 'sn',
+      width: 56,
+      align: 'center',
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+      render: (_, __, index) => index + 1,
+    },
+    {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
@@ -702,13 +711,6 @@ function ProjectsPage() {
       key: 'project_type',
       ellipsis: true,
       onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
-    },
-    {
-      title: 'Phase',
-      key: 'phase',
-      ellipsis: true,
-      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
-      render: (_, record) => record.phase || record.workflow?.phase || '—',
     },
     {
       title: 'Planner',
@@ -736,20 +738,14 @@ function ProjectsPage() {
     {
       title: 'Actions',
       key: 'actions',
-      width: isReviewerRole ? 96 : 80,
+      width: isReviewerRole ? 130 : 110,
       align: 'center',
-      fixed: 'right',
       onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (_, record) => (
         <Button
-          size="small"
+          type="primary"
           aria-label={isReviewerRole ? 'Review project' : 'View project details'}
-          style={{
-            backgroundColor: '#800000',
-            borderColor: '#800000',
-            color: '#fff',
-            fontWeight: 800,
-          }}
+          style={{ backgroundColor: '#800000', borderColor: '#800000' }}
           onClick={() => openDetail(record)}
         >
           {isReviewerRole ? 'Review' : 'View'}
@@ -763,8 +759,9 @@ function ProjectsPage() {
       <Card className="page-shell-card">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <Tabs
+            type="card"
             activeKey={view}
-            className="pms-view-tabs !mb-0"
+            className="!mb-0"
             onChange={(key) => {
               const next = new URLSearchParams(searchParams)
               if (key === 'completed') next.set('view', 'completed')
@@ -818,7 +815,6 @@ function ProjectsPage() {
           loading={loading}
           columns={columns}
           dataSource={filtered}
-          scroll={{ x: 'max-content' }}
           pagination={{ pageSize: 10, showSizeChanger: true }}
           locale={{
             emptyText: isCompletedView
@@ -852,13 +848,10 @@ function ProjectsPage() {
       >
         {detailTarget && (
           <div>
-            <Descriptions column={{ xs: 1, sm: 2 }} size="small" bordered>
+            <Descriptions column={1} size="small" bordered>
               <Descriptions.Item label="Name">{detailTarget.name || '—'}</Descriptions.Item>
               <Descriptions.Item label="Category">{detailTarget.category || '—'}</Descriptions.Item>
               <Descriptions.Item label="Type">{detailTarget.project_type || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Phase">
-                {detailTarget.phase || detailTarget.workflow?.phase || '—'}
-              </Descriptions.Item>
               <Descriptions.Item label="Planner">
                 <span className="inline-flex items-center gap-2">
                   {detailTarget.planner?.name || 'Unassigned'}

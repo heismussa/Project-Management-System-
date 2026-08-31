@@ -3,7 +3,6 @@ import { Alert, Card, Progress, Table, Typography, message } from 'antd'
 import { EyeOutlined } from '@ant-design/icons'
 import api from '../../lib/axios'
 import { unwrapItem } from '../../lib/apiHelpers'
-import PhaseBarChart from './PhaseBarChart'
 import { DASHBOARD_CARD_STYLE } from './chartConstants'
 
 const { Text } = Typography
@@ -92,7 +91,7 @@ function ViewOnlyDashboard() {
     )
   }
 
-  const { status_counts: statusCounts, phase_counts: phaseCounts, requirement_status_counts: requirementCounts, projects } = viewOnly
+  const { status_counts: statusCounts, requirement_status_counts: requirementCounts, projects } = viewOnly
 
   return (
     <div className="flex flex-col gap-3">
@@ -153,8 +152,8 @@ function ViewOnlyDashboard() {
         </div>
       </Card>
 
-      {/* 4 — status legend (1fr) beside phase bars (1.25fr) */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1.25fr]">
+      {/* 4 — status legend */}
+      <div className="grid grid-cols-1 gap-3">
         <Card className="page-shell-card" title="Projects by status">
           <div className="flex flex-col gap-2">
             {['ongoing', 'completed', 'not_started'].map((key) => (
@@ -168,10 +167,6 @@ function ViewOnlyDashboard() {
             ))}
           </div>
         </Card>
-
-        <Card className="page-shell-card" title="Projects by phase">
-          <PhaseBarChart phaseCounts={phaseCounts} />
-        </Card>
       </div>
 
       {/* 5 — project progress table */}
@@ -183,9 +178,9 @@ function ViewOnlyDashboard() {
           dataSource={projects}
           pagination={{ pageSize: 10 }}
           columns={[
+            { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
             { title: 'Project', dataIndex: 'name' },
             { title: 'Category', dataIndex: 'category', render: (value) => value || '—' },
-            { title: 'Phase', dataIndex: 'phase', render: (value) => value || '—' },
             {
               title: 'Score',
               dataIndex: 'overall_implementation_score',

@@ -63,6 +63,7 @@ export default function CoordinatorDashboard() {
           dataSource={inbox}
           locale={{ emptyText: 'No projects waiting for recommendation.' }}
           columns={[
+            { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
             { title: 'Project', dataIndex: 'name' },
             {
               title: 'Track',

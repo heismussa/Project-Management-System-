@@ -4,15 +4,9 @@ function ActivityActions({ onReview }) {
   return (
     <div onClick={(event) => event.stopPropagation()}>
       <Button
+        type="primary"
         onClick={onReview}
-        style={{
-          background: '#962C30',
-          borderColor: '#962C30',
-          color: '#ffffff',
-          borderRadius: 6,
-          width: 96,
-          fontWeight: 500,
-        }}
+        style={{ backgroundColor: '#800000', borderColor: '#800000', width: 110 }}
       >
         Review
       </Button>

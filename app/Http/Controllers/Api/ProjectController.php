@@ -106,6 +106,7 @@ class ProjectController extends Controller
         $project->update([
             'lifecycle_stage' => 'planning',
             'phase' => 'Planning',
+            'status' => 'Planning',
         ]);
 
         return response()->json([

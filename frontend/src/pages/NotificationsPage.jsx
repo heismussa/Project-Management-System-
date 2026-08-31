@@ -33,6 +33,7 @@ export default function NotificationsPage() {
           dataSource={items}
           locale={{ emptyText: 'No notifications yet.' }}
           columns={[
+            { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
             { title: 'Type', dataIndex: 'type', render: (value) => <Tag>{value}</Tag> },
             { title: 'Message', dataIndex: 'message' },
             {
