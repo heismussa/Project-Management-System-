@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Table, Space, Button, Popover, Tag, Alert, Modal, Form, Input, Spin, Divider, message } from 'antd'
+import { Table, Space, Button, Tag, Alert, Modal, Form, Input, Spin, Descriptions, message } from 'antd'
 import {
   CheckOutlined,
   CloseOutlined,
@@ -8,7 +8,7 @@ import {
   ExperimentOutlined,
   RollbackOutlined,
   PlusOutlined,
-  MoreOutlined,
+  EyeOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { STATUS } from '../../lib/status'
@@ -16,6 +16,7 @@ import StatusBadge from '../common/StatusBadge'
 import TestResultBadge from '../common/TestResultBadge'
 import ProjectPicker from '../common/ProjectPicker'
 import { isSpecReadOnlyRole, useActiveRoleName } from '../common/RoleGuard'
+import { ROLES } from '../../utility/Config.jsx'
 import { getRequirementStatus } from './requirementStatus'
 import RequirementProgressModal from './RequirementProgressModal'
 import TestScoreModal from './TestScoreModal'
@@ -30,6 +31,8 @@ import {
   unwrapItem,
   unwrapList,
 } from '../../lib/apiHelpers'
+
+const MATRIX_ACCENT = '#962c30'
 
 const DECISION = {
   approved: { label: 'Approved', color: 'green' },
@@ -52,12 +55,18 @@ function normalizeRequirement(requirement) {
   }
 }
 
-function TraceabilityTable({ embedded = false } = {}) {
+function TraceabilityTable({ embedded = false, projectId: projectIdProp = null } = {}) {
   const { id: routeId } = useParams()
   const roleName = useActiveRoleName()
   const readOnly = isSpecReadOnlyRole(roleName)
+  const isReviewer = roleName === ROLES.PRV || roleName === ROLES.PAD
+  const canReturnMatrix = isReviewer
   const [projects, setProjects] = useState([])
   const [projectId, setProjectId] = useState(() => {
+    if (projectIdProp) {
+      storeProjectId(projectIdProp)
+      return projectIdProp
+    }
     const fromRoute = Number(routeId)
     if (Number.isFinite(fromRoute) && fromRoute > 0) {
       storeProjectId(fromRoute)
@@ -73,16 +82,17 @@ function TraceabilityTable({ embedded = false } = {}) {
   const [testTarget, setTestTarget] = useState(null)
   const [returnModalOpen, setReturnModalOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
-  const [actionsOpenId, setActionsOpenId] = useState(null)
+  const [viewTarget, setViewTarget] = useState(null)
   const [returnForm] = Form.useForm()
   const [addForm] = Form.useForm()
 
   const loadProjects = useCallback(async () => {
     try {
       const fromRoute = Number(routeId)
-      if (embedded && Number.isFinite(fromRoute) && fromRoute > 0) {
-        storeProjectId(fromRoute)
-        setProjectId(fromRoute)
+      const embeddedId = projectIdProp || (embedded && Number.isFinite(fromRoute) && fromRoute > 0 ? fromRoute : null)
+      if (embedded && embeddedId) {
+        storeProjectId(embeddedId)
+        setProjectId(embeddedId)
         return
       }
 
@@ -103,7 +113,13 @@ function TraceabilityTable({ embedded = false } = {}) {
     } catch (err) {
       setError(err.response?.data?.message || 'Could not load projects.')
     }
-  }, [routeId, embedded])
+  }, [routeId, embedded, projectIdProp])
+
+  useEffect(() => {
+    if (!projectIdProp) return
+    storeProjectId(projectIdProp)
+    setProjectId((current) => (current === projectIdProp ? current : projectIdProp))
+  }, [projectIdProp])
 
   const loadMatrix = useCallback(async (id) => {
     if (!id) {
@@ -146,7 +162,7 @@ function TraceabilityTable({ embedded = false } = {}) {
   }
 
   const handleDecision = async (id, review_decision) => {
-    setActionsOpenId(null)
+    setViewTarget(null)
     try {
       const response = await api.patch(`/requirements/${id}/review`, { review_decision })
       const updated = unwrapItem(response.data)
@@ -297,74 +313,19 @@ function TraceabilityTable({ embedded = false } = {}) {
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      width: 80,
+      width: 100,
       align: 'center',
       onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
-      render: (_, record) =>
-        readOnly ? (
-          <span className="text-gray-400">View only</span>
-        ) : (
-          <Popover
-            trigger="click"
-            placement="bottomRight"
-            arrow={{ pointAtCenter: true }}
-            open={actionsOpenId === record.id}
-            onOpenChange={(open) => setActionsOpenId(open ? record.id : null)}
-            content={
-              <div className="w-[220px]">
-                <Space size="small" className="mb-1">
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<CheckOutlined />}
-                    disabled={record.review_decision === 'approved'}
-                    onClick={() => handleDecision(record.id, 'approved')}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    danger
-                    size="small"
-                    icon={<CloseOutlined />}
-                    disabled={record.review_decision === 'rejected'}
-                    onClick={() => handleDecision(record.id, 'rejected')}
-                  >
-                    Reject
-                  </Button>
-                </Space>
-                <Divider className="!my-2" />
-                <Space direction="vertical" size={4} className="w-full">
-                  <Button
-                    type="text"
-                    block
-                    className="!justify-start"
-                    icon={<SyncOutlined />}
-                    onClick={() => {
-                      setActionsOpenId(null)
-                      setProgressTarget(record)
-                    }}
-                  >
-                    Update progress
-                  </Button>
-                  <Button
-                    type="text"
-                    block
-                    className="!justify-start"
-                    icon={<ExperimentOutlined />}
-                    onClick={() => {
-                      setActionsOpenId(null)
-                      setTestTarget(record)
-                    }}
-                  >
-                    Record test result
-                  </Button>
-                </Space>
-              </div>
-            }
-          >
-            <Button type="text" icon={<MoreOutlined style={{ fontSize: 18 }} />} aria-label="Actions" />
-          </Popover>
-        ),
+      render: (_, record) => (
+        <Button
+          type="primary"
+          icon={<EyeOutlined />}
+          style={{ background: MATRIX_ACCENT, borderColor: MATRIX_ACCENT }}
+          onClick={() => setViewTarget(record)}
+        >
+          View
+        </Button>
+      ),
     },
   ]
 
@@ -376,14 +337,14 @@ function TraceabilityTable({ embedded = false } = {}) {
             <ProjectPicker projects={projects} value={projectId} onChange={(id) => { storeProjectId(id); setProjectId(id) }} />
           )}
           {!readOnly && (
-            <>
-              <Button type="primary" icon={<PlusOutlined />} disabled={!projectId} onClick={() => setAddOpen(true)}>
-                Add requirement
-              </Button>
-              <Button icon={<RollbackOutlined />} onClick={() => setReturnModalOpen(true)}>
-                Return matrix with comments
-              </Button>
-            </>
+            <Button type="primary" icon={<PlusOutlined />} disabled={!projectId} onClick={() => setAddOpen(true)}>
+              Add requirement
+            </Button>
+          )}
+          {canReturnMatrix && (
+            <Button icon={<RollbackOutlined />} onClick={() => setReturnModalOpen(true)}>
+              Return matrix with comments
+            </Button>
           )}
         </Space>
       </div>
@@ -434,6 +395,93 @@ function TraceabilityTable({ embedded = false } = {}) {
         onCancel={() => setTestTarget(null)}
         onSave={handleSaveTestResult}
       />
+
+      <Modal
+        title={viewTarget ? `Requirement — ${viewTarget.requirement_code}` : 'Requirement'}
+        open={viewTarget !== null}
+        onCancel={() => setViewTarget(null)}
+        destroyOnHidden
+        width={560}
+        footer={
+          readOnly
+            ? [
+                <Button key="close" onClick={() => setViewTarget(null)}>
+                  Close
+                </Button>,
+              ]
+            : [
+                ...(canReturnMatrix
+                  ? [
+                      <Button
+                        key="approve"
+                        type="primary"
+                        icon={<CheckOutlined />}
+                        style={{ background: MATRIX_ACCENT, borderColor: MATRIX_ACCENT }}
+                        disabled={viewTarget?.review_decision === 'approved'}
+                        onClick={() => viewTarget && handleDecision(viewTarget.id, 'approved')}
+                      >
+                        Approve
+                      </Button>,
+                      <Button
+                        key="reject"
+                        danger
+                        icon={<CloseOutlined />}
+                        disabled={viewTarget?.review_decision === 'rejected'}
+                        onClick={() => viewTarget && handleDecision(viewTarget.id, 'rejected')}
+                      >
+                        Reject
+                      </Button>,
+                    ]
+                  : []),
+                <Button
+                  key="progress"
+                  icon={<SyncOutlined />}
+                  onClick={() => {
+                    setProgressTarget(viewTarget)
+                    setViewTarget(null)
+                  }}
+                >
+                  Update progress
+                </Button>,
+                <Button
+                  key="test"
+                  icon={<ExperimentOutlined />}
+                  onClick={() => {
+                    setTestTarget(viewTarget)
+                    setViewTarget(null)
+                  }}
+                >
+                  Record test result
+                </Button>,
+                <Button key="cancel" onClick={() => setViewTarget(null)}>
+                  Close
+                </Button>,
+              ]
+        }
+      >
+        {viewTarget && (
+          <Descriptions column={1} bordered size="small">
+            <Descriptions.Item label="Code">{viewTarget.requirement_code}</Descriptions.Item>
+            <Descriptions.Item label="Description">{viewTarget.description}</Descriptions.Item>
+            <Descriptions.Item label="Status">
+              <StatusBadge status={viewTarget.ui_status || 'pending'} />
+            </Descriptions.Item>
+            <Descriptions.Item label="Score">{viewTarget.score_percent ?? 0}%</Descriptions.Item>
+            <Descriptions.Item label="Review decision">
+              {DECISION[viewTarget.review_decision] ? (
+                <Tag color={DECISION[viewTarget.review_decision].color}>
+                  {DECISION[viewTarget.review_decision].label}
+                </Tag>
+              ) : (
+                <Tag>Not reviewed</Tag>
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="Test result">
+              <TestResultBadge result={viewTarget.test_result_ui} />
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Modal>
 
       <Modal
         title="Add requirement"

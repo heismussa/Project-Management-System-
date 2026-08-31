@@ -19,11 +19,15 @@ import {
 
 const DOCUMENT_ACCENT = '#962c30'
 
-function DocumentList({ embedded = false } = {}) {
+function DocumentList({ embedded = false, projectId: projectIdProp = null } = {}) {
   const { id: routeId } = useParams()
   const readOnly = isSpecReadOnlyRole(useActiveRoleName())
   const [projects, setProjects] = useState([])
   const [projectId, setProjectId] = useState(() => {
+    if (projectIdProp) {
+      storeProjectId(projectIdProp)
+      return projectIdProp
+    }
     const fromRoute = Number(routeId)
     if (Number.isFinite(fromRoute) && fromRoute > 0) {
       storeProjectId(fromRoute)
@@ -38,9 +42,10 @@ function DocumentList({ embedded = false } = {}) {
 
   const loadProjects = useCallback(async () => {
     const fromRoute = Number(routeId)
-    if (embedded && Number.isFinite(fromRoute) && fromRoute > 0) {
-      storeProjectId(fromRoute)
-      setProjectId(fromRoute)
+    const embeddedId = projectIdProp || (embedded && Number.isFinite(fromRoute) && fromRoute > 0 ? fromRoute : null)
+    if (embedded && embeddedId) {
+      storeProjectId(embeddedId)
+      setProjectId(embeddedId)
       return
     }
 
@@ -58,7 +63,13 @@ function DocumentList({ embedded = false } = {}) {
       storeProjectId(first)
       return first
     })
-  }, [routeId, embedded])
+  }, [routeId, embedded, projectIdProp])
+
+  useEffect(() => {
+    if (!projectIdProp) return
+    storeProjectId(projectIdProp)
+    setProjectId((current) => (current === projectIdProp ? current : projectIdProp))
+  }, [projectIdProp])
 
   const loadDocuments = useCallback(async (id) => {
     if (!id) {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Modal, Form, Input, DatePicker, Select, Divider, Upload, Typography, message } from 'antd'
+import { Button, Divider, Form, Input, DatePicker, Select, Spin, Upload, Typography, message, Modal } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import { extractUploadFile } from '../../lib/projectDocuments'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -22,14 +23,30 @@ function validateFile(file) {
   return false
 }
 
-function ActivityFormModal({ open, activity, people, requiredProjectDocTypes = [], saving = false, onCancel, onSave }) {
+function ActivityFormModal({
+  open,
+  activity,
+  people,
+  requiredProjectDocTypes = [],
+  activityDocuments = [],
+  activityDocumentsLoading = false,
+  saving = false,
+  onCancel,
+  onSave,
+  onViewDocument,
+}) {
   const [form] = Form.useForm()
   const [fileList, setFileList] = useState([])
   const [projectDocFiles, setProjectDocFiles] = useState({})
   const isCreate = activity?.id == null
 
   useEffect(() => {
-    if (!open || !activity) return
+    if (!open) {
+      setFileList([])
+      setProjectDocFiles({})
+      return
+    }
+    if (!activity) return
     form.setFieldsValue({
       name: activity.name,
       expected_deliverable: activity.expected_deliverable,
@@ -38,43 +55,51 @@ function ActivityFormModal({ open, activity, people, requiredProjectDocTypes = [
         activity.planned_end_date ? dayjs(activity.planned_end_date) : null,
       ],
       responsible_person_id: activity.responsible_person_id,
-      rtm_requirement: '',
-      rtm_comment: '',
     })
   }, [open, activity, form])
 
   const handleOk = () => {
     form.validateFields().then((values) => {
-      if (isCreate && fileList.length === 0) {
+      const newActivityFiles = fileList.map((entry) => extractUploadFile(entry)).filter(Boolean)
+      const hasExistingActivityDocs = activityDocuments.length > 0
+
+      if (isCreate && newActivityFiles.length === 0) {
         message.error('Attach at least one supporting document before adding this activity.')
         return
       }
 
-      const missingProjectDoc = requiredProjectDocTypes.find((type) => !(projectDocFiles[type]?.length > 0))
-      if (isCreate && missingProjectDoc) {
-        message.error(`Attach the required ${missingProjectDoc} document before adding this activity.`)
+      if (!isCreate && newActivityFiles.length === 0 && !hasExistingActivityDocs) {
+        message.error('Attach at least one supporting document for this activity.')
+        return
+      }
+
+      const missingProjectDoc = requiredProjectDocTypes.find(
+        (type) => !(projectDocFiles[type] || []).some((entry) => extractUploadFile(entry)),
+      )
+      if (missingProjectDoc) {
+        Modal.warning({
+          title: 'Missing required project documents',
+          content: `Attach ${missingProjectDoc} in the Required Project Documents section before saving.`,
+        })
         return
       }
 
       const [plannedStart, plannedEnd] = values.plannedRange
       onSave({
+        id: activity?.id ?? null,
         name: values.name,
         expected_deliverable: values.expected_deliverable,
         planned_start_date: plannedStart.format('YYYY-MM-DD'),
         planned_end_date: plannedEnd.format('YYYY-MM-DD'),
         responsible_person_id: values.responsible_person_id,
-        rtm_requirement: values.rtm_requirement,
-        rtm_comment: values.rtm_comment,
-        documents: fileList.map((entry) => entry.originFileObj || entry),
+        documents: newActivityFiles,
         projectDocuments: Object.fromEntries(
-          Object.entries(projectDocFiles).map(([type, list]) => [type, list.map((entry) => entry.originFileObj || entry)]),
+          requiredProjectDocTypes.map((type) => [
+            type,
+            (projectDocFiles[type] || []).map(extractUploadFile).filter(Boolean),
+          ]),
         ),
       })
-      // Don't reset here — onSave is async and only closes this modal (via
-      // `open` going false, which unmounts it thanks to destroyOnHidden) on
-      // success. Resetting immediately would wipe the form out from under
-      // the user while a save is still in flight or has failed, forcing
-      // them to redo everything including re-attaching every document.
     })
   }
 
@@ -87,11 +112,11 @@ function ActivityFormModal({ open, activity, people, requiredProjectDocTypes = [
 
   return (
     <Modal
-      title={isCreate ? 'Add activity' : 'Edit planning details'}
+      title={isCreate ? 'Add activity' : `Edit activity — ${activity?.name || ''}`}
       open={open}
       onOk={handleOk}
       onCancel={handleCancel}
-      okText={isCreate ? 'Add Activity' : 'Save'}
+      okText={isCreate ? 'Add' : 'Save changes'}
       cancelText="Close"
       confirmLoading={saving}
       footer={(_, { OkBtn, CancelBtn }) => (
@@ -103,6 +128,7 @@ function ActivityFormModal({ open, activity, people, requiredProjectDocTypes = [
       destroyOnHidden
       width={720}
       centered
+      zIndex={1100}
       styles={{ body: { maxHeight: '75vh', overflowY: 'auto', paddingRight: 4 } }}
     >
       <Form form={form} layout="vertical" className="mt-4" autoComplete="off">
@@ -138,93 +164,111 @@ function ActivityFormModal({ open, activity, people, requiredProjectDocTypes = [
           />
         </Form.Item>
 
-        {isCreate && (
+        {requiredProjectDocTypes.length > 0 && (
           <>
             <Divider orientation="left" orientationMargin={0} style={{ color: '#800000', fontWeight: 700 }}>
-              RTM Requirements
+              Required Project Documents
             </Divider>
-            <Form.Item name="rtm_requirement" label="RTM Requirement">
-              <Input.TextArea
-                rows={2}
-                placeholder="e.g. System shall validate user login credentials"
-                autoComplete="off"
-              />
-            </Form.Item>
-            <Form.Item name="rtm_comment" label="Comment">
-              <Input.TextArea rows={2} placeholder="Optional comment for this requirement" autoComplete="off" />
-            </Form.Item>
-
-            {requiredProjectDocTypes.length > 0 && (
-              <>
-                <Divider orientation="left" orientationMargin={0} style={{ color: '#800000', fontWeight: 700 }}>
-                  Required Project Documents
-                </Divider>
-                <Text type="secondary" className="mb-2 block text-xs">
-                  This project doesn't have these yet — attach them now, before the first activity can be added.
-                </Text>
-                {requiredProjectDocTypes.map((type) => {
-                  const list = projectDocFiles[type] || []
-                  return (
-                    <Form.Item
-                      key={type}
-                      label={
-                        <span>
-                          {type} <span style={{ color: '#ff4d4f' }}>*</span>
-                        </span>
-                      }
-                      validateStatus={list.length === 0 ? 'error' : 'success'}
-                    >
-                      <Dragger
-                        multiple
-                        fileList={list}
-                        beforeUpload={validateFile}
-                        onChange={({ fileList: next }) =>
-                          setProjectDocFiles((prev) => ({ ...prev, [type]: next }))
-                        }
-                        accept={ACCEPTED_EXTENSIONS.join(',')}
-                      >
-                        <p className="ant-upload-drag-icon">
-                          <InboxOutlined />
-                        </p>
-                        <p className="ant-upload-text">Click or drag the {type} document here</p>
-                      </Dragger>
-                    </Form.Item>
-                  )
-                })}
-              </>
-            )}
-
-            <Divider orientation="left" orientationMargin={0} style={{ color: '#800000', fontWeight: 700 }}>
-              Documents
-            </Divider>
-            <Form.Item
-              label={
-                <span>
-                  Supporting documents <span style={{ color: '#ff4d4f' }}>*</span>
-                </span>
-              }
-              extra="Required — attach whatever this activity needs before it can be added."
-              validateStatus={fileList.length === 0 ? 'error' : 'success'}
-            >
-              <Dragger
-                multiple
-                fileList={fileList}
-                beforeUpload={validateFile}
-                onChange={({ fileList: next }) => setFileList(next)}
-                accept={ACCEPTED_EXTENSIONS.join(',')}
-              >
-                <p className="ant-upload-drag-icon">
-                  <InboxOutlined />
-                </p>
-                <p className="ant-upload-text">Click or drag files to this area to attach</p>
-                <Text type="secondary">
-                  Supports PDF, DOCX and XLSX files, up to {MAX_FILE_SIZE_MB}MB each. Uploaded once the activity is
-                  added.
-                </Text>
-              </Dragger>
-            </Form.Item>
+            <Text type="secondary" className="mb-2 block text-xs">
+              Attach any missing project-level documents here. Saving will upload them and submit the plan for
+              review automatically.
+            </Text>
+            {requiredProjectDocTypes.map((type) => {
+              const list = projectDocFiles[type] || []
+              return (
+                <Form.Item
+                  key={type}
+                  label={
+                    <span>
+                      {type} <span style={{ color: '#ff4d4f' }}>*</span>
+                    </span>
+                  }
+                  validateStatus={!(list || []).some((entry) => extractUploadFile(entry)) ? 'error' : undefined}
+                >
+                  <Dragger
+                    multiple={false}
+                    fileList={list}
+                    beforeUpload={validateFile}
+                    onChange={({ fileList: next }) => setProjectDocFiles((prev) => ({ ...prev, [type]: next }))}
+                    accept={ACCEPTED_EXTENSIONS.join(',')}
+                  >
+                    <p className="ant-upload-drag-icon">
+                      <InboxOutlined />
+                    </p>
+                    <p className="ant-upload-text">Click or drag the {type} document here</p>
+                  </Dragger>
+                </Form.Item>
+              )
+            })}
           </>
         )}
+
+        <Divider orientation="left" orientationMargin={0} style={{ color: '#800000', fontWeight: 700 }}>
+          Activity documents
+        </Divider>
+
+        {!isCreate && (
+          <div className="mb-3">
+            {activityDocumentsLoading ? (
+              <Spin size="small" />
+            ) : activityDocuments.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {activityDocuments.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between gap-2 rounded border border-gray-200 px-3 py-2 text-sm"
+                  >
+                    <span>
+                      {doc.file_name}{' '}
+                      <span className="text-gray-400">({doc.document_type || 'Document'})</span>
+                    </span>
+                    {onViewDocument && (
+                      <Button size="small" type="link" onClick={() => onViewDocument(doc)}>
+                        View
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Text type="secondary" className="text-xs">
+                No documents attached to this activity yet.
+              </Text>
+            )}
+          </div>
+        )}
+
+        <Form.Item
+          label={
+            <span>
+              {isCreate ? 'Supporting documents' : 'Add or replace documents'}{' '}
+              <span style={{ color: '#ff4d4f' }}>*</span>
+            </span>
+          }
+          extra="Activity-specific files (evidence, deliverables). These do not count as Implementation Plan or SRS."
+          validateStatus={
+            (isCreate || activityDocuments.length === 0) && fileList.length === 0 ? 'error' : undefined
+          }
+        >
+          <Dragger
+            multiple
+            fileList={fileList}
+            beforeUpload={validateFile}
+            onChange={({ fileList: next }) => setFileList(next)}
+            accept={ACCEPTED_EXTENSIONS.join(',')}
+          >
+            <p className="ant-upload-drag-icon">
+              <InboxOutlined />
+            </p>
+            <p className="ant-upload-text">
+              {isCreate ? 'Click or drag files to attach' : 'Upload additional or replacement files'}
+            </p>
+            <Text type="secondary">
+              Supports PDF, DOCX and XLSX files, up to {MAX_FILE_SIZE_MB}MB each.
+              {!isCreate && ' New files are added when you save.'}
+            </Text>
+          </Dragger>
+        </Form.Item>
       </Form>
     </Modal>
   )

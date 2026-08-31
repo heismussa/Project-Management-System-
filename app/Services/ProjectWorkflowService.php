@@ -240,6 +240,9 @@ class ProjectWorkflowService
             'can_approve_closure' => $project->isReadyToClose() && (bool) $project->closure_requested_at && ! $closed,
             'matrix_return_comment' => $project->matrix_return_comment,
             'matrix_returned_at' => $project->matrix_returned_at,
+            'can_submit_plan' => $project->canSubmitPlan()
+                && $project->implementationActivities()->count() > 0
+                && ! $closed,
             'can_review_plan' => $project->plan_review_status === 'pending_review' && ! $closed,
             'can_recommend' => $project->plan_review_status === 'approved' && $track !== 'DICT' && ! $inExecution && ! $closed,
             'can_sign_off_execution' => $project->plan_review_status === 'approved' && ! $inExecution && ! $closed

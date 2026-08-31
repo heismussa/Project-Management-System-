@@ -31,6 +31,10 @@ function PlanExportButton({ activities }) {
   const handleExportPdf = async () => {
     setExportingPdf(true)
     try {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      if (!planRef.current) {
+        throw new Error('Export template not ready')
+      }
       await exportReport({
         element: planRef.current,
         filename: `project-management-plan-${todayISO()}.pdf`,
@@ -91,7 +95,14 @@ function PlanExportButton({ activities }) {
           Export Project Management Plan <DownOutlined />
         </Button>
       </Dropdown>
-      <ImplementationPlanView ref={planRef} activities={activities} />
+      {exportingPdf && (
+        <div
+          aria-hidden="true"
+          style={{ position: 'fixed', left: -10000, top: 0, pointerEvents: 'none' }}
+        >
+          <ImplementationPlanView ref={planRef} activities={activities} />
+        </div>
+      )}
     </>
   )
 }

@@ -40,21 +40,60 @@ class DocumentController extends Controller
         $file = $request->file('file');
         $path = $file->store('documents', 'public');
 
+        $activityId = $validated['activity_id'] ?? null;
+        $documentType = $validated['document_type'] ?? null;
+
         $version = 1;
-        $existing = Document::query()
-            ->where('project_id', $validated['project_id'])
-            ->where('activity_id', $validated['activity_id'] ?? null)
-            ->where('file_name', $file->getClientOriginalName())
-            ->orderByDesc('version_number')
-            ->first();
+        $existing = null;
+
+        if ($activityId) {
+            $existing = Document::query()
+                ->where('project_id', $validated['project_id'])
+                ->where('activity_id', $activityId)
+                ->where('file_name', $file->getClientOriginalName())
+                ->orderByDesc('version_number')
+                ->first();
+        } elseif ($documentType) {
+            // Project-level required docs (Implementation Plan, SRS) version by type,
+            // not filename — otherwise uploading the same file name for two types
+            // would replace the wrong document.
+            $existing = Document::query()
+                ->where('project_id', $validated['project_id'])
+                ->whereNull('activity_id')
+                ->where('document_type', $documentType)
+                ->where('is_current', true)
+                ->orderByDesc('version_number')
+                ->first();
+        } else {
+            $existing = Document::query()
+                ->where('project_id', $validated['project_id'])
+                ->whereNull('activity_id')
+                ->where('file_name', $file->getClientOriginalName())
+                ->orderByDesc('version_number')
+                ->first();
+        }
 
         if ($existing) {
             $version = $existing->version_number + 1;
-            Document::query()
-                ->where('project_id', $validated['project_id'])
-                ->where('activity_id', $validated['activity_id'] ?? null)
-                ->where('file_name', $file->getClientOriginalName())
-                ->update(['is_current' => false]);
+            if ($activityId) {
+                Document::query()
+                    ->where('project_id', $validated['project_id'])
+                    ->where('activity_id', $activityId)
+                    ->where('file_name', $file->getClientOriginalName())
+                    ->update(['is_current' => false]);
+            } elseif ($documentType) {
+                Document::query()
+                    ->where('project_id', $validated['project_id'])
+                    ->whereNull('activity_id')
+                    ->where('document_type', $documentType)
+                    ->update(['is_current' => false]);
+            } else {
+                Document::query()
+                    ->where('project_id', $validated['project_id'])
+                    ->whereNull('activity_id')
+                    ->where('file_name', $file->getClientOriginalName())
+                    ->update(['is_current' => false]);
+            }
         }
 
         $document = Document::create([

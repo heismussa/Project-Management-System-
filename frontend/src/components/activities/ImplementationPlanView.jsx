@@ -13,8 +13,7 @@ const ImplementationPlanView = forwardRef(function ImplementationPlanView({ acti
   return (
     <div
       ref={ref}
-      className="fixed left-0 top-0 -z-50 w-[950px] bg-white p-8 text-gray-900"
-      style={{ pointerEvents: 'none' }}
+      className="w-[950px] bg-white p-8 text-gray-900"
     >
       <div className="border-b-4 border-primary pb-4">
         <h1 className="text-2xl font-bold text-primary">Project Management Plan</h1>

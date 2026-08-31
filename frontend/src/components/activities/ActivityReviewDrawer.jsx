@@ -340,7 +340,7 @@ function ActivityReviewDrawer({
           disabled={!canSubmitProgress}
           onClick={handleSubmitForReview}
         >
-          Submit
+          Add
         </Button>
       </div>
       </PreventMutation>

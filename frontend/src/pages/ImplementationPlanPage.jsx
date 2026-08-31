@@ -16,6 +16,12 @@ import PreventMutation from '../components/common/PreventMutation'
 import { isSpecReadOnlyRole, useActiveRoleName } from '../components/common/RoleGuard'
 import { ROLES } from '../utility/Config.jsx'
 import api from '../lib/axios'
+import { submitPlanForReview } from '../api/planner'
+import {
+  getMissingRequiredDocumentTypes,
+  normalizeProjectDocumentUploads,
+  REQUIRED_PROJECT_DOCUMENT_TYPES,
+} from '../lib/projectDocuments'
 import {
   getStoredProjectId,
   storeProjectId,
@@ -32,7 +38,14 @@ const BLANK_ACTIVITY = {
   responsible_person_id: null,
 }
 
-function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = {}) {
+function ImplementationPlanPage({
+  embedded = false,
+  toolbarContainer = null,
+  projectId: projectIdProp = null,
+  onActivityReview = null,
+  onProjectChanged = null,
+  shouldShowActivityReview = null,
+} = {}) {
   const { id: routeId } = useParams()
   const [searchParams] = useSearchParams()
   const roleName = useActiveRoleName()
@@ -64,6 +77,7 @@ function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = 
   const [reviewHistory, setReviewHistory] = useState([])
   const [docsTarget, setDocsTarget] = useState(null)
   const [filteredInfo, setFilteredInfo] = useState({})
+  const [missingProjectDocTypes, setMissingProjectDocTypes] = useState([])
 
   const people = users.map((user) => ({
     id: user.id,
@@ -80,14 +94,44 @@ function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = 
     setWorkflow(response.data?.data ?? null)
   }, [])
 
+  const refreshMissingProjectDocs = useCallback(
+    async (id) => {
+      if (!id) {
+        setMissingProjectDocTypes([])
+        return
+      }
+      try {
+        const response = await api.get(`/projects/${id}/documents`)
+        const docs = unwrapList(response.data).filter((doc) => doc.is_current !== false)
+        const requiredTypes = workflow?.required_document_types || REQUIRED_PROJECT_DOCUMENT_TYPES
+        setMissingProjectDocTypes(getMissingRequiredDocumentTypes(docs, requiredTypes))
+      } catch {
+        setMissingProjectDocTypes([])
+      }
+    },
+    [workflow],
+  )
+
+  useEffect(() => {
+    if (formTarget !== null) {
+      refreshMissingProjectDocs(projectId)
+    }
+  }, [formTarget, projectId, refreshMissingProjectDocs])
+
+  const resolveEmbeddedProjectId = useCallback(() => {
+    if (projectIdProp) return projectIdProp
+    const fromRoute = Number(routeId)
+    return Number.isFinite(fromRoute) && fromRoute > 0 ? fromRoute : null
+  }, [projectIdProp, routeId])
+
   const loadProjectsAndUsers = useCallback(async () => {
     try {
       // Embedded workspace already knows the project — skip the heavy GET /projects list.
       if (embedded) {
-        const fromRoute = Number(routeId)
-        if (Number.isFinite(fromRoute) && fromRoute > 0) {
-          storeProjectId(fromRoute)
-          setProjectId(fromRoute)
+        const embeddedId = resolveEmbeddedProjectId()
+        if (embeddedId) {
+          storeProjectId(embeddedId)
+          setProjectId(embeddedId)
         }
         const usersRes = await api.get('/users')
         setUsers(unwrapList(usersRes.data))
@@ -116,7 +160,7 @@ function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = 
     } catch (err) {
       setError(err.response?.data?.message || 'Could not load projects.')
     }
-  }, [routeId, embedded])
+  }, [routeId, embedded, resolveEmbeddedProjectId])
 
   const loadActivities = useCallback(async (id) => {
     if (!id) {
@@ -146,6 +190,12 @@ function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = 
   }, [projectId, loadActivities])
 
   useEffect(() => {
+    if (!projectIdProp) return
+    storeProjectId(projectIdProp)
+    setProjectId((current) => (current === projectIdProp ? current : projectIdProp))
+  }, [projectIdProp])
+
+  useEffect(() => {
     const fromRoute = Number(routeId)
     if (Number.isFinite(fromRoute) && fromRoute > 0) {
       storeProjectId(fromRoute)
@@ -169,21 +219,20 @@ function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = 
     setProjectId(id)
   }
 
+  const tryAutoSubmitPlan = async (id) => {
+    await submitPlanForReview(id)
+    await loadActivities(id)
+    onProjectChanged?.()
+  }
+
   const handleSaveForm = async (values) => {
-    const { rtm_requirement, rtm_comment, documents, projectDocuments, ...activityValues } = values
+    const { documents, projectDocuments, ...activityValues } = values
+    const isEdit = formTarget?.id != null
     try {
       if (formTarget.id == null) {
         const response = await api.post('/activities', { ...activityValues, project_id: projectId })
         const created = unwrapItem(response.data)
         setActivities((prev) => [...prev, created])
-        if (rtm_requirement?.trim()) {
-          await api.post('/requirements', {
-            project_id: projectId,
-            requirement_code: `RTM-${created.id}`,
-            description: rtm_requirement.trim(),
-            remarks: rtm_comment?.trim() || undefined,
-          })
-        }
         if (documents?.length) {
           for (const file of documents) {
             const formData = new FormData()
@@ -193,7 +242,7 @@ function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = 
             await api.post('/documents', formData)
           }
         }
-        for (const [documentType, files] of Object.entries(projectDocuments || {})) {
+        for (const [documentType, files] of Object.entries(normalizeProjectDocumentUploads(projectDocuments || {}))) {
           for (const file of files) {
             const formData = new FormData()
             formData.append('file', file)
@@ -202,15 +251,46 @@ function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = 
             await api.post('/documents', formData)
           }
         }
-        message.success('Activity added')
       } else {
-        const response = await api.put(`/activities/${formTarget.id}`, values)
+        const response = await api.put(`/activities/${formTarget.id}`, activityValues)
         const updated = unwrapItem(response.data)
         setActivities((prev) => prev.map((activity) => (activity.id === updated.id ? updated : activity)))
-        message.success(response.data?.message || 'Activity updated')
       }
+
+      const docsRes = await api.get(`/projects/${projectId}/documents`)
+      const docs = unwrapList(docsRes.data).filter((doc) => doc.is_current !== false)
+      const requiredTypes = workflow?.required_document_types || REQUIRED_PROJECT_DOCUMENT_TYPES
+      const missing = getMissingRequiredDocumentTypes(docs, requiredTypes)
+      await loadWorkflow(projectId)
+
+      if (!isEdit) {
+        if (missing.length > 0) {
+          Modal.warning({
+            title: 'Missing required project documents',
+            content: `Attach these project-level documents before the plan can be submitted: ${missing.join(', ')}.`,
+          })
+          message.success('Activity added')
+        } else if (['draft', 'changes_requested'].includes(workflow?.plan_review_status || '')) {
+          await tryAutoSubmitPlan(projectId)
+          message.success('Activity added and plan submitted for reviewer approval.')
+        } else {
+          message.success('Activity added')
+        }
+      } else if (missing.length > 0) {
+        Modal.warning({
+          title: 'Missing required project documents',
+          content: `Attach these project-level documents before the plan can be submitted: ${missing.join(', ')}.`,
+        })
+        message.success('Changes saved')
+      } else if (['draft', 'changes_requested'].includes(workflow?.plan_review_status || '')) {
+        await tryAutoSubmitPlan(projectId)
+        message.success('Changes saved and plan submitted for reviewer approval.')
+      } else {
+        message.success('Changes saved')
+      }
+
       setFormTarget(null)
-      loadWorkflow(projectId)
+      onProjectChanged?.()
     } catch (err) {
       message.error(err.response?.data?.message || 'Could not save activity.')
     }
@@ -240,6 +320,10 @@ function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = 
   }
 
   const openReview = async (activity) => {
+    if (onActivityReview) {
+      onActivityReview(activity)
+      return
+    }
     setReviewTarget(activity)
     await loadReviewHistory(activity.id)
   }
@@ -376,6 +460,8 @@ function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = 
           onTableChange={(_pagination, filters) => setFilteredInfo(filters)}
           onReview={openReview}
           people={people}
+          forceShowActions={Boolean(onActivityReview)}
+          shouldShowReview={shouldShowActivityReview}
         />
       </Spin>
 
@@ -383,6 +469,7 @@ function ImplementationPlanPage({ embedded = false, toolbarContainer = null } = 
         open={formTarget !== null}
         activity={formTarget}
         people={people}
+        requiredProjectDocTypes={missingProjectDocTypes}
         onCancel={() => setFormTarget(null)}
         onSave={handleSaveForm}
       />

@@ -48,10 +48,12 @@ function ActivitiesTable({
   onTableChange,
   onReview,
   people = [],
+  forceShowActions = false,
+  shouldShowReview = null,
 }) {
   const roleName = useActiveRoleName()
   const { isDark } = useAppTheme()
-  const showActionColumn = canShowActivityActionColumn(roleName)
+  const showActionColumn = forceShowActions || canShowActivityActionColumn(roleName)
   const [selectedRowId, setSelectedRowId] = useState(null)
 
   const columns = useMemo(() => {
@@ -106,8 +108,6 @@ function ActivitiesTable({
       },
       dateColumn('Planned Start', 'planned_start_date'),
       dateColumn('Planned End', 'planned_end_date'),
-      dateColumn('Actual Start', 'actual_start_date'),
-      dateColumn('Actual End', 'actual_end_date'),
       {
         title: 'Expected Deliverable',
         dataIndex: 'expected_deliverable',
@@ -147,10 +147,15 @@ function ActivitiesTable({
         width: ACTION_COLUMN_WIDTH,
         align: 'center',
         onHeaderCell: nowrapHeader,
-        render: (_, record) => <ActivityActions onReview={() => onReview(record)} />,
+        render: (_, record) => {
+          if (shouldShowReview && !shouldShowReview(record)) {
+            return <span className="text-gray-400">—</span>
+          }
+          return <ActivityActions onReview={() => onReview(record)} />
+        },
       },
     ]
-  }, [showActionColumn, filteredInfo.status, people, onReview])
+  }, [showActionColumn, filteredInfo.status, people, onReview, shouldShowReview])
 
   return (
     <div

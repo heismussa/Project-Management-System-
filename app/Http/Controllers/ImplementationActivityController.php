@@ -52,12 +52,16 @@ class ImplementationActivityController extends Controller
         }
 
         $validated['status'] = 'not_started';
-        // New activities start out awaiting reviewer sign-off, same as a
-        // post-approval edit — the pending_changes snapshot just mirrors the
-        // activity's own starting values, so approving it is a no-op update
-        // and rejecting it leaves those values in place but flagged.
-        $validated['plan_change_status'] = 'pending';
-        $validated['pending_changes'] = array_intersect_key($validated, array_flip(self::PLANNING_FIELDS));
+        // During draft / changes_requested the whole plan is reviewed on submit.
+        // Per-activity pending review only applies to edits made while the plan
+        // is still approved (before reopenPlanIfApproved moves it back).
+        if ($project->currentPlanStatus() === 'approved') {
+            $validated['plan_change_status'] = 'pending';
+            $validated['pending_changes'] = array_intersect_key($validated, array_flip(self::PLANNING_FIELDS));
+        } else {
+            $validated['plan_change_status'] = null;
+            $validated['pending_changes'] = null;
+        }
 
         $activity = ImplementationActivity::create($validated)->load('responsiblePerson:id,name,email');
         $project->reopenPlanIfApproved();
@@ -107,15 +111,19 @@ class ImplementationActivityController extends Controller
         }
 
         if ($planning !== []) {
+            $wasApproved = $project->currentPlanStatus() === 'approved';
             $activity->update($planning);
-            // Keep the reviewer's pending snapshot in sync with what's actually
-            // on the activity now — otherwise a later Approve would silently
-            // revert this edit back to whatever was there when it was first
-            // flagged pending (its creation, or an earlier edit).
-            $activity->update([
-                'plan_change_status' => 'pending',
-                'pending_changes' => array_intersect_key($activity->fresh()->toArray(), array_flip(self::PLANNING_FIELDS)),
-            ]);
+            if ($wasApproved) {
+                $activity->update([
+                    'plan_change_status' => 'pending',
+                    'pending_changes' => array_intersect_key($activity->fresh()->toArray(), array_flip(self::PLANNING_FIELDS)),
+                ]);
+            } else {
+                $activity->update([
+                    'plan_change_status' => null,
+                    'pending_changes' => null,
+                ]);
+            }
             $project->reopenPlanIfApproved();
             $project->markEditedAfterReturn();
         }
@@ -178,9 +186,9 @@ class ImplementationActivityController extends Controller
     public function approvePlanChange(Request $request, $id): JsonResponse
     {
         $activity = ImplementationActivity::with('project')->findOrFail($id);
-        if (in_array($activity->plan_change_status, ['approved', 'rejected'], true)) {
+        if ($activity->plan_change_status !== 'pending') {
             throw ValidationException::withMessages([
-                'plan_change_status' => ['This activity has already been reviewed.'],
+                'plan_change_status' => ['This activity has no pending plan change to approve.'],
             ]);
         }
         $request->validate(['comment' => ['nullable', 'string']]);
@@ -218,23 +226,24 @@ class ImplementationActivityController extends Controller
     public function rejectPlanChange(Request $request, $id): JsonResponse
     {
         $activity = ImplementationActivity::findOrFail($id);
-        if (in_array($activity->plan_change_status, ['approved', 'rejected'], true)) {
+        if ($activity->plan_change_status !== 'pending') {
             throw ValidationException::withMessages([
-                'plan_change_status' => ['This activity has already been reviewed.'],
+                'plan_change_status' => ['This activity has no pending plan change to return.'],
             ]);
         }
         $request->validate(['comment' => ['nullable', 'string']]);
 
+        // Clear pending state so the planner can revise and re-submit the plan.
         $activity->update([
             'pending_changes' => null,
-            'plan_change_status' => 'rejected',
+            'plan_change_status' => null,
         ]);
 
         if ($request->filled('comment')) {
             ProgressUpdate::create([
                 'entity_type' => 'activity',
                 'entity_id' => $activity->id,
-                'remark' => 'Plan change rejected: '.$request->string('comment'),
+                'remark' => 'Plan change returned: '.$request->string('comment'),
                 'status' => $activity->status,
                 'updated_by' => $request->user()->id,
             ]);
