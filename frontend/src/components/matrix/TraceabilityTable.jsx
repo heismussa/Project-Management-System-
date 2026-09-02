@@ -331,7 +331,7 @@ function TraceabilityTable({ embedded = false, projectId: projectIdProp = null }
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
+      <div className={`flex flex-wrap items-center justify-end gap-2 ${embedded ? 'mb-1' : 'mb-4'}`}>
         <Space wrap>
           {!embedded && (
             <ProjectPicker projects={projects} value={projectId} onChange={(id) => { storeProjectId(id); setProjectId(id) }} />

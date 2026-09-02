@@ -29,7 +29,7 @@ function usersWithRole(users, roleName) {
   return matched.length ? matched : users
 }
 
-export default function ProjectRegistration() {
+export default function ProjectRegistration({ embedded = false, onClose, onCompleted } = {}) {
   const navigate = useNavigate()
   const [form] = Form.useForm()
   const { user } = useAuth()
@@ -49,10 +49,18 @@ export default function ProjectRegistration() {
       .catch(() => setError('Could not load users for planner assignment.'))
   }, [])
 
+  const exitRegistration = () => {
+    if (embedded) {
+      onClose?.()
+    } else {
+      navigate('/projects')
+    }
+  }
+
   const closeRegistration = () => {
     if (project?.id) {
       message.info(`"${project.name}" is saved — you can finish registration later from Project Management.`)
-      navigate('/projects')
+      exitRegistration()
       return
     }
 
@@ -62,7 +70,7 @@ export default function ProjectRegistration() {
       okText: 'Close',
       okButtonProps: { danger: true },
       cancelText: 'Keep editing',
-      onOk: () => navigate('/projects'),
+      onOk: exitRegistration,
     })
   }
 
@@ -132,6 +140,10 @@ export default function ProjectRegistration() {
     setError('')
     try {
       await api.post(`/projects/${project.id}/advance-to-planning`)
+      if (embedded) {
+        onCompleted?.(project)
+        return
+      }
       navigate('/projects', {
         replace: true,
         state: {
@@ -156,9 +168,8 @@ export default function ProjectRegistration() {
     }
   }
 
-  return (
-    <div className="mx-auto w-[80%] max-w-none">
-      <Card>
+  const formCard = (
+    <Card bordered={!embedded} className={embedded ? '!shadow-none' : undefined}>
         {error && (
           <Alert className="mb-4" type="error" showIcon message={error} />
         )}
@@ -278,6 +289,11 @@ export default function ProjectRegistration() {
           </div>
         )}
       </Card>
-    </div>
   )
+
+  if (embedded) {
+    return formCard
+  }
+
+  return <div className="mx-auto w-[80%] max-w-none">{formCard}</div>
 }

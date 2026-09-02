@@ -441,7 +441,7 @@ function ImplementationPlanPage({
   )
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className={embedded ? 'flex flex-col gap-2' : 'flex flex-col gap-6'}>
       {toolbarContainer ? (
         createPortal(toolbar, toolbarContainer)
       ) : (

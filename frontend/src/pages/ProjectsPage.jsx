@@ -26,6 +26,7 @@ import { deriveStatus } from '../lib/status'
 import { formatDate } from '../lib/dates'
 import InitiationDocumentsPanel from '../components/projects/InitiationDocumentsPanel'
 import ProjectWorkspaceTabs, { defaultWorkspaceTab } from '../components/projects/ProjectWorkspaceTabs'
+import ProjectRegistration from './ProjectRegistration'
 
 const DERIVED_STATUS_LABELS = { not_started: 'Not started', ongoing: 'Ongoing', completed: 'Completed' }
 const LIFECYCLE_STAGE_LABELS = { initiation: 'Initiation', planning: 'Planning', execution: 'Execution', closure: 'Closure' }
@@ -79,6 +80,7 @@ function ProjectsPage() {
   const lifecycleStageFilter = searchParams.get('lifecycleStage')
   const view = searchParams.get('view') === 'completed' ? 'completed' : 'ongoing'
   const [reassignTarget, setReassignTarget] = useState(null)
+  const [registerOpen, setRegisterOpen] = useState(false)
   const [detailTarget, setDetailTarget] = useState(null)
   const [detailWorkspaceTab, setDetailWorkspaceTab] = useState('plan')
   const [detailWorkflow, setDetailWorkflow] = useState(null)
@@ -144,6 +146,15 @@ function ProjectsPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (searchParams.get('register') !== '1' || !canRegister) return
+    setRegisterOpen(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('register')
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open once from ?register=1
+  }, [searchParams, canRegister])
 
   useEffect(() => {
     const detailId = Number(searchParams.get('detail'))
@@ -502,8 +513,8 @@ function ProjectsPage() {
 
   return (
     <div>
-      <Card className="page-shell-card">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <Card className="page-shell-card !mt-0" styles={{ body: { padding: 12 } }}>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <Tabs
             type="card"
             activeKey={view}
@@ -524,7 +535,7 @@ function ProjectsPage() {
               type="primary"
               icon={<PlusOutlined />}
               style={{ backgroundColor: '#800000', borderColor: '#800000' }}
-              onClick={() => navigate('/projects/create')}
+              onClick={() => setRegisterOpen(true)}
             >
               Register project
             </Button>
@@ -551,7 +562,7 @@ function ProjectsPage() {
           allowClear
           prefix={<Search className="h-4 w-4 text-gray-400" />}
           placeholder="Search name, category, planner, status"
-          className="mb-4 max-w-md"
+          className="mb-2 max-w-md"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
@@ -571,6 +582,29 @@ function ProjectsPage() {
           }}
         />
       </Card>
+
+      <Modal
+        title={<span style={{ color: '#800000', fontWeight: 800 }}>Register project</span>}
+        open={registerOpen}
+        onCancel={() => setRegisterOpen(false)}
+        destroyOnHidden
+        width={920}
+        centered
+        footer={null}
+        styles={{ body: { maxHeight: '82vh', overflowY: 'auto', paddingRight: 4 } }}
+      >
+        <ProjectRegistration
+          embedded
+          onClose={() => setRegisterOpen(false)}
+          onCompleted={(registeredProject) => {
+            setRegisterOpen(false)
+            if (registeredProject?.name) {
+              message.success(`Project "${registeredProject.name}" registered successfully`)
+            }
+            load()
+          }}
+        />
+      </Modal>
 
       <Modal
         title={<span style={{ color: '#800000', fontWeight: 800 }}>Details</span>}

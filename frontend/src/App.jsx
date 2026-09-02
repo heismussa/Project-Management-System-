@@ -9,7 +9,6 @@ import ProjectsPage from './pages/ProjectsPage'
 import AppLayout from './layouts/AppLayout'
 import { pathAllowedForRole } from './layouts/nav'
 
-const ProjectRegistration = lazy(() => import('./pages/ProjectRegistration'))
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'))
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
@@ -76,14 +75,7 @@ export default function App() {
               <Route path="/" element={<DashboardPage />} />
               <Route path="/home" element={<Navigate to="/" replace />} />
               <Route path="/projects" element={<ProjectsPage />} />
-              <Route
-                path="/projects/create"
-                element={
-                  <RolePageRoute>
-                    <ProjectRegistration />
-                  </RolePageRoute>
-                }
-              />
+              <Route path="/projects/create" element={<Navigate to="/projects?register=1" replace />} />
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
               <Route
                 path="/implementation-plan"

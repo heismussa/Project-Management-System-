@@ -177,12 +177,12 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null } = {}
   ]
 
   return (
-    <div className="page-container">
+    <div className={embedded ? '' : 'page-container'}>
       {!embedded && (
         <h2 className="mb-4 text-lg font-semibold text-gray-800 dark:text-gray-100">Project Documents</h2>
       )}
 
-      <div className="flex flex-wrap items-center justify-end gap-3">
+      <div className={`flex flex-wrap items-center justify-end gap-2 ${embedded ? 'mb-1' : 'mb-0'}`}>
         <Space wrap>
           {!embedded && (
             <ProjectPicker

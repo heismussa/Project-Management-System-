@@ -71,8 +71,8 @@ export default function ProjectWorkspaceTabs({
   }
 
   return (
-    <div className="mt-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+    <div className="mt-2">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <Segmented options={WORKSPACE_TABS} value={activeTab} onChange={onTabChange} />
         {activeTab === 'plan' && (
           <div ref={setPlanToolbarEl} className="flex min-h-[42px] flex-wrap items-center justify-end gap-3" />
@@ -82,7 +82,7 @@ export default function ProjectWorkspaceTabs({
       {activeTab === 'plan' && (
         <>
           {isReviewer && (
-            <div className="mb-4 rounded border border-gray-200 p-3">
+            <div className="mb-2 rounded border border-gray-200 p-3">
               <ReviewWorkspacePanel
                 projectId={projectId}
                 projectName={project?.name}
