@@ -30,8 +30,6 @@ export function formatRoleLabel(name) {
 export const NAV_ITEMS = Project()
 export const ICT_SUPPORT_NAV_ITEMS = NAV_ITEMS.filter((item) => item.url === '/user-management')
 
-const CREATE_CRUMB = { path: '/projects/create', label: 'Create Project' }
-
 export function getAssignedRoles(user) {
   if (!user) return []
   const fromList = (user.roles || [])
@@ -82,9 +80,6 @@ export function getActiveNavItem(pathname) {
 }
 
 export function pathAllowedForRole(pathname, roleName) {
-  if (pathname.startsWith('/projects/create')) {
-    return roleName === ROLES.PRV || roleName === ROLES.PAD
-  }
   if (/^\/projects\/\d+/.test(pathname) || pathname === '/projects') {
     return true
   }
@@ -136,11 +131,6 @@ export function getBreadcrumbCrumbs(pathname, projectName) {
   const crumbs = [
     { label: active.label, link: active.url, current: pathname === active.url || pathname === '/home' },
   ]
-
-  if (pathname.startsWith('/projects/create')) {
-    crumbs[0].current = false
-    crumbs.push({ label: CREATE_CRUMB.label, link: CREATE_CRUMB.path, current: true })
-  }
 
   if (/^\/projects\/\d+/.test(pathname)) {
     crumbs[0].current = false

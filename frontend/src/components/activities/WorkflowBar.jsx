@@ -1,9 +1,10 @@
 import { Alert } from 'antd'
 
-function WorkflowBar({ projectId, workflow }) {
+function WorkflowBar({ projectId, workflow, hideReapprovalNotice = false }) {
   if (!projectId || !workflow) return null
 
-  if (!workflow.plan_review_comment && !workflow.plan_pending_reapproval) return null
+  const showReapprovalNotice = workflow.plan_pending_reapproval && !hideReapprovalNotice
+  if (!workflow.plan_review_comment && !showReapprovalNotice) return null
 
   return (
     <div className="space-y-3">
@@ -11,7 +12,7 @@ function WorkflowBar({ projectId, workflow }) {
         <Alert type="warning" showIcon message="Reviewer comment" description={workflow.plan_review_comment} />
       )}
 
-      {workflow.plan_pending_reapproval && (
+      {showReapprovalNotice && (
         <Alert
           type="info"
           showIcon

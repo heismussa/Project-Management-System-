@@ -7,6 +7,8 @@ import dayjs from 'dayjs'
 import { deriveStatus } from '../lib/status'
 import ActivityFormModal from '../components/activities/ActivityFormModal'
 import ActivityReviewDrawer from '../components/activities/ActivityReviewDrawer'
+import ActivityDetailsModal from '../components/activities/ActivityDetailsModal'
+import AddRtmModal from '../components/activities/AddRtmModal'
 import PlanExportButton from '../components/activities/PlanExportButton'
 import ActivitiesTable from '../components/activities/ActivitiesTable'
 import WorkflowBar from '../components/activities/WorkflowBar'
@@ -23,6 +25,7 @@ import {
   REQUIRED_PROJECT_DOCUMENT_TYPES,
 } from '../lib/projectDocuments'
 import {
+  fetchAuthorizedFileUrl,
   getStoredProjectId,
   storeProjectId,
   unwrapItem,
@@ -45,6 +48,9 @@ function ImplementationPlanPage({
   onActivityReview = null,
   onProjectChanged = null,
   shouldShowActivityReview = null,
+  simplifiedPlannerView = false,
+  hideExpectedDeliverable = false,
+  hideReapprovalNotice = false,
 } = {}) {
   const { id: routeId } = useParams()
   const [searchParams] = useSearchParams()
@@ -78,6 +84,12 @@ function ImplementationPlanPage({
   const [docsTarget, setDocsTarget] = useState(null)
   const [filteredInfo, setFilteredInfo] = useState({})
   const [missingProjectDocTypes, setMissingProjectDocTypes] = useState([])
+  const [editActivityDocs, setEditActivityDocs] = useState([])
+  const [editActivityDocsLoading, setEditActivityDocsLoading] = useState(false)
+  const [detailsTarget, setDetailsTarget] = useState(null)
+  const [detailsDocs, setDetailsDocs] = useState([])
+  const [detailsDocsLoading, setDetailsDocsLoading] = useState(false)
+  const [rtmModalOpen, setRtmModalOpen] = useState(false)
 
   const people = users.map((user) => ({
     id: user.id,
@@ -255,6 +267,24 @@ function ImplementationPlanPage({
         const response = await api.put(`/activities/${formTarget.id}`, activityValues)
         const updated = unwrapItem(response.data)
         setActivities((prev) => prev.map((activity) => (activity.id === updated.id ? updated : activity)))
+        if (documents?.length) {
+          for (const file of documents) {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('project_id', projectId)
+            formData.append('activity_id', updated.id)
+            await api.post('/documents', formData)
+          }
+        }
+        for (const [documentType, files] of Object.entries(normalizeProjectDocumentUploads(projectDocuments || {}))) {
+          for (const file of files) {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('project_id', projectId)
+            formData.append('document_type', documentType)
+            await api.post('/documents', formData)
+          }
+        }
       }
 
       const docsRes = await api.get(`/projects/${projectId}/documents`)
@@ -326,6 +356,68 @@ function ImplementationPlanPage({
     }
     setReviewTarget(activity)
     await loadReviewHistory(activity.id)
+  }
+
+  const openEdit = (activity) => {
+    setFormTarget(activity)
+    setEditActivityDocs([])
+    setEditActivityDocsLoading(true)
+    api
+      .get(`/projects/${projectId}/documents`, { params: { activity_id: activity.id } })
+      .then((response) => setEditActivityDocs(unwrapList(response.data)))
+      .catch(() => setEditActivityDocs([]))
+      .finally(() => setEditActivityDocsLoading(false))
+  }
+
+  const viewActivityDocument = async (doc) => {
+    try {
+      const url = await fetchAuthorizedFileUrl(doc.id)
+      window.open(url, '_blank', 'noopener')
+    } catch {
+      message.error('Could not open document.')
+    }
+  }
+
+  const downloadActivityDocument = async (doc) => {
+    try {
+      const url = await fetchAuthorizedFileUrl(doc.id)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = doc.file_name || 'document'
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      message.error('Could not download document.')
+    }
+  }
+
+  // The activity's own "planned" fields become directly editable once the
+  // whole plan has been returned — otherwise View opens a read-only popup
+  // with an explicit Update action.
+  const openDetails = (activity) => {
+    if (workflow?.plan_review_status === 'changes_requested') {
+      openEdit(activity)
+      return
+    }
+    setDetailsTarget(activity)
+    setDetailsDocs([])
+    setDetailsDocsLoading(true)
+    api
+      .get(`/projects/${projectId}/documents`, { params: { activity_id: activity.id } })
+      .then((response) => setDetailsDocs(unwrapList(response.data)))
+      .catch(() => setDetailsDocs([]))
+      .finally(() => setDetailsDocsLoading(false))
+  }
+
+  const openUpdateFromDetails = () => {
+    const activity = detailsTarget
+    setDetailsTarget(null)
+    if (activity) openEdit(activity)
+  }
+
+  const openRtmFromDetails = () => {
+    setDetailsTarget(null)
+    setRtmModalOpen(true)
   }
 
   const applyActivityUpdate = async (payload) => {
@@ -441,14 +533,14 @@ function ImplementationPlanPage({
   )
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       {toolbarContainer ? (
         createPortal(toolbar, toolbarContainer)
       ) : (
         <div className="flex w-full flex-wrap items-center justify-end gap-3">{toolbar}</div>
       )}
 
-      <WorkflowBar projectId={projectId} workflow={workflow} />
+      <WorkflowBar projectId={projectId} workflow={workflow} hideReapprovalNotice={hideReapprovalNotice} />
 
       {error && <Alert type="error" showIcon message={error} />}
 
@@ -459,6 +551,12 @@ function ImplementationPlanPage({
           filteredInfo={filteredInfo}
           onTableChange={(_pagination, filters) => setFilteredInfo(filters)}
           onReview={openReview}
+          onEdit={!simplifiedPlannerView && canAddActivity ? openEdit : null}
+          onView={simplifiedPlannerView ? openDetails : null}
+          editDisabled={!projectId || planStatus === 'pending_review'}
+          hideExpectedDeliverable={hideExpectedDeliverable}
+          useApprovalStatus={simplifiedPlannerView || hideExpectedDeliverable}
+          planReviewStatus={workflow?.plan_review_status}
           people={people}
           forceShowActions={Boolean(onActivityReview)}
           shouldShowReview={shouldShowActivityReview}
@@ -470,6 +568,9 @@ function ImplementationPlanPage({
         activity={formTarget}
         people={people}
         requiredProjectDocTypes={missingProjectDocTypes}
+        activityDocuments={editActivityDocs}
+        activityDocumentsLoading={editActivityDocsLoading}
+        onViewDocument={viewActivityDocument}
         onCancel={() => setFormTarget(null)}
         onSave={handleSaveForm}
       />
@@ -494,6 +595,25 @@ function ImplementationPlanPage({
         activity={docsTarget}
         projectId={projectId}
         onCancel={() => setDocsTarget(null)}
+      />
+      <ActivityDetailsModal
+        open={detailsTarget !== null}
+        activity={detailsTarget}
+        people={people}
+        documents={detailsDocs}
+        documentsLoading={detailsDocsLoading}
+        canAddRtm={Boolean(workflow?.recommended_at)}
+        onClose={() => setDetailsTarget(null)}
+        onUpdate={openUpdateFromDetails}
+        onAddRtm={openRtmFromDetails}
+        onViewDocument={viewActivityDocument}
+        onDownloadDocument={downloadActivityDocument}
+      />
+      <AddRtmModal
+        open={rtmModalOpen}
+        projectId={projectId}
+        onClose={() => setRtmModalOpen(false)}
+        onAdded={() => onProjectChanged?.()}
       />
     </div>
   )

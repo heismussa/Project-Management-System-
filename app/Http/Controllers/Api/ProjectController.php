@@ -269,6 +269,11 @@ class ProjectController extends Controller
 
         $this->guardOpen($project);
 
+        $request->validate(['review_track' => ['nullable', 'string', 'in:SDMM,IDMM']]);
+        if ($request->filled('review_track')) {
+            $project->update(['review_track' => $request->input('review_track')]);
+        }
+
         $updated = ProjectWorkflowService::recommendAndMoveToExecution($project);
 
         Review::create([

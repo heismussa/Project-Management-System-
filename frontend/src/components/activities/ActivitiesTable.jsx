@@ -19,8 +19,8 @@ function compareDates(a, b) {
 }
 
 const DATE_COLUMN_WIDTH = 100
-const STATUS_COLUMN_WIDTH = 100
-const ACTION_COLUMN_WIDTH = 100
+const STATUS_COLUMN_WIDTH = 160
+const ACTION_COLUMN_WIDTH = 190
 
 const nowrapHeader = () => ({ style: { whiteSpace: 'nowrap' } })
 
@@ -41,12 +41,28 @@ function dateColumn(title, dataIndex) {
 // ever resolve to not_started/ongoing/completed), so it's left out here.
 const STATUS_FILTER_KEYS = ['not_started', 'ongoing', 'completed']
 
+// While a project is still in Planning, an activity hasn't "started" in any
+// meaningful sense yet — what matters there is whether its plan is pending
+// or approved, not the not_started/ongoing/completed lifecycle badge.
+function planApprovalState(record, planReviewStatus) {
+  if (record.plan_change_status === 'pending') return 'pending'
+  if (record.progress_review_status === 'pending') return 'pending'
+  if (record.plan_change_status === 'approved') return 'approved'
+  return planReviewStatus === 'approved' ? 'approved' : 'pending'
+}
+
 function ActivitiesTable({
   activities,
   visibleActivities,
   filteredInfo,
   onTableChange,
   onReview,
+  onEdit = null,
+  editDisabled = false,
+  onView = null,
+  hideExpectedDeliverable = false,
+  useApprovalStatus = false,
+  planReviewStatus = null,
   people = [],
   forceShowActions = false,
   shouldShowReview = null,
@@ -87,16 +103,6 @@ function ActivitiesTable({
               >
                 {name}
               </span>
-              {record.plan_change_status === 'pending' && (
-                <Tag color="gold" style={{ flexShrink: 0 }}>
-                  Pending approval
-                </Tag>
-              )}
-              {record.progress_review_status === 'pending' && (
-                <Tag color="blue" style={{ flexShrink: 0 }}>
-                  Submitted for review
-                </Tag>
-              )}
               {record.validation_rule && (
                 <Tooltip title={record.validation_rule}>
                   <Info size={16} style={{ color: '#98A2B3', flexShrink: 0, marginTop: 3 }} />
@@ -108,13 +114,17 @@ function ActivitiesTable({
       },
       dateColumn('Planned Start', 'planned_start_date'),
       dateColumn('Planned End', 'planned_end_date'),
-      {
-        title: 'Expected Deliverable',
-        dataIndex: 'expected_deliverable',
-        key: 'expected_deliverable',
-        ellipsis: true,
-        onHeaderCell: nowrapHeader,
-      },
+      ...(hideExpectedDeliverable
+        ? []
+        : [
+            {
+              title: 'Expected Deliverable',
+              dataIndex: 'expected_deliverable',
+              key: 'expected_deliverable',
+              ellipsis: true,
+              onHeaderCell: nowrapHeader,
+            },
+          ]),
       {
         title: 'Responsible Person',
         dataIndex: 'responsible_person_id',
@@ -123,17 +133,35 @@ function ActivitiesTable({
         onHeaderCell: nowrapHeader,
         render: (id) => personLookup(people, id)?.name ?? getPersonName(id),
       },
-      {
-        title: 'Project Status',
-        key: 'status',
-        width: STATUS_COLUMN_WIDTH,
-        align: 'center',
-        filters: STATUS_FILTER_KEYS.map((key) => ({ text: STATUS[key].label, value: key })),
-        filteredValue: filteredInfo.status ?? null,
-        onFilter: (value, record) => deriveStatus(record) === value,
-        onHeaderCell: nowrapHeader,
-        render: (_, record) => <StatusBadge status={deriveStatus(record)} />,
-      },
+      useApprovalStatus
+        ? {
+            title: 'Project Status',
+            key: 'status',
+            width: STATUS_COLUMN_WIDTH,
+            align: 'center',
+            onHeaderCell: nowrapHeader,
+            render: (_, record) => {
+              const state = planApprovalState(record, planReviewStatus)
+              return <Tag color={state === 'approved' ? 'green' : 'gold'}>{state === 'approved' ? 'Approved' : 'Pending'}</Tag>
+            },
+          }
+        : {
+            title: 'Project Status',
+            key: 'status',
+            width: STATUS_COLUMN_WIDTH,
+            align: 'center',
+            filters: STATUS_FILTER_KEYS.map((key) => ({ text: STATUS[key].label, value: key })),
+            filteredValue: filteredInfo.status ?? null,
+            onFilter: (value, record) => deriveStatus(record) === value,
+            onHeaderCell: nowrapHeader,
+            render: (_, record) => (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <StatusBadge status={deriveStatus(record)} />
+                {record.plan_change_status === 'pending' && <Tag color="gold">Pending approval</Tag>}
+                {record.progress_review_status === 'pending' && <Tag color="blue">Submitted for review</Tag>}
+              </div>
+            ),
+          },
     ]
 
     if (!showActionColumn) return baseColumns
@@ -151,11 +179,30 @@ function ActivitiesTable({
           if (shouldShowReview && !shouldShowReview(record)) {
             return <span className="text-gray-400">—</span>
           }
-          return <ActivityActions onReview={() => onReview(record)} />
+          return (
+            <ActivityActions
+              onView={onView ? () => onView(record) : null}
+              onReview={() => onReview(record)}
+              onEdit={onEdit ? () => onEdit(record) : null}
+              editDisabled={editDisabled}
+            />
+          )
         },
       },
     ]
-  }, [showActionColumn, filteredInfo.status, people, onReview, shouldShowReview])
+  }, [
+    showActionColumn,
+    filteredInfo.status,
+    people,
+    onReview,
+    onEdit,
+    onView,
+    editDisabled,
+    shouldShowReview,
+    hideExpectedDeliverable,
+    useApprovalStatus,
+    planReviewStatus,
+  ])
 
   return (
     <div

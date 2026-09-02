@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Card, Col, Row, Statistic, Table, Tag, message } from 'antd'
+import { Button, Card, Col, Row, Statistic, Table, Tag, message } from 'antd'
 import api from '../../lib/axios'
 import { storeProjectId, unwrapList } from '../../lib/apiHelpers'
-import ReviewWorkspaceDrawer from '../reviews/ReviewWorkspaceDrawer'
+import CoordinatorRecommendationModal from '../reviews/CoordinatorRecommendationModal'
 import { DASHBOARD_CARD_STYLE } from './chartConstants'
+
+const ACTION_BTN_STYLE = { backgroundColor: '#800000', borderColor: '#800000' }
 
 export default function CoordinatorDashboard() {
   const [projects, setProjects] = useState([])
@@ -74,17 +76,19 @@ export default function CoordinatorDashboard() {
             { title: 'Planner', render: (_, record) => record.planner?.name || '—' },
             {
               title: 'Action',
+              width: 110,
+              align: 'center',
               render: (_, record) => (
-                <button type="button" className="text-[#650018] underline" onClick={() => open(record)}>
-                  Recommend
-                </button>
+                <Button type="primary" style={ACTION_BTN_STYLE} onClick={() => open(record)}>
+                  View
+                </Button>
               ),
             },
           ]}
         />
       </Card>
 
-      <ReviewWorkspaceDrawer
+      <CoordinatorRecommendationModal
         open={Boolean(reviewTarget)}
         project={reviewTarget}
         onClose={() => setReviewTarget(null)}

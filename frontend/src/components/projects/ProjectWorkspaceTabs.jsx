@@ -39,8 +39,20 @@ export default function ProjectWorkspaceTabs({
 }) {
   const { activeRole } = useAuth()
   const isReviewer = activeRole?.name === ROLES.PRV
+  const isPlanner = activeRole?.name === ROLES.PPL
   const [planToolbarEl, setPlanToolbarEl] = useState(null)
   const [closure, setClosure] = useState(null)
+
+  const inExecution =
+    Boolean(project?.execution_started_at) ||
+    project?.status === 'In Execution' ||
+    project?.phase === 'Execution'
+
+  // While a project is still in Planning, the Planner's and Reviewer's
+  // workspace both skip the Plan/RTM/Documents/Closure tab strip (those
+  // other stages aren't relevant yet) in favor of a single activity-focused
+  // view — those other stages only matter once execution starts.
+  const showSimplified = (isPlanner || isReviewer) && !inExecution
 
   useEffect(() => {
     if (projectId) storeProjectId(projectId)
@@ -60,14 +72,41 @@ export default function ProjectWorkspaceTabs({
   }, [projectId])
 
   useEffect(() => {
+    if (showSimplified) return
     if (activeTab === 'closure' || activeTab === 'plan') {
       loadClosure()
     }
-  }, [activeTab, loadClosure])
+  }, [activeTab, loadClosure, showSimplified])
 
   const handleChanged = () => {
     loadClosure()
     onProjectChanged?.()
+  }
+
+  if (showSimplified) {
+    return (
+      <div className="mt-3">
+        {isPlanner && (
+          <div className="mb-3">
+            <div className="mb-2" style={{ color: '#800000', fontWeight: 800 }}>
+              Documents
+            </div>
+            <DocumentList embedded projectId={projectId} compact />
+          </div>
+        )}
+
+        <ImplementationPlanPage
+          embedded
+          projectId={projectId}
+          onActivityReview={onActivityReview}
+          onProjectChanged={handleChanged}
+          shouldShowActivityReview={shouldShowActivityReview}
+          simplifiedPlannerView={isPlanner}
+          hideExpectedDeliverable
+          hideReapprovalNotice
+        />
+      </div>
+    )
   }
 
   return (

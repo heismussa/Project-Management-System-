@@ -19,7 +19,7 @@ import {
 
 const DOCUMENT_ACCENT = '#962c30'
 
-function DocumentList({ embedded = false, projectId: projectIdProp = null } = {}) {
+function DocumentList({ embedded = false, projectId: projectIdProp = null, compact = false } = {}) {
   const { id: routeId } = useParams()
   const readOnly = isSpecReadOnlyRole(useActiveRoleName())
   const [projects, setProjects] = useState([])
@@ -121,31 +121,39 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null } = {}
 
   const columns = [
     { title: 'File name', dataIndex: 'file_name', key: 'file_name', width: 220 },
-    { title: 'Type', dataIndex: 'document_type', key: 'document_type', width: 140 },
+    { title: 'Document Type', dataIndex: 'document_type', key: 'document_type', width: 140 },
     {
-      title: 'Activity',
+      title: 'Activity Name',
       key: 'activity',
       width: 160,
       render: (_, record) => record.activity?.name || 'Project-level',
       searchValue: (record) => record.activity?.name || 'Project-level',
     },
-    {
-      title: 'Version',
-      dataIndex: 'version_number',
-      width: 90,
-      render: (value) => `v${value}`,
-    },
-    {
-      title: 'Review status',
-      dataIndex: 'review_status',
-      width: 140,
-      render: (value) => <ReviewStatusBadge status={value} />,
-    },
-    {
-      title: 'Reviewer comment',
-      dataIndex: 'review_comment',
-      render: (value) => value || '—',
-    },
+    ...(compact
+      ? []
+      : [
+          {
+            title: 'Version',
+            dataIndex: 'version_number',
+            width: 90,
+            render: (value) => `v${value}`,
+          },
+          {
+            title: 'Review status',
+            dataIndex: 'review_status',
+            width: 140,
+            render: (value) => <ReviewStatusBadge status={value} />,
+          },
+        ]),
+    ...(compact
+      ? []
+      : [
+          {
+            title: 'Reviewer comment',
+            dataIndex: 'review_comment',
+            render: (value) => value || '—',
+          },
+        ]),
     {
       title: 'Uploaded by',
       key: 'uploaded_by',
@@ -157,10 +165,10 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null } = {}
       title: 'Uploaded at',
       dataIndex: 'uploaded_at',
       width: 170,
-      render: (value) => (value ? dayjs(value).format('MMM D, YYYY h:mm A') : '—'),
+      render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
     },
     {
-      title: 'Actions',
+      title: 'Document Action',
       key: 'actions',
       width: 120,
       render: (_, record) => (
@@ -182,25 +190,27 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null } = {}
         <h2 className="mb-4 text-lg font-semibold text-gray-800 dark:text-gray-100">Project Documents</h2>
       )}
 
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <Space wrap>
-          {!embedded && (
-            <ProjectPicker
-              projects={projects}
-              value={projectId}
-              onChange={(id) => {
-                storeProjectId(id)
-                setProjectId(id)
-              }}
-            />
-          )}
-          {!readOnly && (
-            <Button type="primary" icon={<UploadOutlined />} disabled={!projectId} onClick={() => setUploadOpen(true)}>
-              Upload documents
-            </Button>
-          )}
-        </Space>
-      </div>
+      {(!embedded || (!readOnly && !compact)) && (
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <Space wrap>
+            {!embedded && (
+              <ProjectPicker
+                projects={projects}
+                value={projectId}
+                onChange={(id) => {
+                  storeProjectId(id)
+                  setProjectId(id)
+                }}
+              />
+            )}
+            {!readOnly && !compact && (
+              <Button type="primary" icon={<UploadOutlined />} disabled={!projectId} onClick={() => setUploadOpen(true)}>
+                Upload documents
+              </Button>
+            )}
+          </Space>
+        </div>
+      )}
 
       <DataTable
         columns={columns}
@@ -208,6 +218,7 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null } = {}
         rowKey="id"
         searchPlaceholder="Search by file name or document type"
         emptyText="No current documents."
+        className={compact ? 'pms-datatable-limited' : undefined}
       />
 
       <DocumentUploadModal

@@ -1,4 +1,4 @@
-export const REQUIRED_PROJECT_DOCUMENT_TYPES = ['Implementation Plan', 'SRS']
+export const REQUIRED_PROJECT_DOCUMENT_TYPES = ['Implementation Plan']
 
 export function getMissingRequiredDocumentTypes(
   documents,

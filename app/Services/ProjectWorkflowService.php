@@ -11,7 +11,6 @@ class ProjectWorkflowService
 {
     public const REQUIRED_DOCUMENT_TYPES = [
         'Implementation Plan',
-        'SRS',
     ];
 
     /**

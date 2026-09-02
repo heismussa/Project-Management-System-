@@ -1,5 +1,5 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+﻿import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Alert,
   Button,
@@ -26,6 +26,8 @@ import { deriveStatus } from '../lib/status'
 import { formatDate } from '../lib/dates'
 import InitiationDocumentsPanel from '../components/projects/InitiationDocumentsPanel'
 import ProjectWorkspaceTabs, { defaultWorkspaceTab } from '../components/projects/ProjectWorkspaceTabs'
+
+const ProjectRegistration = lazy(() => import('./ProjectRegistration'))
 
 const DERIVED_STATUS_LABELS = { not_started: 'Not started', ongoing: 'Ongoing', completed: 'Completed' }
 const LIFECYCLE_STAGE_LABELS = { initiation: 'Initiation', planning: 'Planning', execution: 'Execution', closure: 'Closure' }
@@ -67,8 +69,6 @@ export function isCompletedProject(project) {
 }
 
 function ProjectsPage() {
-  const navigate = useNavigate()
-  const location = useLocation()
   const { user, activeRole } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [projects, setProjects] = useState([])
@@ -95,6 +95,8 @@ function ProjectsPage() {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [actionsOpenId, setActionsOpenId] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [registerOpen, setRegisterOpen] = useState(false)
+  const [registerLoaded, setRegisterLoaded] = useState(false)
   const [form] = Form.useForm()
 
   const isPlannerRole = activeRole?.name === ROLES.PPL
@@ -163,26 +165,17 @@ function ProjectsPage() {
   }, [projects, searchParams])
 
   // After Register project → land on Ongoing list, toast, and refresh.
-  useEffect(() => {
-    const flashName = location.state?.registeredProjectName
-    const flashId = location.state?.registeredProjectId
-    if (!flashName && !flashId) return
-
+  const handleRegistered = ({ id, name }) => {
+    setRegisterOpen(false)
     if (searchParams.get('view') === 'completed') {
       const next = new URLSearchParams(searchParams)
       next.delete('view')
       setSearchParams(next, { replace: true })
     }
-
-    if (flashName) {
-      message.success(`Project "${flashName}" registered successfully`)
-    }
-
-    navigate(location.pathname + location.search, { replace: true, state: {} })
-    // load() already runs on mount; only refresh if we replaced state after mount.
+    message.success(`Project "${name}" registered successfully`)
+    storeProjectId(id)
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot flash from navigation state
-  }, [location.state])
+  }
 
   const planners = useMemo(() => {
     const filtered = users.filter((item) =>
@@ -502,7 +495,7 @@ function ProjectsPage() {
 
   return (
     <div>
-      <Card className="page-shell-card">
+      <Card className="page-shell-card" styles={{ body: { padding: '12px 16px' } }}>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <Tabs
             type="card"
@@ -524,7 +517,10 @@ function ProjectsPage() {
               type="primary"
               icon={<PlusOutlined />}
               style={{ backgroundColor: '#800000', borderColor: '#800000' }}
-              onClick={() => navigate('/projects/create')}
+              onClick={() => {
+                setRegisterLoaded(true)
+                setRegisterOpen(true)
+              }}
             >
               Register project
             </Button>
@@ -536,7 +532,7 @@ function ProjectsPage() {
             closeIcon={<CloseCircleOutlined />}
             onClose={clearStructuredFilter}
             color="#962c30"
-            className="mb-4"
+            className="mb-3"
           >
             Filtered by:{' '}
             {[
@@ -551,7 +547,7 @@ function ProjectsPage() {
           allowClear
           prefix={<Search className="h-4 w-4 text-gray-400" />}
           placeholder="Search name, category, planner, status"
-          className="mb-4 max-w-md"
+          className="mb-3 max-w-md"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
@@ -571,6 +567,16 @@ function ProjectsPage() {
           }}
         />
       </Card>
+
+      {registerLoaded && (
+        <Suspense fallback={null}>
+          <ProjectRegistration
+            open={registerOpen}
+            onClose={() => setRegisterOpen(false)}
+            onRegistered={handleRegistered}
+          />
+        </Suspense>
+      )}
 
       <Modal
         title={<span style={{ color: '#800000', fontWeight: 800 }}>Details</span>}
@@ -663,20 +669,12 @@ function ProjectsPage() {
       </Modal>
 
       <Modal
-        title={
-          activityReviewTarget ? (
-            <span style={{ color: '#800000', fontWeight: 700 }}>
-              Review activity â€” {activityReviewTarget.name}
-            </span>
-          ) : (
-            'Review activity'
-          )
-        }
+        title={<span style={{ color: '#800000', fontWeight: 700 }}>Review activity</span>}
         open={Boolean(activityReviewTarget)}
         onCancel={closeActivityReview}
         destroyOnHidden
         centered
-        width={560}
+        width={760}
         zIndex={1100}
         maskClosable={false}
         footer={
@@ -740,25 +738,28 @@ function ProjectsPage() {
 
             <div className="mt-4">
               <div className="mb-1 text-sm font-semibold">Documents</div>
-              {activityReviewDocsLoading ? (
-                <Spin size="small" />
-              ) : activityReviewDocs.length > 0 ? (
-                <div className="flex flex-col gap-1">
-                  {activityReviewDocs.map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span>
-                        {doc.file_name}{' '}
-                        <span className="text-gray-400">({doc.document_type || 'Document'})</span>
-                      </span>
-                      <Button size="small" type="link" onClick={() => viewDocument(doc)}>
-                        View
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-gray-500">No documents attached to this activity.</div>
-              )}
+              <Spin spinning={activityReviewDocsLoading}>
+                <Table
+                  rowKey="id"
+                  size="small"
+                  dataSource={activityReviewDocs}
+                  pagination={false}
+                  locale={{ emptyText: 'No documents attached to this activity.' }}
+                  columns={[
+                    { title: 'File', dataIndex: 'file_name' },
+                    { title: 'Type', dataIndex: 'document_type', render: (value) => value || 'Document' },
+                    {
+                      title: 'Action',
+                      width: 100,
+                      render: (_, doc) => (
+                        <Button size="small" onClick={() => viewDocument(doc)}>
+                          View
+                        </Button>
+                      ),
+                    },
+                  ]}
+                />
+              </Spin>
             </div>
 
             {isRejectingActivity ? (

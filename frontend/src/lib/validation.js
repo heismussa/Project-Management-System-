@@ -19,3 +19,10 @@ export function disabledActualEndDate(actual_start_date) {
   }
 }
 
+// RangePicker `disabledDate`: once the first date of the pair is picked,
+// dates before it are disabled while picking the second one.
+export function disabledRangeBeforeStart(current, info) {
+  if (!current || !info?.from) return false
+  return current.isBefore(info.from, 'day')
+}
+

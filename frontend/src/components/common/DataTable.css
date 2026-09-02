@@ -42,6 +42,17 @@
   overflow-x: auto;
 }
 
+/* Compact embedding (e.g. the Planner's simplified workspace): trim the
+   outer padding and cap the table's height so it doesn't grow unbounded. */
+.pms-datatable-limited {
+  padding: 4px 0;
+}
+
+.pms-datatable-limited .pms-datatable-scroll {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
 .pms-datatable {
   width: 100%;
   border-collapse: collapse;

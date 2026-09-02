@@ -3,6 +3,7 @@ import { Button, Divider, Form, Input, DatePicker, Select, Spin, Upload, Typogra
 import { InboxOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { extractUploadFile } from '../../lib/projectDocuments'
+import { disabledRangeBeforeStart } from '../../lib/validation'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -61,17 +62,6 @@ function ActivityFormModal({
   const handleOk = () => {
     form.validateFields().then((values) => {
       const newActivityFiles = fileList.map((entry) => extractUploadFile(entry)).filter(Boolean)
-      const hasExistingActivityDocs = activityDocuments.length > 0
-
-      if (isCreate && newActivityFiles.length === 0) {
-        message.error('Attach at least one supporting document before adding this activity.')
-        return
-      }
-
-      if (!isCreate && newActivityFiles.length === 0 && !hasExistingActivityDocs) {
-        message.error('Attach at least one supporting document for this activity.')
-        return
-      }
 
       const missingProjectDoc = requiredProjectDocTypes.find(
         (type) => !(projectDocFiles[type] || []).some((entry) => extractUploadFile(entry)),
@@ -151,7 +141,7 @@ function ActivityFormModal({
           label="Planned Start / Planned End"
           rules={[{ required: true, message: 'Planned start and end dates are required' }]}
         >
-          <DatePicker.RangePicker className="w-full" />
+          <DatePicker.RangePicker className="w-full" disabledDate={disabledRangeBeforeStart} />
         </Form.Item>
         <Form.Item
           name="responsible_person_id"
@@ -239,16 +229,8 @@ function ActivityFormModal({
         )}
 
         <Form.Item
-          label={
-            <span>
-              {isCreate ? 'Supporting documents' : 'Add or replace documents'}{' '}
-              <span style={{ color: '#ff4d4f' }}>*</span>
-            </span>
-          }
-          extra="Activity-specific files (evidence, deliverables). These do not count as Implementation Plan or SRS."
-          validateStatus={
-            (isCreate || activityDocuments.length === 0) && fileList.length === 0 ? 'error' : undefined
-          }
+          label={isCreate ? 'Supporting documents (optional)' : 'Add or replace documents (optional)'}
+          extra="Activity-specific files (evidence, deliverables). These do not count as the Implementation Plan."
         >
           <Dragger
             multiple
