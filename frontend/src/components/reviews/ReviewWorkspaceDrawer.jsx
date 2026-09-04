@@ -41,7 +41,7 @@ function hasPermission(user, code) {
 function Section({ title, children }) {
   return (
     <section className="mb-6">
-      <Title level={5} className="!mb-3">
+      <Title level={5} className="!mb-2">
         {title}
       </Title>
       {children}
@@ -192,7 +192,7 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
       )}
 
       {showProgress && (
-        <Section title={`Progress updates (${pendingProgress.length})`}>
+        <Section title="Progress updates">
           <DataTable
             rowKey="id"
             data={pendingProgress}
@@ -246,7 +246,7 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
       )}
 
       {showChanges && (
-        <Section title={`Plan changes (${pendingChanges.length})`}>
+        <Section title="Plan changes">
           <DataTable
             rowKey="id"
             data={pendingChanges}
@@ -292,7 +292,7 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
       )}
 
       {showDocs && (
-        <Section title={`Documents (${pendingDocs.length})`}>
+        <Section title="Documents">
           <DataTable
             rowKey="id"
             data={pendingDocs}
@@ -405,7 +405,7 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
       )}
 
       {showBlockers && !showSignOff && (
-        <Section title={`Blockers (${blockers.length})`}>
+        <Section title="Blockers">
           <Alert
             type="warning"
             showIcon

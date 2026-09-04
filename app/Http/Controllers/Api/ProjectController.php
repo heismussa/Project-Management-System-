@@ -160,16 +160,6 @@ class ProjectController extends Controller
             ]);
         }
 
-        $missingDocs = array_filter(
-            ProjectWorkflowService::executionBlockers($project),
-            fn (string $blocker) => str_starts_with($blocker, 'Required document missing:'),
-        );
-        if ($missingDocs !== []) {
-            throw ValidationException::withMessages([
-                'plan' => array_values($missingDocs),
-            ]);
-        }
-
         $project->applyPlanStatus('pending_review', [
             'phase' => 'Plan Review',
             'status' => 'Plan Submitted',
@@ -228,6 +218,7 @@ class ProjectController extends Controller
                 'plan_change_status' => 'approved',
                 'pending_changes' => null,
             ]);
+            ProjectWorkflowService::autoApproveDocumentType($project->id, 'Implementation Plan', $request->user()->id);
             $message = 'Implementation plan approved.';
         } else {
             $project->applyPlanStatus('changes_requested', [

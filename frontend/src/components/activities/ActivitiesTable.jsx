@@ -176,7 +176,7 @@ function ActivitiesTable({
         align: 'center',
         onHeaderCell: nowrapHeader,
         render: (_, record) => {
-          if (shouldShowReview && !shouldShowReview(record)) {
+          if (!onView && shouldShowReview && !shouldShowReview(record)) {
             return <span className="text-gray-400">—</span>
           }
           return (

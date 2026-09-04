@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\Requirement;
 use App\Models\Review;
 use App\Services\ProgressCalculator;
+use App\Services\ProjectWorkflowService;
 use App\Support\ProgressDateRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -162,6 +163,10 @@ class RequirementController extends Controller
             'comment' => $validated['comment'] ?? null,
             'reviewed_at' => now(),
         ]);
+
+        if ($validated['review_decision'] === 'approved') {
+            ProjectWorkflowService::autoApproveDocumentType($requirement->project_id, 'SRS', $request->user()->id);
+        }
 
         if (! empty($validated['comment'])) {
             ProgressUpdate::create([

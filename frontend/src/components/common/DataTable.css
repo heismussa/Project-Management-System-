@@ -43,14 +43,25 @@
 }
 
 /* Compact embedding (e.g. the Planner's simplified workspace): trim the
-   outer padding and cap the table's height so it doesn't grow unbounded. */
+   outer padding and cap the table's height to about 3 rows so it doesn't
+   grow unbounded — the rest is reachable by scrolling inside the table. */
 .pms-datatable-limited {
   padding: 4px 0;
 }
 
 .pms-datatable-limited .pms-datatable-scroll {
-  max-height: 260px;
+  max-height: 205px;
   overflow-y: auto;
+}
+
+.pms-datatable-limited .pms-datatable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* The header color lives on .pms-datatable thead tr, but a sticky element
+     needs its own opaque background — otherwise scrolled-under row content
+     shows through the (transparent) sticky <th> cells. */
+  background: #962c30;
 }
 
 .pms-datatable {

@@ -64,7 +64,7 @@ function QueueCard({ label, description, value, onClick }) {
 // so it fills whatever height the card grid gives it exactly, with no SVG
 // viewBox math and no letterboxing.
 function ReviewLoadChart({ reviewLoad }) {
-  const maxValue = Math.max(10, ...reviewLoad.flatMap((row) => [row.received, row.reviewed, row.returned]))
+  const maxValue = Math.max(10, ...reviewLoad.flatMap((row) => [row.received, row.completed, row.returned]))
   const gridMax = Math.ceil(maxValue / 10) * 10
   const gridSteps = gridMax / 10
   const steps = Array.from({ length: gridSteps + 1 }, (_, step) => step * 10)
@@ -102,7 +102,7 @@ function ReviewLoadChart({ reviewLoad }) {
                 />
                 <div
                   className="w-4 rounded-t-sm"
-                  style={{ height: `${(row.reviewed / gridMax) * 100}%`, background: GREEN }}
+                  style={{ height: `${(row.completed / gridMax) * 100}%`, background: GREEN }}
                 />
                 <div
                   className="w-4 rounded-t-sm"

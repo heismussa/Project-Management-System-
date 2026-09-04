@@ -22,6 +22,11 @@ const DOCUMENT_ACCENT = '#962c30'
 function DocumentList({ embedded = false, projectId: projectIdProp = null, compact = false } = {}) {
   const { id: routeId } = useParams()
   const readOnly = isSpecReadOnlyRole(useActiveRoleName())
+  // The embedded/compact Documents view (planner & reviewer's shared project
+  // overview popup) is always view-only — Implementation Plan/SRS approval
+  // now happens automatically alongside the activity/RTM review that covers
+  // them, so there's no separate manual document review step to offer there.
+  const canReviewDoc = !readOnly && !compact
   const [projects, setProjects] = useState([])
   const [projectId, setProjectId] = useState(() => {
     if (projectIdProp) {
@@ -164,13 +169,14 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
     {
       title: 'Uploaded at',
       dataIndex: 'uploaded_at',
-      width: 170,
+      width: 105,
       render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
     },
     {
       title: 'Document Action',
       key: 'actions',
-      width: 120,
+      width: 155,
+      onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (_, record) => (
         <Button
           type="primary"
@@ -219,6 +225,7 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
         searchPlaceholder="Search by file name or document type"
         emptyText="No current documents."
         className={compact ? 'pms-datatable-limited' : undefined}
+        hideSearch={compact}
       />
 
       <DocumentUploadModal
@@ -234,13 +241,8 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
         onCancel={closeView}
         destroyOnHidden
         footer={
-          readOnly
+          canReviewDoc
             ? [
-                <Button key="close" onClick={closeView}>
-                  Close
-                </Button>,
-              ]
-            : [
                 <Button
                   key="save"
                   type="primary"
@@ -253,6 +255,11 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
                   Cancel
                 </Button>,
               ]
+            : [
+                <Button key="close" onClick={closeView}>
+                  Close
+                </Button>,
+              ]
         }
       >
         <Descriptions column={1} bordered size="small" className="mb-4">
@@ -260,10 +267,14 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
           <Descriptions.Item label="Type">{viewTarget?.document_type}</Descriptions.Item>
           <Descriptions.Item label="Activity">{viewTarget?.activity?.name || 'Project-level'}</Descriptions.Item>
           <Descriptions.Item label="Version">v{viewTarget?.version_number}</Descriptions.Item>
-          <Descriptions.Item label="Review status">
-            <ReviewStatusBadge status={viewTarget?.review_status} />
-          </Descriptions.Item>
-          <Descriptions.Item label="Reviewer comment">{viewTarget?.review_comment || '—'}</Descriptions.Item>
+          {!compact && (
+            <>
+              <Descriptions.Item label="Review status">
+                <ReviewStatusBadge status={viewTarget?.review_status} />
+              </Descriptions.Item>
+              <Descriptions.Item label="Reviewer comment">{viewTarget?.review_comment || '—'}</Descriptions.Item>
+            </>
+          )}
           <Descriptions.Item label="Uploaded by">{viewTarget?.uploader?.name || '—'}</Descriptions.Item>
           <Descriptions.Item label="Uploaded at">
             {viewTarget?.uploaded_at ? dayjs(viewTarget.uploaded_at).format('MMM D, YYYY h:mm A') : '—'}
@@ -278,7 +289,7 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
           Download
         </Button>
 
-        {!readOnly && (
+        {canReviewDoc && (
           <>
             <p className="mb-3 text-sm text-gray-600">
               Returning a document requires a comment. The planner must upload a replacement before execution can start.

@@ -4,14 +4,10 @@ function WorkflowBar({ projectId, workflow, hideReapprovalNotice = false }) {
   if (!projectId || !workflow) return null
 
   const showReapprovalNotice = workflow.plan_pending_reapproval && !hideReapprovalNotice
-  if (!workflow.plan_review_comment && !showReapprovalNotice) return null
+  if (!showReapprovalNotice) return null
 
   return (
     <div className="space-y-3">
-      {workflow.plan_review_comment && (
-        <Alert type="warning" showIcon message="Reviewer comment" description={workflow.plan_review_comment} />
-      )}
-
       {showReapprovalNotice && (
         <Alert
           type="info"

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { Button, Card, Table, Tag, message } from 'antd'
 import ReviewWorkspaceDrawer, { ReviewWorkspacePanel } from '../components/reviews/ReviewWorkspaceDrawer'
+import CoordinatorRecommendationModal from '../components/reviews/CoordinatorRecommendationModal'
 import api from '../lib/axios'
 import { getStoredProjectId, storeProjectId, unwrapList } from '../lib/apiHelpers'
 import { useActiveRoleName } from '../components/common/RoleGuard'
@@ -105,10 +106,6 @@ function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
               dataIndex: 'queue',
               render: (value) => <Tag>{QUEUE_LABELS[value] || value}</Tag>,
             },
-            {
-              title: 'Track',
-              render: (_, record) => record.workflow?.review_track || record.review_track || '—',
-            },
             { title: 'Planner', render: (_, record) => record.planner?.name || '—' },
             {
               title: 'Action',
@@ -131,14 +128,25 @@ function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
         />
       </Card>
 
-      <ReviewWorkspaceDrawer
-        open={Boolean(reviewTarget)}
-        project={reviewTarget}
-        onClose={() => setReviewTarget(null)}
-        onCompleted={() => {
-          refreshQueue().catch(() => {})
-        }}
-      />
+      {queueFilter === 'recommendation' ? (
+        <CoordinatorRecommendationModal
+          open={Boolean(reviewTarget)}
+          project={reviewTarget}
+          onClose={() => setReviewTarget(null)}
+          onCompleted={() => {
+            refreshQueue().catch(() => {})
+          }}
+        />
+      ) : (
+        <ReviewWorkspaceDrawer
+          open={Boolean(reviewTarget)}
+          project={reviewTarget}
+          onClose={() => setReviewTarget(null)}
+          onCompleted={() => {
+            refreshQueue().catch(() => {})
+          }}
+        />
+      )}
     </div>
   )
 }

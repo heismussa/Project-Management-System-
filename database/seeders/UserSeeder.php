@@ -12,14 +12,14 @@ class UserSeeder extends Seeder
     public function run(): void
     {
         $accounts = [
-            ['email' => 'luquman2004tajir@gmail.com', 'name' => 'Project Reviewer', 'password' => 'password1234', 'role' => 'Project Reviewer'],
-            ['email' => 'mussasaid@gmail.com', 'name' => 'System Admin', 'password' => 'password123', 'role' => 'Project Administrator'],
-            ['email' => 'sms.mussasaid@gmail.com', 'name' => 'System Admin', 'password' => 'password123', 'role' => 'Project Administrator'],
-            ['email' => 'ictsupport@nssf.go.tz', 'name' => 'ICT Support', 'password' => 'password123', 'role' => 'ICT Support'],
-            ['email' => 'planner@nssf.or.tz', 'name' => 'Project Planner', 'password' => 'password123', 'role' => 'Project Planner'],
-            ['email' => 'coordinator@nssf.or.tz', 'name' => 'Project Coordinator', 'password' => 'password123', 'role' => 'Project Coordinator'],
-            ['email' => 'approver@nssf.or.tz', 'name' => 'Project Approver', 'password' => 'password123', 'role' => 'Project Approver'],
-            ['email' => 'viewonly@nssf.or.tz', 'name' => 'Project ViewOnly', 'password' => 'password123', 'role' => 'Project ViewOnly'],
+            ['email' => 'luquman2004tajir@gmail.com', 'name' => 'Project Reviewer', 'password' => 'password', 'role' => 'Project Reviewer'],
+            ['email' => 'mussasaid@gmail.com', 'name' => 'System Admin', 'password' => 'password', 'role' => 'Project Administrator'],
+            ['email' => 'sms.mussasaid@gmail.com', 'name' => 'System Admin', 'password' => 'password', 'role' => 'Project Administrator'],
+            ['email' => 'ictsupport@gmail.com', 'name' => 'ICT Support', 'password' => 'password', 'role' => 'ICT Support'],
+            ['email' => 'planner@gmail.com', 'name' => 'Project Planner', 'password' => 'password', 'role' => 'Project Planner'],
+            ['email' => 'coordinator@gmail.com', 'name' => 'Project Coordinator', 'password' => 'password', 'role' => 'Project Coordinator'],
+            ['email' => 'approver@gmail.com', 'name' => 'Project Approver', 'password' => 'password', 'role' => 'Project Approver'],
+            ['email' => 'viewonly@gmail.com', 'name' => 'Project ViewOnly', 'password' => 'password', 'role' => 'Project ViewOnly'],
         ];
 
         foreach ($accounts as $account) {

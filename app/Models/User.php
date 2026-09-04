@@ -114,6 +114,12 @@ class User extends Authenticatable implements MustVerifyEmail
             ])
             ->all();
 
+        $usersWithoutRoles = static::whereDoesntHave('roles', function ($query) {
+            $query->where(function ($inner) {
+                $inner->where('user_roles.is_active', true)->orWhereNull('user_roles.is_active');
+            });
+        })->count();
+
         return [
             'metrics' => [
                 'total_users' => $total,
@@ -122,6 +128,7 @@ class User extends Authenticatable implements MustVerifyEmail
                 'password_resets' => $passwordResets,
             ],
             'users_by_role' => $usersByRole,
+            'users_without_roles' => $usersWithoutRoles,
             'recent_activity' => $recentActivity,
             'notification_engine' => [
                 'scheduler_running' => true,

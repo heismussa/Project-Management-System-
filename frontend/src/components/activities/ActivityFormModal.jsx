@@ -32,6 +32,7 @@ function ActivityFormModal({
   activityDocuments = [],
   activityDocumentsLoading = false,
   saving = false,
+  returnedComment = null,
   onCancel,
   onSave,
   onViewDocument,
@@ -62,17 +63,6 @@ function ActivityFormModal({
   const handleOk = () => {
     form.validateFields().then((values) => {
       const newActivityFiles = fileList.map((entry) => extractUploadFile(entry)).filter(Boolean)
-
-      const missingProjectDoc = requiredProjectDocTypes.find(
-        (type) => !(projectDocFiles[type] || []).some((entry) => extractUploadFile(entry)),
-      )
-      if (missingProjectDoc) {
-        Modal.warning({
-          title: 'Missing required project documents',
-          content: `Attach ${missingProjectDoc} in the Required Project Documents section before saving.`,
-        })
-        return
-      }
 
       const [plannedStart, plannedEnd] = values.plannedRange
       onSave({
@@ -157,24 +147,16 @@ function ActivityFormModal({
         {requiredProjectDocTypes.length > 0 && (
           <>
             <Divider orientation="left" orientationMargin={0} style={{ color: '#800000', fontWeight: 700 }}>
-              Required Project Documents
+              Project Documents
             </Divider>
             <Text type="secondary" className="mb-2 block text-xs">
-              Attach any missing project-level documents here. Saving will upload them and submit the plan for
-              review automatically.
+              This project is still missing these — optional here, but the plan can't be submitted for review
+              until they're attached (from this activity or elsewhere).
             </Text>
             {requiredProjectDocTypes.map((type) => {
               const list = projectDocFiles[type] || []
               return (
-                <Form.Item
-                  key={type}
-                  label={
-                    <span>
-                      {type} <span style={{ color: '#ff4d4f' }}>*</span>
-                    </span>
-                  }
-                  validateStatus={!(list || []).some((entry) => extractUploadFile(entry)) ? 'error' : undefined}
-                >
+                <Form.Item key={type} label={type}>
                   <Dragger
                     multiple={false}
                     fileList={list}
@@ -190,6 +172,20 @@ function ActivityFormModal({
                 </Form.Item>
               )
             })}
+          </>
+        )}
+
+        {returnedComment && (
+          <>
+            <Divider orientation="left" orientationMargin={0} style={{ color: '#800000', fontWeight: 700 }}>
+              Returned comment
+            </Divider>
+            <div
+              className="mb-3 rounded border px-3 py-2 text-sm"
+              style={{ borderColor: '#ffd591', background: '#fffbe6' }}
+            >
+              {returnedComment}
+            </div>
           </>
         )}
 

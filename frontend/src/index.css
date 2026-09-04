@@ -185,8 +185,17 @@ html.dark {
   border-radius: 0.75rem;
   border: 1px solid var(--pms-border);
   background-color: var(--pms-bg-container);
-  padding: 1rem;
+  padding: 12px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+/* antd's Card adds its own ~24px body padding on top of the padding above,
+   doubling the gutter on every page that uses .page-shell-card. Zero the
+   inner one out so there's a single, consistent gap everywhere — an inline
+   `styles={{ body: { padding: ... } }}` on any individual Card still wins
+   over this if a page needs something different. */
+.page-shell-card > .ant-card-body {
+  padding: 0;
 }
 
 .pms-table-shell {

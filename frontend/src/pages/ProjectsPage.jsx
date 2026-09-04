@@ -25,7 +25,7 @@ import { ROLES } from '../utility/Config.jsx'
 import { deriveStatus } from '../lib/status'
 import { formatDate } from '../lib/dates'
 import InitiationDocumentsPanel from '../components/projects/InitiationDocumentsPanel'
-import ProjectWorkspaceTabs, { defaultWorkspaceTab } from '../components/projects/ProjectWorkspaceTabs'
+import ProjectWorkspaceTabs from '../components/projects/ProjectWorkspaceTabs'
 
 const ProjectRegistration = lazy(() => import('./ProjectRegistration'))
 
@@ -80,7 +80,6 @@ function ProjectsPage() {
   const view = searchParams.get('view') === 'completed' ? 'completed' : 'ongoing'
   const [reassignTarget, setReassignTarget] = useState(null)
   const [detailTarget, setDetailTarget] = useState(null)
-  const [detailWorkspaceTab, setDetailWorkspaceTab] = useState('plan')
   const [detailWorkflow, setDetailWorkflow] = useState(null)
   const [activityReviewTarget, setActivityReviewTarget] = useState(null)
   const [activityReviewDocs, setActivityReviewDocs] = useState([])
@@ -143,13 +142,31 @@ function ProjectsPage() {
     }
   }, [users.length])
 
+  const loadDetailWorkflow = (projectId) => {
+    api
+      .get(`/projects/${projectId}/workflow`)
+      .then((response) => setDetailWorkflow(unwrapItem(response.data)))
+      .catch(() => setDetailWorkflow(null))
+  }
+
+  const openDetail = (record) => {
+    setActionsOpenId(null)
+    setDetailTarget(record)
+    setDetailWorkflow(null)
+    storeProjectId(record.id)
+    loadDetailWorkflow(record.id)
+
+    if (isPlannerRole) {
+      loadUsersForReassign()
+    }
+  }
+
   useEffect(() => {
     load()
   }, [load])
 
   useEffect(() => {
     const detailId = Number(searchParams.get('detail'))
-    const tab = searchParams.get('tab')
     if (!Number.isFinite(detailId) || detailId <= 0) return
 
     const project = projects.find((item) => item.id === detailId)
@@ -157,9 +174,6 @@ function ProjectsPage() {
 
     if (!detailTarget || detailTarget.id !== detailId) {
       openDetail(project)
-    }
-    if (tab && ['plan', 'rtm', 'documents', 'closure'].includes(tab)) {
-      setDetailWorkspaceTab(tab)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open when list loads with ?detail=
   }, [projects, searchParams])
@@ -206,26 +220,6 @@ function ProjectsPage() {
     next.delete('derivedStatus')
     next.delete('lifecycleStage')
     setSearchParams(next, { replace: true })
-  }
-
-  const loadDetailWorkflow = (projectId) => {
-    api
-      .get(`/projects/${projectId}/workflow`)
-      .then((response) => setDetailWorkflow(unwrapItem(response.data)))
-      .catch(() => setDetailWorkflow(null))
-  }
-
-  const openDetail = (record) => {
-    setActionsOpenId(null)
-    setDetailTarget(record)
-    setDetailWorkflow(null)
-    storeProjectId(record.id)
-    setDetailWorkspaceTab(defaultWorkspaceTab(record, activeRole?.name))
-    loadDetailWorkflow(record.id)
-
-    if (isPlannerRole) {
-      loadUsersForReassign()
-    }
   }
 
   const handleWorkspaceChanged = () => {
@@ -335,7 +329,6 @@ function ProjectsPage() {
         })
         const updated = unwrapItem(response.data)
         setDetailTarget((prev) => (prev ? { ...prev, ...updated } : updated))
-        message.success(decision === 'approve' ? 'Plan approved' : 'Plan returned to the planner')
         closeActivityReview()
         loadDetailWorkflow(detailTarget.id)
         load()
@@ -368,9 +361,7 @@ function ProjectsPage() {
 
     setActivityReviewSaving(true)
     try {
-      const response = await api.post(`/activities/${activityReviewTarget.id}/${kind}/${decision}`, payload)
-      const updated = unwrapItem(response.data)
-      message.success(decision === 'approve' ? 'Activity approved' : 'Activity rejected')
+      await api.post(`/activities/${activityReviewTarget.id}/${kind}/${decision}`, payload)
       closeActivityReview()
       handleWorkspaceChanged()
     } catch (err) {
@@ -495,12 +486,14 @@ function ProjectsPage() {
 
   return (
     <div>
-      <Card className="page-shell-card" styles={{ body: { padding: '12px 16px' } }}>
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      {/* One 12px gutter, not the card's 1rem class padding plus a body padding on top. */}
+      <Card className="page-shell-card" style={{ padding: 12 }} styles={{ body: { padding: 0 } }}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <Tabs
             type="card"
             activeKey={view}
             className="!mb-0"
+            tabBarStyle={{ marginBottom: 0 }}
             onChange={(key) => {
               const next = new URLSearchParams(searchParams)
               if (key === 'completed') next.set('view', 'completed')
@@ -516,7 +509,8 @@ function ProjectsPage() {
             <Button
               type="primary"
               icon={<PlusOutlined />}
-              style={{ backgroundColor: '#800000', borderColor: '#800000' }}
+              // 40px matches the card-type tab strip's height so the two line up.
+              style={{ backgroundColor: '#800000', borderColor: '#800000', height: 40 }}
               onClick={() => {
                 setRegisterLoaded(true)
                 setRegisterOpen(true)
@@ -540,7 +534,7 @@ function ProjectsPage() {
               lifecycleStageFilter && (LIFECYCLE_STAGE_LABELS[lifecycleStageFilter] ?? lifecycleStageFilter),
             ]
               .filter(Boolean)
-              .join(' Â· ')}
+              .join(' · ')}
           </Tag>
         )}
         <Input
@@ -586,7 +580,7 @@ function ProjectsPage() {
           closeActivityReview()
         }}
         destroyOnHidden
-        width={1200}
+        width={1320}
         centered
         styles={{ body: { maxHeight: '82vh', overflowY: 'auto', paddingRight: 4 } }}
         footer={
@@ -632,16 +626,6 @@ function ProjectsPage() {
               />
             )}
 
-            {detailTarget.plan_review_status === 'changes_requested' && detailTarget.plan_review_comment && isPlannerRole && (
-              <Alert
-                className="mt-4"
-                type="warning"
-                showIcon
-                message="Plan returned â€” updates required"
-                description={detailTarget.plan_review_comment}
-              />
-            )}
-
             {detailTarget.lifecycle_stage === 'initiation' && canRegister ? (
               <div className="mt-4 rounded border border-gray-200 p-3">
                 <InitiationDocumentsPanel
@@ -655,10 +639,6 @@ function ProjectsPage() {
             ) : (
               <ProjectWorkspaceTabs
                 projectId={detailTarget.id}
-                project={detailTarget}
-                activeTab={detailWorkspaceTab}
-                onTabChange={setDetailWorkspaceTab}
-                workflow={detailWorkflow}
                 onProjectChanged={handleWorkspaceChanged}
                 onActivityReview={isReviewerRole ? openActivityReview : undefined}
                 shouldShowActivityReview={isReviewerRole ? activityNeedsReview : undefined}

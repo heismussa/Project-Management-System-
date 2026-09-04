@@ -675,7 +675,7 @@ class Project extends Model
             return [
                 'month' => Carbon::create(2000, $month, 1)->format('M'),
                 'received' => $inMonth->where('decision', 'submitted')->count(),
-                'reviewed' => $inMonth->where('decision', 'approved')->count(),
+                'completed' => $inMonth->where('decision', 'approved')->count(),
                 'returned' => $inMonth->whereIn('decision', ['returned', 'rejected', 'needs_revision'])->count(),
             ];
         })->values()->all();
@@ -702,7 +702,9 @@ class Project extends Model
             ->count();
 
         $totalDecisions = $completedReviews->count();
-        $returnedDecisions = $completedReviews->whereIn('decision', ['returned', 'rejected', 'needs_revision'])->count();
+        // 'returned' is plan/document vocabulary for a different flow — the
+        // return rate only counts requirement/matrix rejections.
+        $returnedDecisions = $completedReviews->whereIn('decision', ['rejected', 'needs_revision'])->count();
 
         $newRegistrations = $newRegistrationProjects->count();
         $plansPending = $plansPendingProjects->count();

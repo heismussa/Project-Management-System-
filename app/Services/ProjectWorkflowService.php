@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Document;
 use App\Models\Project;
+use App\Models\Review;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Validation\ValidationException;
@@ -12,6 +14,41 @@ class ProjectWorkflowService
     public const REQUIRED_DOCUMENT_TYPES = [
         'Implementation Plan',
     ];
+
+    /**
+     * The Implementation Plan and SRS documents don't get their own manual
+     * review step — approving the plan (activities) or the RTM is the
+     * reviewer's sign-off on those documents too, so mark them approved
+     * automatically instead of asking for a second, redundant click.
+     */
+    public static function autoApproveDocumentType(int $projectId, string $documentType, int $reviewerId): void
+    {
+        $documents = Document::where('project_id', $projectId)
+            ->whereNull('activity_id')
+            ->where('is_current', true)
+            ->where('review_status', '!=', 'approved')
+            ->get()
+            ->filter(fn (Document $document) => strcasecmp((string) $document->document_type, $documentType) === 0);
+
+        foreach ($documents as $document) {
+            $document->update([
+                'review_status' => 'approved',
+                'review_comment' => null,
+                'reviewed_by' => $reviewerId,
+                'reviewed_at' => now(),
+            ]);
+
+            Review::create([
+                'project_id' => $projectId,
+                'entity_type' => 'document',
+                'entity_id' => $document->id,
+                'reviewer_id' => $reviewerId,
+                'decision' => 'approved',
+                'comment' => "Auto-approved with {$documentType}'s parent review.",
+                'reviewed_at' => now(),
+            ]);
+        }
+    }
 
     /**
      * SDMM / IDMM → Coordinator recommendation. DICT → Approver execution sign-off.
