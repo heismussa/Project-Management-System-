@@ -1,0 +1,36 @@
+$kind: http-request
+name: http://127.0.0.1:8000/api/requirements
+description: ""
+url: http://127.0.0.1:8000/api/requirements
+method: POST
+headers:
+  - key: Accept
+    value: application/json
+    disabled: true
+    description: ""
+  - key: Content-Type
+    value: application/json
+    disabled: true
+    description: ""
+body:
+  type: json
+  content: "{\r
+
+    \    \"project_id\": 1,\r
+
+    \    \"requirement_code\": \"SRS-003\",\r
+
+    \    \"description\": \"User authentication and JWT token management\",\r
+
+    \    \"implementation_status\": \"Pending\"\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 201 Created\", function () {\r
+
+      \    pm.response.to.have.status(201);\r
+
+      });"
+    language: text/javascript
+order: 1786957913587
