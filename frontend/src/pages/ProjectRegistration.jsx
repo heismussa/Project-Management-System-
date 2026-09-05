@@ -8,7 +8,6 @@ import { disabledRangeBeforeStart } from '../lib/validation'
 import {
   PROJECT_CATEGORIES,
   PROJECT_TYPES,
-  REVIEW_TRACKS,
   TEAM_TYPES,
   activitiesForCategory,
   optionsFrom,
@@ -20,7 +19,6 @@ const DETAIL_FIELDS = [
   'category',
   'project_type',
   'activity_name',
-  'review_track',
   'planner_id',
 ]
 
@@ -201,7 +199,6 @@ export default function ProjectRegistration({ open, onClose, onRegistered }) {
           project_type: 'New Implementation',
           activity_name: activitiesForCategory('System')[0],
           team_type: 'Internal',
-          review_track: 'SDMM',
         }}
       >
         {step === 0 && (
@@ -223,9 +220,6 @@ export default function ProjectRegistration({ open, onClose, onRegistered }) {
               <Select options={activityOptions} />
             </Form.Item>
 
-            <Form.Item name="review_track" label="Review Track" rules={[{ required: true }]}>
-              <Select options={REVIEW_TRACKS} />
-            </Form.Item>
             <Form.Item name="team_type" label="Implementation Team">
               <Select options={optionsFrom(TEAM_TYPES)} allowClear />
             </Form.Item>

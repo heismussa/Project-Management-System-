@@ -11,15 +11,13 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
+        // Only the two accounts that can log in and create everyone else are
+        // seeded by default. Test/demo accounts for the other roles should be
+        // added through the app itself (Admin/ICT Support > User Management),
+        // not baked into every fresh install.
         $accounts = [
-            ['email' => 'luquman2004tajir@gmail.com', 'name' => 'Project Reviewer', 'password' => 'password', 'role' => 'Project Reviewer'],
-            ['email' => 'mussasaid@gmail.com', 'name' => 'System Admin', 'password' => 'password', 'role' => 'Project Administrator'],
-            ['email' => 'sms.mussasaid@gmail.com', 'name' => 'System Admin', 'password' => 'password', 'role' => 'Project Administrator'],
+            ['email' => 'admin@gmail.com', 'name' => 'System Admin', 'password' => 'password', 'role' => 'Project Administrator'],
             ['email' => 'ictsupport@gmail.com', 'name' => 'ICT Support', 'password' => 'password', 'role' => 'ICT Support'],
-            ['email' => 'planner@gmail.com', 'name' => 'Project Planner', 'password' => 'password', 'role' => 'Project Planner'],
-            ['email' => 'coordinator@gmail.com', 'name' => 'Project Coordinator', 'password' => 'password', 'role' => 'Project Coordinator'],
-            ['email' => 'approver@gmail.com', 'name' => 'Project Approver', 'password' => 'password', 'role' => 'Project Approver'],
-            ['email' => 'viewonly@gmail.com', 'name' => 'Project ViewOnly', 'password' => 'password', 'role' => 'Project ViewOnly'],
         ];
 
         foreach ($accounts as $account) {

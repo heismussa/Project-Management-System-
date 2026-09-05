@@ -45,10 +45,17 @@ const STATUS_FILTER_KEYS = ['not_started', 'ongoing', 'completed']
 // meaningful sense yet — what matters there is whether its plan is pending
 // or approved, not the not_started/ongoing/completed lifecycle badge.
 function planApprovalState(record, planReviewStatus) {
+  if (record.plan_change_status === 'rejected') return 'rejected'
   if (record.plan_change_status === 'pending') return 'pending'
   if (record.progress_review_status === 'pending') return 'pending'
   if (record.plan_change_status === 'approved') return 'approved'
   return planReviewStatus === 'approved' ? 'approved' : 'pending'
+}
+
+const APPROVAL_STATE_LABELS = {
+  approved: { color: 'green', label: 'Approved' },
+  rejected: { color: 'red', label: 'Rejected' },
+  pending: { color: 'gold', label: 'Pending' },
 }
 
 function ActivitiesTable({
@@ -142,7 +149,8 @@ function ActivitiesTable({
             onHeaderCell: nowrapHeader,
             render: (_, record) => {
               const state = planApprovalState(record, planReviewStatus)
-              return <Tag color={state === 'approved' ? 'green' : 'gold'}>{state === 'approved' ? 'Approved' : 'Pending'}</Tag>
+              const { color, label } = APPROVAL_STATE_LABELS[state]
+              return <Tag color={color}>{label}</Tag>
             },
           }
         : {

@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RegisterProjectRequest;
+use App\Models\ImplementationActivity;
 use App\Models\Project;
+use App\Models\Requirement;
 use App\Models\Review;
 use App\Services\ProjectWorkflowService;
 use App\Support\Roles;
@@ -23,6 +25,11 @@ class ProjectController extends Controller
         $validated['lifecycle_stage'] = 'initiation';
         $validated['plan_review_status'] = 'draft';
         $validated['plan_status'] = 'draft';
+        // The track is derived from category at registration, not chosen by
+        // whoever registers — the Coordinator can still override it when
+        // they recommend the project.
+        $validated['review_track'] = $validated['review_track']
+            ?? ProjectWorkflowService::trackForCategory($validated['category'] ?? null);
 
         $project = Project::create($validated)->load(['reviewer', 'planner', 'coordinator', 'approver']);
 
@@ -219,6 +226,9 @@ class ProjectController extends Controller
                 'pending_changes' => null,
             ]);
             ProjectWorkflowService::autoApproveDocumentType($project->id, 'Implementation Plan', $request->user()->id);
+            foreach ($project->implementationActivities as $activity) {
+                ProjectWorkflowService::autoApproveActivityDocuments($activity->id, $request->user()->id);
+            }
             $message = 'Implementation plan approved.';
         } else {
             $project->applyPlanStatus('changes_requested', [
@@ -404,6 +414,10 @@ class ProjectController extends Controller
 
         $validated = $request->validate([
             'comment' => ['required', 'string'],
+            'activity_ids' => ['nullable', 'array'],
+            'activity_ids.*' => ['integer', 'exists:implementation_activities,id'],
+            'requirement_ids' => ['nullable', 'array'],
+            'requirement_ids.*' => ['integer', 'exists:requirements,id'],
         ]);
 
         $project->update([
@@ -412,6 +426,21 @@ class ProjectController extends Controller
             'closure_request_comment' => null,
             'closure_return_comment' => $validated['comment'],
         ]);
+
+        // Reopening a specific item is what actually lets the planner act on
+        // the comment — clearing its actual end date (and, for a
+        // requirement, its test result) puts it back to "Ongoing" so Update
+        // and the Start/Complete/Test cycle become available again.
+        if (! empty($validated['activity_ids'])) {
+            ImplementationActivity::whereIn('id', $validated['activity_ids'])
+                ->where('project_id', $project->id)
+                ->update(['actual_end_date' => null, 'status' => null]);
+        }
+        if (! empty($validated['requirement_ids'])) {
+            Requirement::whereIn('id', $validated['requirement_ids'])
+                ->where('project_id', $project->id)
+                ->update(['actual_end_date' => null, 'test_result' => null, 'implementation_status' => 'Ongoing']);
+        }
 
         Review::create([
             'project_id' => $project->id,

@@ -131,8 +131,10 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
       title: 'Activity Name',
       key: 'activity',
       width: 160,
-      render: (_, record) => record.activity?.name || 'Project-level',
-      searchValue: (record) => record.activity?.name || 'Project-level',
+      render: (_, record) =>
+        record.activity?.name || (record.requirement ? `Requirement ${record.requirement.requirement_code}` : 'Project-level'),
+      searchValue: (record) =>
+        record.activity?.name || (record.requirement ? `Requirement ${record.requirement.requirement_code}` : 'Project-level'),
     },
     ...(compact
       ? []
@@ -265,7 +267,10 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
         <Descriptions column={1} bordered size="small" className="mb-4">
           <Descriptions.Item label="File name">{viewTarget?.file_name}</Descriptions.Item>
           <Descriptions.Item label="Type">{viewTarget?.document_type}</Descriptions.Item>
-          <Descriptions.Item label="Activity">{viewTarget?.activity?.name || 'Project-level'}</Descriptions.Item>
+          <Descriptions.Item label="Activity">
+            {viewTarget?.activity?.name ||
+              (viewTarget?.requirement ? `Requirement ${viewTarget.requirement.requirement_code}` : 'Project-level')}
+          </Descriptions.Item>
           <Descriptions.Item label="Version">v{viewTarget?.version_number}</Descriptions.Item>
           {!compact && (
             <>

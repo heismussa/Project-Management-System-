@@ -56,6 +56,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/activities/{id}/progress-review/reject', [ImplementationActivityController::class, 'rejectProgressReview']);
 
         Route::post('/requirements', [RequirementController::class, 'store']);
+        Route::put('/requirements/{id}', [RequirementController::class, 'update']);
         Route::patch('/requirements/{id}/status', [RequirementController::class, 'updateStatus']);
         Route::patch('/requirements/{id}/review', [RequirementController::class, 'review']);
         Route::post('/projects/{projectId}/matrix/return', [RequirementController::class, 'returnMatrix']);

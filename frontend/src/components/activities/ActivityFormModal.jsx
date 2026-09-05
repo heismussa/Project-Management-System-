@@ -3,7 +3,7 @@ import { Button, Divider, Form, Input, DatePicker, Select, Spin, Upload, Typogra
 import { InboxOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { extractUploadFile } from '../../lib/projectDocuments'
-import { disabledRangeBeforeStart } from '../../lib/validation'
+import { disabledActivityPlannedRange } from '../../lib/validation'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -33,6 +33,8 @@ function ActivityFormModal({
   activityDocumentsLoading = false,
   saving = false,
   returnedComment = null,
+  projectPlannedStart = null,
+  projectPlannedEnd = null,
   onCancel,
   onSave,
   onViewDocument,
@@ -131,7 +133,10 @@ function ActivityFormModal({
           label="Planned Start / Planned End"
           rules={[{ required: true, message: 'Planned start and end dates are required' }]}
         >
-          <DatePicker.RangePicker className="w-full" disabledDate={disabledRangeBeforeStart} />
+          <DatePicker.RangePicker
+            className="w-full"
+            disabledDate={disabledActivityPlannedRange(projectPlannedStart, projectPlannedEnd)}
+          />
         </Form.Item>
         <Form.Item
           name="responsible_person_id"

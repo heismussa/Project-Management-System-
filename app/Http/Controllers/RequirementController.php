@@ -43,6 +43,31 @@ class RequirementController extends Controller
         ], 201);
     }
 
+    /**
+     * Editing a rejected requirement's own content (code/description) puts
+     * it back in front of the reviewer — clearing the prior decision and
+     * reason rather than leaving a stale rejection sitting next to new text.
+     */
+    public function update(Request $request, $id): JsonResponse
+    {
+        $requirement = Requirement::findOrFail($id);
+
+        $validated = $request->validate([
+            'requirement_code' => 'required|string',
+            'description' => 'required|string',
+        ]);
+
+        $requirement->update(array_merge($validated, [
+            'review_decision' => null,
+            'review_comment' => null,
+        ]));
+
+        return response()->json([
+            'message' => 'Requirement updated and resubmitted for review',
+            'data' => $requirement->fresh(),
+        ]);
+    }
+
     public function getProgress($project): JsonResponse
     {
         return $this->getProjectProgress($project);
@@ -81,7 +106,9 @@ class RequirementController extends Controller
     {
         $requirement = Requirement::with('project')->findOrFail($id);
         $dateRules = ProgressDateRules::actual(
-            optional($requirement->project?->planned_start_date)->toDateString()
+            optional($requirement->project?->planned_start_date)->toDateString(),
+            null,
+            optional($requirement->project?->planned_end_date)->toDateString()
         );
 
         $validated = $request->validate(array_merge([
@@ -126,12 +153,14 @@ class RequirementController extends Controller
     {
         $requirement = Requirement::with('project')->findOrFail($id);
         $dateRules = ProgressDateRules::actual(
-            optional($requirement->project?->planned_start_date)->toDateString()
+            optional($requirement->project?->planned_start_date)->toDateString(),
+            null,
+            optional($requirement->project?->planned_end_date)->toDateString()
         );
 
         $validated = $request->validate(array_merge([
             'review_decision' => 'required|in:approved,rejected,needs_revision',
-            'comment' => 'nullable|string',
+            'comment' => ['required_if:review_decision,rejected', 'nullable', 'string'],
             'implementation_status' => 'nullable|in:Pending,Ongoing,Completed',
             'test_result' => 'nullable|in:Pass,Fail',
             'remarks' => 'nullable|string',
@@ -145,6 +174,12 @@ class RequirementController extends Controller
             'actual_start_date',
             'actual_end_date',
         ])->filter(fn ($value) => $value !== null)->all());
+
+        // The rejection reason lives on the requirement itself so the planner
+        // sees it directly; clear it out once a fresh decision is approved.
+        $requirement->review_comment = $validated['review_decision'] === 'rejected'
+            ? $validated['comment']
+            : null;
 
         if (! empty($validated['actual_end_date'])) {
             $requirement->implementation_status = 'Completed';

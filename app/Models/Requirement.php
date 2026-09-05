@@ -19,6 +19,7 @@ class Requirement extends Model
         'actual_start_date',
         'actual_end_date',
         'review_decision',
+        'review_comment',
         'test_result',
         'remarks',
     ];

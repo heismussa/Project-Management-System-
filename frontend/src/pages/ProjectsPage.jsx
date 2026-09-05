@@ -8,6 +8,7 @@ import {
   Form,
   Input,
   Modal,
+  Popconfirm,
   Select,
   Space,
   Spin,
@@ -81,6 +82,16 @@ function ProjectsPage() {
   const [reassignTarget, setReassignTarget] = useState(null)
   const [detailTarget, setDetailTarget] = useState(null)
   const [detailWorkflow, setDetailWorkflow] = useState(null)
+  const [requestingClosure, setRequestingClosure] = useState(false)
+  const [signingOffClosure, setSigningOffClosure] = useState(false)
+  const [returningClosure, setReturningClosure] = useState(false)
+  const [closureReturnOpen, setClosureReturnOpen] = useState(false)
+  const [closureReturnComment, setClosureReturnComment] = useState('')
+  const [closureCompletedActivities, setClosureCompletedActivities] = useState([])
+  const [closureCompletedRequirements, setClosureCompletedRequirements] = useState([])
+  const [closureActivityIds, setClosureActivityIds] = useState([])
+  const [closureRequirementIds, setClosureRequirementIds] = useState([])
+  const [closureItemsLoading, setClosureItemsLoading] = useState(false)
   const [activityReviewTarget, setActivityReviewTarget] = useState(null)
   const [activityReviewDocs, setActivityReviewDocs] = useState([])
   const [activityReviewDocsLoading, setActivityReviewDocsLoading] = useState(false)
@@ -233,6 +244,79 @@ function ProjectsPage() {
       })
       .catch(() => {})
     load()
+  }
+
+  const requestClosure = async () => {
+    if (!detailTarget) return
+    setRequestingClosure(true)
+    try {
+      await api.post(`/projects/${detailTarget.id}/closure/request`)
+      message.success('Closure requested')
+      handleWorkspaceChanged()
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not request closure.')
+    } finally {
+      setRequestingClosure(false)
+    }
+  }
+
+  const signOffClosure = async () => {
+    if (!detailTarget) return
+    setSigningOffClosure(true)
+    try {
+      await api.post(`/projects/${detailTarget.id}/close`)
+      message.success('Project closed')
+      handleWorkspaceChanged()
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not close the project.')
+    } finally {
+      setSigningOffClosure(false)
+    }
+  }
+
+  const openClosureReturn = async () => {
+    if (!detailTarget) return
+    setClosureReturnOpen(true)
+    setClosureItemsLoading(true)
+    try {
+      const [activitiesRes, requirementsRes] = await Promise.all([
+        api.get(`/projects/${detailTarget.id}/activities`),
+        api.get(`/projects/${detailTarget.id}/requirements`),
+      ])
+      setClosureCompletedActivities(unwrapList(activitiesRes.data).filter((item) => item.actual_end_date))
+      setClosureCompletedRequirements(unwrapList(requirementsRes.data).filter((item) => item.actual_end_date))
+    } catch {
+      setClosureCompletedActivities([])
+      setClosureCompletedRequirements([])
+    } finally {
+      setClosureItemsLoading(false)
+    }
+  }
+
+  const submitReturnClosure = async () => {
+    if (!detailTarget) return
+    if (!closureReturnComment.trim()) {
+      message.error('Add a comment explaining what needs fixing')
+      return
+    }
+    setReturningClosure(true)
+    try {
+      await api.post(`/projects/${detailTarget.id}/closure/return`, {
+        comment: closureReturnComment.trim(),
+        activity_ids: closureActivityIds,
+        requirement_ids: closureRequirementIds,
+      })
+      message.success('Returned to planner')
+      setClosureReturnOpen(false)
+      setClosureReturnComment('')
+      setClosureActivityIds([])
+      setClosureRequirementIds([])
+      handleWorkspaceChanged()
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not return to planner.')
+    } finally {
+      setReturningClosure(false)
+    }
   }
 
   const openReassign = (record) => {
@@ -584,9 +668,38 @@ function ProjectsPage() {
         centered
         styles={{ body: { maxHeight: '82vh', overflowY: 'auto', paddingRight: 4 } }}
         footer={
-          <Button type="default" onClick={() => setDetailTarget(null)}>
-            Close
-          </Button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            {isPlannerRole && detailWorkflow?.can_request_closure && (
+              <Popconfirm
+                title="Request closure?"
+                description="This tells the Reviewer every activity and requirement is finished and ready for sign-off."
+                okText="Request closure"
+                onConfirm={requestClosure}
+              >
+                <Button type="primary" loading={requestingClosure}>
+                  Request closure
+                </Button>
+              </Popconfirm>
+            )}
+            {isReviewerRole && detailWorkflow?.can_approve_closure && (
+              <>
+                <Popconfirm
+                  title="Sign off and close this project?"
+                  description="This is final — the project moves to Closed and cannot be reopened."
+                  okText="Sign off and close"
+                  onConfirm={signOffClosure}
+                >
+                  <Button type="primary" loading={signingOffClosure}>
+                    Sign off and close
+                  </Button>
+                </Popconfirm>
+                <Button onClick={openClosureReturn}>Return to planner</Button>
+              </>
+            )}
+            <Button type="default" onClick={() => setDetailTarget(null)}>
+              Close
+            </Button>
+          </div>
         }
       >
         {detailTarget && (
@@ -595,6 +708,11 @@ function ProjectsPage() {
               <Descriptions.Item label="Name">{detailTarget.name || 'â€”'}</Descriptions.Item>
               <Descriptions.Item label="Category">{detailTarget.category || 'â€”'}</Descriptions.Item>
               <Descriptions.Item label="Type">{detailTarget.project_type || 'â€”'}</Descriptions.Item>
+              <Descriptions.Item label="Date">
+                {detailTarget.planned_start_date || detailTarget.planned_end_date
+                  ? `${formatDate(detailTarget.planned_start_date)} — ${formatDate(detailTarget.planned_end_date)}`
+                  : '—'}
+              </Descriptions.Item>
               <Descriptions.Item label="Planner">
                 <span className="inline-flex items-center gap-2">
                   {detailTarget.planner?.name || 'Unassigned'}
@@ -609,6 +727,16 @@ function ProjectsPage() {
                 <Tag color={STATUS_COLOR[detailTarget.status] || 'default'}>{statusLabel(detailTarget.status)}</Tag>
               </Descriptions.Item>
             </Descriptions>
+
+            {detailWorkflow?.closure_return_comment && !detailWorkflow?.closure_requested_at && !detailWorkflow?.closed_at && (
+              <Alert
+                className="mt-4"
+                type="warning"
+                showIcon
+                message="Closure returned"
+                description={detailWorkflow.closure_return_comment}
+              />
+            )}
 
             {detailTarget.plan_review_status === 'approved' && !detailInExecution && detailWorkflow?.execution_blockers?.length > 0 && (
               <Alert
@@ -797,6 +925,82 @@ function ProjectsPage() {
             />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="Return to planner"
+        open={closureReturnOpen}
+        onCancel={() => {
+          setClosureReturnOpen(false)
+          setClosureReturnComment('')
+          setClosureActivityIds([])
+          setClosureRequirementIds([])
+        }}
+        destroyOnHidden
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="primary" loading={returningClosure} onClick={submitReturnClosure}>
+              Return to planner
+            </Button>
+            <Button
+              onClick={() => {
+                setClosureReturnOpen(false)
+                setClosureReturnComment('')
+                setClosureActivityIds([])
+                setClosureRequirementIds([])
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        }
+      >
+        <p className="mb-3 text-sm text-gray-600">
+          Clears the closure request and sends the project back to the Planner. Pick any completed activities or
+          requirements that actually need rework — selecting one reopens it (clears its actual end date, and its
+          test result if it's a requirement) so the Planner can update and redo it.
+        </p>
+
+        <div className="mb-3">
+          <div className="mb-1 text-sm font-medium">Activities to reopen</div>
+          <Select
+            mode="multiple"
+            allowClear
+            style={{ width: '100%' }}
+            placeholder={closureCompletedActivities.length ? 'Select activities that need rework' : 'No completed activities'}
+            loading={closureItemsLoading}
+            value={closureActivityIds}
+            onChange={setClosureActivityIds}
+            options={closureCompletedActivities.map((item) => ({ value: item.id, label: item.name }))}
+          />
+        </div>
+
+        <div className="mb-3">
+          <div className="mb-1 text-sm font-medium">Requirements to reopen</div>
+          <Select
+            mode="multiple"
+            allowClear
+            style={{ width: '100%' }}
+            placeholder={
+              closureCompletedRequirements.length ? 'Select requirements that need rework' : 'No completed requirements'
+            }
+            loading={closureItemsLoading}
+            value={closureRequirementIds}
+            onChange={setClosureRequirementIds}
+            options={closureCompletedRequirements.map((item) => ({
+              value: item.id,
+              label: `${item.requirement_code} — ${item.description}`,
+            }))}
+          />
+        </div>
+
+        <div className="mb-1 text-sm font-medium">Comment</div>
+        <Input.TextArea
+          rows={3}
+          value={closureReturnComment}
+          onChange={(event) => setClosureReturnComment(event.target.value)}
+          placeholder="What still needs to be fixed before this can close?"
+        />
       </Modal>
 
       <Modal

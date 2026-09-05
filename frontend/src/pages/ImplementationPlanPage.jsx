@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { message, Modal, Space, Spin, Alert, Button, Table, Tag, Descriptions, Form, Input } from 'antd'
-import { PlusOutlined, RollbackOutlined } from '@ant-design/icons'
+import { message, Modal, Space, Spin, Alert, Button, Table, Tag, Descriptions, Input, Popconfirm } from 'antd'
+import { PlusOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons'
 import { Plus } from 'lucide-react'
 import dayjs from 'dayjs'
 import { deriveStatus } from '../lib/status'
+import { formatDate } from '../lib/dates'
 import ActivityFormModal from '../components/activities/ActivityFormModal'
 import ActivityReviewDrawer from '../components/activities/ActivityReviewDrawer'
 import ActivityDetailsModal from '../components/activities/ActivityDetailsModal'
@@ -80,6 +81,7 @@ function ImplementationPlanPage({
     return getStoredProjectId()
   })
   const [workflow, setWorkflow] = useState(null)
+  const [projectMeta, setProjectMeta] = useState(null)
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -95,15 +97,23 @@ function ImplementationPlanPage({
   const [detailsTarget, setDetailsTarget] = useState(null)
   const [detailsDocs, setDetailsDocs] = useState([])
   const [detailsDocsLoading, setDetailsDocsLoading] = useState(false)
+  const [activityChangeComment, setActivityChangeComment] = useState('')
+  const [activityChangeSaving, setActivityChangeSaving] = useState(false)
   const [rtmModalOpen, setRtmModalOpen] = useState(false)
   const [requirements, setRequirements] = useState([])
   const [requirementsLoading, setRequirementsLoading] = useState(false)
   const [rtmViewTarget, setRtmViewTarget] = useState(null)
+  const [rtmViewDocs, setRtmViewDocs] = useState([])
+  const [rtmViewDocsLoading, setRtmViewDocsLoading] = useState(false)
   const [rtmSaving, setRtmSaving] = useState(false)
   const [rtmProgressTarget, setRtmProgressTarget] = useState(null)
   const [rtmTestTarget, setRtmTestTarget] = useState(null)
-  const [returnMatrixOpen, setReturnMatrixOpen] = useState(false)
-  const [returnMatrixForm] = Form.useForm()
+  const [rtmRejecting, setRtmRejecting] = useState(false)
+  const [rtmRejectComment, setRtmRejectComment] = useState('')
+  const [rtmEditTarget, setRtmEditTarget] = useState(null)
+  const [rtmEditCode, setRtmEditCode] = useState('')
+  const [rtmEditDescription, setRtmEditDescription] = useState('')
+  const [rtmEditSaving, setRtmEditSaving] = useState(false)
 
   const people = users.map((user) => ({
     id: user.id,
@@ -114,10 +124,15 @@ function ImplementationPlanPage({
   const loadWorkflow = useCallback(async (id) => {
     if (!id) {
       setWorkflow(null)
+      setProjectMeta(null)
       return
     }
-    const response = await api.get(`/projects/${id}/workflow`)
-    setWorkflow(response.data?.data ?? null)
+    // GET /projects/{id} returns the project (needed for its planned_start/
+    // end_date, to bound activity/requirement date pickers) and the workflow
+    // payload together, so one request covers what used to be two calls.
+    const response = await api.get(`/projects/${id}`)
+    setProjectMeta(response.data?.data ?? null)
+    setWorkflow(response.data?.workflow ?? null)
   }, [])
 
   const refreshMissingProjectDocs = useCallback(
@@ -421,13 +436,17 @@ function ImplementationPlanPage({
   // whole plan has been returned — otherwise View opens a read-only popup
   // with an explicit Update action.
   const openDetails = (activity) => {
-    if (workflow?.plan_review_status === 'changes_requested') {
+    // Only the Planner gets bounced straight into the edit form when the
+    // plan's been returned — anyone else (the Reviewer especially) should
+    // always land on the read-only details view, never the edit form.
+    if (canAddActivity && workflow?.plan_review_status === 'changes_requested') {
       openEdit(activity)
       return
     }
     setDetailsTarget(activity)
     setDetailsDocs([])
     setDetailsDocsLoading(true)
+    setActivityChangeComment('')
     api
       .get(`/projects/${projectId}/documents`, { params: { activity_id: activity.id } })
       .then((response) => setDetailsDocs(unwrapList(response.data)))
@@ -435,10 +454,111 @@ function ImplementationPlanPage({
       .finally(() => setDetailsDocsLoading(false))
   }
 
+  const canReviewActivityChange = roleName === ROLES.PRV || roleName === ROLES.PAD
+
+  // A pending activity means one of two different things on the backend:
+  // either it's an edit/addition made *after* the plan was already approved
+  // (plan_change_status = 'pending', reviewed per-activity), or the whole
+  // plan is still on its very first, never-yet-approved submission (no
+  // plan_change_status at all — reviewed as one plan, not per activity).
+  // The planner-facing action is the same either way ("approve this"), so
+  // the popup shows one Approve/Reject regardless — it just calls whichever
+  // endpoint actually matches this activity's situation.
+  const isPlanChangeActivity = Boolean(detailsTarget?.plan_change_status)
+  const activityAwaitingApproval = Boolean(
+    detailsTarget &&
+      (detailsTarget.plan_change_status === 'pending' ||
+        (!isPlanChangeActivity && workflow?.plan_review_status === 'pending_review')),
+  )
+  // Approved either individually (a post-approval addition/edit) or as part
+  // of the whole plan's first approval (no plan_change_status of its own).
+  const activityIsApproved = Boolean(
+    detailsTarget &&
+      (detailsTarget.plan_change_status === 'approved' ||
+        (!isPlanChangeActivity && workflow?.plan_review_status === 'approved')),
+  )
+  const canMarkActivityComplete =
+    canAddActivity && activityIsApproved && detailsTarget?.actual_start_date && !detailsTarget?.actual_end_date
+
+  const approveActivityChange = async () => {
+    if (!detailsTarget) return
+    setActivityChangeSaving(true)
+    try {
+      if (isPlanChangeActivity) {
+        const response = await api.post(`/activities/${detailsTarget.id}/plan-changes/approve`, {
+          comment: activityChangeComment.trim() || undefined,
+        })
+        const updated = unwrapItem(response.data)
+        setActivities((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      } else {
+        await api.post(`/projects/${projectId}/plan/review`, {
+          decision: 'approved',
+          comment: activityChangeComment.trim() || undefined,
+        })
+        await Promise.all([loadWorkflow(projectId), loadActivities(projectId)])
+        onProjectChanged?.()
+      }
+      message.success('Plan approved')
+      setDetailsTarget(null)
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not approve the change.')
+    } finally {
+      setActivityChangeSaving(false)
+    }
+  }
+
+  const rejectActivityChange = async () => {
+    if (!detailsTarget) return
+    if (!activityChangeComment.trim()) {
+      message.error('Add a reason for the rejection')
+      return
+    }
+    setActivityChangeSaving(true)
+    try {
+      if (isPlanChangeActivity) {
+        const response = await api.post(`/activities/${detailsTarget.id}/plan-changes/reject`, {
+          comment: activityChangeComment.trim(),
+        })
+        const updated = unwrapItem(response.data)
+        setActivities((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      } else {
+        await api.post(`/projects/${projectId}/plan/review`, {
+          decision: 'returned',
+          comment: activityChangeComment.trim(),
+        })
+        await Promise.all([loadWorkflow(projectId), loadActivities(projectId)])
+        onProjectChanged?.()
+      }
+      message.success('Plan rejected')
+      setDetailsTarget(null)
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not reject the change.')
+    } finally {
+      setActivityChangeSaving(false)
+    }
+  }
+
   const openUpdateFromDetails = () => {
     const activity = detailsTarget
     setDetailsTarget(null)
     if (activity) openEdit(activity)
+  }
+
+  const markActivityComplete = async () => {
+    if (!detailsTarget) return
+    try {
+      const response = await api.put(`/activities/${detailsTarget.id}`, {
+        actual_end_date: dayjs().format('YYYY-MM-DD'),
+        status: 'completed',
+        remark: 'Activity marked complete.',
+      })
+      const updated = unwrapItem(response.data)
+      setActivities((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      message.success('Activity marked complete')
+      setDetailsTarget(null)
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not mark activity complete.')
+    }
   }
 
   const applyActivityUpdate = async (payload) => {
@@ -523,14 +643,30 @@ function ImplementationPlanPage({
   const planStatus = workflow?.plan_review_status
   const canAddRtm = Boolean(workflow?.recommended_at) && canAddActivity
   const canReviewRtm = Boolean(workflow?.recommended_at) && (roleName === ROLES.PRV || roleName === ROLES.PAD)
-  const canUpdateRtmProgress = Boolean(workflow?.recommended_at) && !isSpecReadOnlyRole(roleName)
+  // Start / Record test result / Mark complete are the Planner's own
+  // reporting of what actually happened — the Reviewer's role here is
+  // Approve/Reject only, not doing the work.
+  const canUpdateRtmProgress = Boolean(workflow?.recommended_at) && canAddActivity
 
-  const reviewRequirement = async (id, review_decision) => {
+  const openRtmView = (requirement) => {
+    setRtmViewTarget(requirement)
+    setRtmViewDocs([])
+    setRtmViewDocsLoading(true)
+    api
+      .get(`/projects/${projectId}/documents`, { params: { requirement_id: requirement.id } })
+      .then((response) => setRtmViewDocs(unwrapList(response.data)))
+      .catch(() => setRtmViewDocs([]))
+      .finally(() => setRtmViewDocsLoading(false))
+  }
+
+  const reviewRequirement = async (id, review_decision, comment) => {
     setRtmSaving(true)
     try {
-      await api.patch(`/requirements/${id}/review`, { review_decision })
+      await api.patch(`/requirements/${id}/review`, { review_decision, comment })
       message.success(review_decision === 'approved' ? 'Requirement approved' : 'Requirement rejected')
       setRtmViewTarget(null)
+      setRtmRejecting(false)
+      setRtmRejectComment('')
       await loadRequirements(projectId)
       onProjectChanged?.()
     } catch (err) {
@@ -540,15 +676,52 @@ function ImplementationPlanPage({
     }
   }
 
+  const confirmRejectRequirement = () => {
+    if (!rtmRejectComment.trim()) {
+      message.error('Add a reason for the rejection')
+      return
+    }
+    reviewRequirement(rtmViewTarget.id, 'rejected', rtmRejectComment.trim())
+  }
+
+  const openRtmEdit = (requirement) => {
+    setRtmEditTarget(requirement)
+    setRtmEditCode(requirement.requirement_code || '')
+    setRtmEditDescription(requirement.description || '')
+    setRtmViewTarget(null)
+  }
+
+  const submitRtmEdit = async () => {
+    if (!rtmEditCode.trim() || !rtmEditDescription.trim()) {
+      message.error('Code and description are both required')
+      return
+    }
+    setRtmEditSaving(true)
+    try {
+      await api.put(`/requirements/${rtmEditTarget.id}`, {
+        requirement_code: rtmEditCode.trim(),
+        description: rtmEditDescription.trim(),
+      })
+      message.success('Requirement updated and resubmitted for review')
+      setRtmEditTarget(null)
+      await loadRequirements(projectId)
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not update the requirement.')
+    } finally {
+      setRtmEditSaving(false)
+    }
+  }
+
   const startRequirement = async ({ actual_start_date, remark }) => {
     try {
-      await api.patch(`/requirements/${rtmProgressTarget.id}/status`, {
+      const response = await api.patch(`/requirements/${rtmProgressTarget.id}/status`, {
         actual_start_date,
         remarks: remark,
       })
       message.success('Requirement started')
       setRtmProgressTarget(null)
       await loadRequirements(projectId)
+      openRtmView(unwrapItem(response.data))
     } catch (err) {
       message.error(err.response?.data?.message || 'Could not save.')
     }
@@ -570,7 +743,7 @@ function ImplementationPlanPage({
 
   const saveRequirementTestResult = async ({ test_result, test_comments }) => {
     try {
-      await api.patch(`/requirements/${rtmTestTarget.id}/status`, {
+      const response = await api.patch(`/requirements/${rtmTestTarget.id}/status`, {
         implementation_status: rtmTestTarget.implementation_status || 'Pending',
         test_result: uiTestResultToApi(test_result),
         remarks: test_comments,
@@ -578,24 +751,10 @@ function ImplementationPlanPage({
       message.success('Test result saved')
       setRtmTestTarget(null)
       await loadRequirements(projectId)
+      openRtmView(unwrapItem(response.data))
     } catch (err) {
       message.error(err.response?.data?.message || 'Could not save test result.')
     }
-  }
-
-  const submitReturnMatrix = () => {
-    returnMatrixForm.validateFields().then(async (values) => {
-      try {
-        await api.post(`/projects/${projectId}/matrix/return`, { comment: values.comment.trim() })
-        message.success('Matrix returned to planner')
-        returnMatrixForm.resetFields()
-        setReturnMatrixOpen(false)
-        await loadRequirements(projectId)
-        onProjectChanged?.()
-      } catch (err) {
-        message.error(err.response?.data?.message || 'Could not return matrix.')
-      }
-    })
   }
 
   const visibleActivities = activities.filter((activity) => {
@@ -628,6 +787,8 @@ function ImplementationPlanPage({
       )}
     </Space>
   )
+
+  const currentProject = projectMeta || projects.find((project) => project.id === projectId)
 
   return (
     <div className="flex flex-col gap-3">
@@ -679,32 +840,56 @@ function ImplementationPlanPage({
                 locale={{ emptyText: 'No requirements added yet.' }}
                 columns={[
                   { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
-                  { title: 'Code', dataIndex: 'requirement_code' },
-                  { title: 'Description', dataIndex: 'description' },
+                  {
+                    title: 'Code',
+                    dataIndex: 'requirement_code',
+                    width: 100,
+                    ellipsis: true,
+                    onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+                  },
                   {
                     title: 'Status',
                     dataIndex: 'implementation_status',
                     width: 130,
-                    render: (value) => <Tag>{value || 'Pending'}</Tag>,
+                    onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+                    render: (value) => <Tag style={{ fontSize: 14, padding: '2px 10px' }}>{value || 'Pending'}</Tag>,
+                  },
+                  {
+                    title: 'Score',
+                    dataIndex: 'score_percent',
+                    width: 90,
+                    align: 'center',
+                    onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+                    render: (value) => `${value ?? 0}%`,
                   },
                   {
                     title: 'Review decision',
                     dataIndex: 'review_decision',
                     width: 140,
+                    onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
                     render: (value) =>
                       value ? (
-                        <Tag color={value === 'approved' ? 'green' : value === 'rejected' ? 'red' : 'gold'}>
+                        <Tag
+                          color={value === 'approved' ? 'green' : value === 'rejected' ? 'red' : 'gold'}
+                          style={{ fontSize: 14, padding: '2px 10px' }}
+                        >
                           {value.replace('_', ' ')}
                         </Tag>
                       ) : (
-                        <Tag>Not reviewed</Tag>
+                        <Tag style={{ fontSize: 14, padding: '2px 10px' }}>Not reviewed</Tag>
                       ),
                   },
                   {
                     title: 'Action',
                     width: 90,
+                    onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
                     render: (_, record) => (
-                      <Button size="small" onClick={() => setRtmViewTarget(record)}>
+                      <Button
+                        type="primary"
+                        icon={<EyeOutlined />}
+                        style={{ backgroundColor: '#800000', borderColor: '#800000' }}
+                        onClick={() => openRtmView(record)}
+                      >
                         View
                       </Button>
                     ),
@@ -714,23 +899,16 @@ function ImplementationPlanPage({
             )
           )}
 
-          {(canAddRtm || canReviewRtm) && (
-            <div className="flex justify-end gap-2">
-              {canAddRtm && (
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  style={{ backgroundColor: '#7A0C22', borderColor: '#7A0C22' }}
-                  onClick={() => setRtmModalOpen(true)}
-                >
-                  Add requirement
-                </Button>
-              )}
-              {canReviewRtm && (
-                <Button icon={<RollbackOutlined />} onClick={() => setReturnMatrixOpen(true)}>
-                  Return matrix with comments
-                </Button>
-              )}
+          {canAddRtm && (
+            <div className="flex justify-end">
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                style={{ backgroundColor: '#7A0C22', borderColor: '#7A0C22' }}
+                onClick={() => setRtmModalOpen(true)}
+              >
+                Add requirement
+              </Button>
             </div>
           )}
         </div>
@@ -747,6 +925,8 @@ function ImplementationPlanPage({
         returnedComment={
           workflow?.plan_review_status === 'changes_requested' ? workflow?.plan_review_comment : null
         }
+        projectPlannedStart={currentProject?.planned_start_date}
+        projectPlannedEnd={currentProject?.planned_end_date}
         onViewDocument={viewActivityDocument}
         onCancel={() => setFormTarget(null)}
         onSave={handleSaveForm}
@@ -779,10 +959,21 @@ function ImplementationPlanPage({
         people={people}
         documents={detailsDocs}
         documentsLoading={detailsDocsLoading}
-        onClose={() => setDetailsTarget(null)}
+        onClose={() => {
+          setDetailsTarget(null)
+          setActivityChangeComment('')
+        }}
         onUpdate={canAddActivity ? openUpdateFromDetails : null}
         onViewDocument={viewActivityDocument}
         onDownloadDocument={downloadActivityDocument}
+        canReviewChange={canReviewActivityChange && activityAwaitingApproval}
+        changeComment={activityChangeComment}
+        onChangeCommentChange={setActivityChangeComment}
+        onApproveChange={approveActivityChange}
+        onRejectChange={rejectActivityChange}
+        changeSaving={activityChangeSaving}
+        canMarkComplete={canMarkActivityComplete}
+        onMarkComplete={markActivityComplete}
       />
       <AddRtmModal
         open={rtmModalOpen}
@@ -797,96 +988,197 @@ function ImplementationPlanPage({
       <Modal
         title={<span style={{ color: '#800000', fontWeight: 700 }}>Requirement details</span>}
         open={rtmViewTarget !== null}
-        onCancel={() => setRtmViewTarget(null)}
+        onCancel={() => {
+          setRtmViewTarget(null)
+          setRtmRejecting(false)
+          setRtmRejectComment('')
+        }}
         destroyOnHidden
         width={760}
         footer={
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
-            {canReviewRtm && !rtmViewTarget?.review_decision && (
+            {rtmRejecting ? (
               <>
-                <Button
-                  type="primary"
-                  style={{ backgroundColor: '#7A0C22', borderColor: '#7A0C22' }}
-                  loading={rtmSaving}
-                  onClick={() => rtmViewTarget && reviewRequirement(rtmViewTarget.id, 'approved')}
-                >
-                  Approve
+                <Button danger loading={rtmSaving} onClick={confirmRejectRequirement}>
+                  Confirm reject
                 </Button>
                 <Button
-                  danger
-                  loading={rtmSaving}
-                  onClick={() => rtmViewTarget && reviewRequirement(rtmViewTarget.id, 'rejected')}
+                  onClick={() => {
+                    setRtmRejecting(false)
+                    setRtmRejectComment('')
+                  }}
                 >
-                  Reject
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                {canReviewRtm && !rtmViewTarget?.review_decision && (
+                  <>
+                    <Button
+                      type="primary"
+                      style={{ backgroundColor: '#7A0C22', borderColor: '#7A0C22' }}
+                      loading={rtmSaving}
+                      onClick={() => rtmViewTarget && reviewRequirement(rtmViewTarget.id, 'approved')}
+                    >
+                      Approve
+                    </Button>
+                    <Button danger onClick={() => setRtmRejecting(true)}>
+                      Reject
+                    </Button>
+                  </>
+                )}
+                {canAddRtm && rtmViewTarget?.review_decision === 'rejected' && (
+                  <Button
+                    type="primary"
+                    style={{ backgroundColor: '#7A0C22', borderColor: '#7A0C22' }}
+                    onClick={() => openRtmEdit(rtmViewTarget)}
+                  >
+                    Edit & resubmit
+                  </Button>
+                )}
+                {canUpdateRtmProgress &&
+                  rtmViewTarget?.review_decision === 'approved' &&
+                  !rtmViewTarget?.actual_start_date && (
+                    <Button
+                      onClick={() => {
+                        setRtmProgressTarget(rtmViewTarget)
+                        setRtmViewTarget(null)
+                      }}
+                    >
+                      Start
+                    </Button>
+                  )}
+                {canUpdateRtmProgress &&
+                  rtmViewTarget?.review_decision === 'approved' &&
+                  rtmViewTarget?.actual_start_date &&
+                  !rtmViewTarget?.test_result && (
+                    <Button
+                      onClick={() => {
+                        setRtmTestTarget(rtmViewTarget)
+                        setRtmViewTarget(null)
+                      }}
+                    >
+                      Record test result
+                    </Button>
+                  )}
+                {canUpdateRtmProgress &&
+                  rtmViewTarget?.review_decision === 'approved' &&
+                  rtmViewTarget?.test_result &&
+                  !rtmViewTarget?.actual_end_date && (
+                    <Popconfirm
+                      title="Mark this requirement complete?"
+                      description={`This records today's date (${dayjs().format('MMM D, YYYY')}) as the actual end and cannot be undone.`}
+                      okText="Mark complete"
+                      onConfirm={() => markRequirementComplete(rtmViewTarget)}
+                    >
+                      <Button>Mark complete</Button>
+                    </Popconfirm>
+                  )}
+                <Button
+                  onClick={() => {
+                    setRtmViewTarget(null)
+                    setRtmRejecting(false)
+                    setRtmRejectComment('')
+                  }}
+                >
+                  Close
                 </Button>
               </>
             )}
-            {canUpdateRtmProgress && rtmViewTarget?.review_decision && !rtmViewTarget?.actual_start_date && (
-              <Button
-                onClick={() => {
-                  setRtmProgressTarget(rtmViewTarget)
-                  setRtmViewTarget(null)
-                }}
-              >
-                Start
-              </Button>
-            )}
-            {canUpdateRtmProgress &&
-              rtmViewTarget?.review_decision &&
-              rtmViewTarget?.actual_start_date &&
-              !rtmViewTarget?.actual_end_date && (
-                <Button onClick={() => markRequirementComplete(rtmViewTarget)}>Mark complete</Button>
-              )}
-            {canUpdateRtmProgress &&
-              rtmViewTarget?.review_decision &&
-              rtmViewTarget?.actual_end_date &&
-              !rtmViewTarget?.test_result && (
-                <Button
-                  onClick={() => {
-                    setRtmTestTarget(rtmViewTarget)
-                    setRtmViewTarget(null)
-                  }}
-                >
-                  Record test result
-                </Button>
-              )}
-            <Button onClick={() => setRtmViewTarget(null)}>Close</Button>
           </div>
         }
       >
         {rtmViewTarget && (
-          <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="Code">{rtmViewTarget.requirement_code}</Descriptions.Item>
-            <Descriptions.Item label="Description">{rtmViewTarget.description}</Descriptions.Item>
-            <Descriptions.Item label="Status">
-              <Tag>{rtmViewTarget.implementation_status || 'Pending'}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Review decision">
-              {rtmViewTarget.review_decision ? (
-                <Tag
-                  color={
-                    rtmViewTarget.review_decision === 'approved'
-                      ? 'green'
-                      : rtmViewTarget.review_decision === 'rejected'
-                        ? 'red'
-                        : 'gold'
-                  }
-                >
-                  {rtmViewTarget.review_decision.replace('_', ' ')}
-                </Tag>
-              ) : (
-                <Tag>Not reviewed</Tag>
-              )}
-            </Descriptions.Item>
-            <Descriptions.Item label="Remarks">{rtmViewTarget.remarks || '—'}</Descriptions.Item>
-          </Descriptions>
+          <>
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="Code">{rtmViewTarget.requirement_code}</Descriptions.Item>
+              <Descriptions.Item label="Description">{rtmViewTarget.description}</Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag>{rtmViewTarget.implementation_status || 'Pending'}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Actual start">{formatDate(rtmViewTarget.actual_start_date)}</Descriptions.Item>
+              <Descriptions.Item label="Actual end">{formatDate(rtmViewTarget.actual_end_date)}</Descriptions.Item>
+              <Descriptions.Item label="Review decision">
+                {rtmViewTarget.review_decision ? (
+                  <Tag
+                    color={
+                      rtmViewTarget.review_decision === 'approved'
+                        ? 'green'
+                        : rtmViewTarget.review_decision === 'rejected'
+                          ? 'red'
+                          : 'gold'
+                    }
+                  >
+                    {rtmViewTarget.review_decision.replace('_', ' ')}
+                  </Tag>
+                ) : (
+                  <Tag>Not reviewed</Tag>
+                )}
+              </Descriptions.Item>
+              <Descriptions.Item label="Remarks">{rtmViewTarget.remarks || '—'}</Descriptions.Item>
+            </Descriptions>
+
+            {rtmViewTarget.review_decision === 'rejected' && !rtmRejecting && (
+              <Alert
+                className="mt-3"
+                type="error"
+                showIcon
+                message="Reason for rejection"
+                description={rtmViewTarget.review_comment || 'No reason was given.'}
+              />
+            )}
+
+            {rtmRejecting && (
+              <div className="mt-3">
+                <div className="mb-1 text-sm font-medium">Reason for rejection</div>
+                <Input.TextArea
+                  rows={3}
+                  autoFocus
+                  value={rtmRejectComment}
+                  onChange={(event) => setRtmRejectComment(event.target.value)}
+                  placeholder="Explain what needs to change so the planner can act on it"
+                />
+              </div>
+            )}
+
+            <div className="mt-4">
+              <div className="mb-2 text-sm font-semibold">Documents</div>
+              <Spin spinning={rtmViewDocsLoading}>
+                <Table
+                  rowKey="id"
+                  size="small"
+                  dataSource={rtmViewDocs}
+                  pagination={false}
+                  locale={{ emptyText: 'No documents attached to this requirement.' }}
+                  columns={[
+                    { title: 'File', dataIndex: 'file_name' },
+                    { title: 'Document type', dataIndex: 'document_type', render: (value) => value || 'Document' },
+                    {
+                      title: 'Action',
+                      width: 160,
+                      render: (_, doc) => (
+                        <Space size="small">
+                          <Button size="small" icon={<EyeOutlined />} onClick={() => viewActivityDocument(doc)}>
+                            View
+                          </Button>
+                          <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadActivityDocument(doc)} />
+                        </Space>
+                      ),
+                    },
+                  ]}
+                />
+              </Spin>
+            </div>
+          </>
         )}
       </Modal>
 
       <RequirementProgressModal
         open={rtmProgressTarget !== null}
         requirement={rtmProgressTarget}
-        plannedStartDate={projects.find((project) => project.id === projectId)?.planned_start_date}
+        plannedStartDate={currentProject?.planned_start_date}
+        plannedEndDate={currentProject?.planned_end_date}
         onCancel={() => setRtmProgressTarget(null)}
         onSave={startRequirement}
       />
@@ -901,34 +1193,42 @@ function ImplementationPlanPage({
       />
 
       <Modal
-        title="Return matrix with comments"
-        open={returnMatrixOpen}
-        onOk={submitReturnMatrix}
-        onCancel={() => {
-          returnMatrixForm.resetFields()
-          setReturnMatrixOpen(false)
-        }}
-        okText="Return matrix"
-        footer={(_, { OkBtn, CancelBtn }) => (
-          <>
-            <OkBtn />
-            <CancelBtn />
-          </>
-        )}
+        title={<span style={{ color: '#800000', fontWeight: 700 }}>Edit requirement</span>}
+        open={rtmEditTarget !== null}
+        onCancel={() => setRtmEditTarget(null)}
         destroyOnHidden
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button
+              type="primary"
+              style={{ backgroundColor: '#7A0C22', borderColor: '#7A0C22' }}
+              loading={rtmEditSaving}
+              onClick={submitRtmEdit}
+            >
+              Save and resubmit
+            </Button>
+            <Button onClick={() => setRtmEditTarget(null)}>Cancel</Button>
+          </div>
+        }
       >
         <p className="mb-3 text-sm text-gray-600">
-          This marks every requirement in the matrix as needing revision and records your comment for the team.
+          Fixing and saving sends this requirement back to the reviewer as not-yet-reviewed.
         </p>
-        <Form form={returnMatrixForm} layout="vertical">
-          <Form.Item
-            name="comment"
-            label="Comment"
-            rules={[{ required: true, message: 'Add a comment explaining the return' }]}
-          >
-            <Input.TextArea rows={3} placeholder="What needs to change before this matrix can be approved?" />
-          </Form.Item>
-        </Form>
+        <div className="flex flex-col gap-3">
+          <div>
+            <div className="mb-1 text-sm font-medium">Requirement code</div>
+            <Input value={rtmEditCode} onChange={(event) => setRtmEditCode(event.target.value)} placeholder="e.g. REQ-001" />
+          </div>
+          <div>
+            <div className="mb-1 text-sm font-medium">Description</div>
+            <Input.TextArea
+              rows={3}
+              value={rtmEditDescription}
+              onChange={(event) => setRtmEditDescription(event.target.value)}
+              placeholder="Functional or technical requirement"
+            />
+          </div>
+        </div>
       </Modal>
     </div>
   )

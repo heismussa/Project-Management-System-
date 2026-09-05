@@ -1,4 +1,5 @@
-import { Button, Modal, Space, Spin, Table, Typography } from 'antd'
+import { Alert, Button, Input, Modal, Popconfirm, Space, Spin, Table, Typography } from 'antd'
+import dayjs from 'dayjs'
 import { DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import { formatDate } from '../../lib/dates'
 import { getPersonName } from '../../data/people'
@@ -13,7 +14,8 @@ function personLookup(people, id) {
 }
 
 /** Read-only "View" popup for a planned activity: details (always visible,
- * not collapsible), its documents, and an Update action. */
+ * not collapsible), a plan-change review section when one is pending, its
+ * documents, and an Update action. */
 function ActivityDetailsModal({
   open,
   activity,
@@ -24,10 +26,22 @@ function ActivityDetailsModal({
   onUpdate,
   onViewDocument,
   onDownloadDocument,
+  canReviewChange = false,
+  changeComment = '',
+  onChangeCommentChange,
+  onApproveChange,
+  onRejectChange,
+  changeSaving = false,
+  canMarkComplete = false,
+  onMarkComplete,
 }) {
   if (!activity) return null
 
   const responsibleName = personLookup(people, activity.responsible_person_id)?.name ?? getPersonName(activity.responsible_person_id)
+  // canReviewChange already folds in both the role check and whether this
+  // activity is actually awaiting approval (either a post-approval plan
+  // change, or the plan's very first, not-yet-reviewed submission).
+  const showChangeReview = canReviewChange
 
   return (
     <Modal
@@ -39,11 +53,42 @@ function ActivityDetailsModal({
       centered
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          {onUpdate && (
-            <Button type="primary" style={{ backgroundColor: MAROON, borderColor: MAROON }} onClick={onUpdate}>
-              Update
-            </Button>
+          {showChangeReview && (
+            <>
+              <Button
+                type="primary"
+                style={{ backgroundColor: MAROON, borderColor: MAROON }}
+                loading={changeSaving}
+                onClick={onApproveChange}
+              >
+                Approve change
+              </Button>
+              <Button danger loading={changeSaving} onClick={onRejectChange}>
+                Reject change
+              </Button>
+            </>
           )}
+          {canMarkComplete && (
+            <Popconfirm
+              title="Mark this activity complete?"
+              description={`This records today's date (${dayjs().format('MMM D, YYYY')}) as the actual end and cannot be undone.`}
+              okText="Mark complete"
+              onConfirm={onMarkComplete}
+            >
+              <Button type="primary" style={{ backgroundColor: MAROON, borderColor: MAROON }}>
+                Mark complete
+              </Button>
+            </Popconfirm>
+          )}
+          {onUpdate &&
+            !activity.actual_end_date &&
+            (canMarkComplete ? (
+              <Button onClick={onUpdate}>Update</Button>
+            ) : (
+              <Button type="primary" style={{ backgroundColor: MAROON, borderColor: MAROON }} onClick={onUpdate}>
+                Update
+              </Button>
+            ))}
           <Button onClick={onClose}>Close</Button>
         </div>
       }
@@ -70,6 +115,14 @@ function ActivityDetailsModal({
             <Text>{formatDate(activity.planned_end_date)}</Text>
           </div>
           <div className="flex justify-between gap-3">
+            <Text type="secondary">Actual start</Text>
+            <Text>{formatDate(activity.actual_start_date)}</Text>
+          </div>
+          <div className="flex justify-between gap-3">
+            <Text type="secondary">Actual end</Text>
+            <Text>{formatDate(activity.actual_end_date)}</Text>
+          </div>
+          <div className="flex justify-between gap-3">
             <Text type="secondary">Responsible person</Text>
             <Text>{responsibleName}</Text>
           </div>
@@ -79,6 +132,16 @@ function ActivityDetailsModal({
           </div>
         </div>
       </div>
+
+      {activity.plan_change_status === 'rejected' && !showChangeReview && (
+        <Alert
+          className="mt-3"
+          type="error"
+          showIcon
+          message="Reason for rejection"
+          description={activity.plan_change_comment || 'No reason was given.'}
+        />
+      )}
 
       <div className="mt-4">
         <div className="mb-2 text-sm font-semibold">Documents</div>
@@ -108,6 +171,18 @@ function ActivityDetailsModal({
           />
         </Spin>
       </div>
+
+      {showChangeReview && (
+        <div className="mt-4">
+          <div className="mb-2 text-sm font-semibold">Comment</div>
+          <Input.TextArea
+            rows={2}
+            value={changeComment}
+            onChange={(event) => onChangeCommentChange?.(event.target.value)}
+            placeholder="Comment for the planner (required if rejecting)"
+          />
+        </div>
+      )}
     </Modal>
   )
 }

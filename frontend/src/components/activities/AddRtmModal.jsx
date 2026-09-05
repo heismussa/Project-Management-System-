@@ -3,6 +3,7 @@ import { Button, Form, Input, Modal, Typography, Upload, message } from 'antd'
 import { InboxOutlined, MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import api from '../../lib/axios'
 import { extractUploadFile } from '../../lib/projectDocuments'
+import { unwrapItem } from '../../lib/apiHelpers'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -47,19 +48,29 @@ function AddRtmModal({ open, projectId, onClose, onAdded }) {
 
       setSaving(true)
       try {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('project_id', projectId)
-        formData.append('document_type', 'SRS')
-        await api.post('/documents', formData)
-
+        // Create the requirements first so the SRS upload can be tied to one
+        // of them — otherwise the document shows as generic "Project-level"
+        // instead of naming the requirement it actually documents.
+        let firstRequirementId = null
         for (const row of values.requirements) {
-          await api.post('/requirements', {
+          const response = await api.post('/requirements', {
             project_id: projectId,
             requirement_code: row.requirement_code,
             description: row.description,
           })
+          if (firstRequirementId === null) {
+            firstRequirementId = unwrapItem(response.data)?.id ?? null
+          }
         }
+
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('project_id', projectId)
+        formData.append('document_type', 'SRS')
+        if (firstRequirementId) {
+          formData.append('requirement_id', firstRequirementId)
+        }
+        await api.post('/documents', formData)
 
         message.success('RTM added')
         handleClose()

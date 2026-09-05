@@ -6,7 +6,7 @@ import { disabledActualStartDate } from '../../lib/validation'
 /** Records when work on a requirement actually began. The end date isn't
  * captured here — like activities, it's auto-stamped by a separate
  * "Mark complete" action instead of being manually picked. */
-function RequirementStartModal({ open, requirement, plannedStartDate, onCancel, onSave }) {
+function RequirementStartModal({ open, requirement, plannedStartDate, plannedEndDate, onCancel, onSave }) {
   const [form] = Form.useForm()
 
   useEffect(() => {
@@ -49,7 +49,7 @@ function RequirementStartModal({ open, requirement, plannedStartDate, onCancel, 
     >
       <Form form={form} layout="vertical" className="mt-4">
         <Form.Item name="actual_start_date" label="Actual start" rules={[{ required: true, message: 'Pick a start date' }]}>
-          <DatePicker className="w-full" disabledDate={disabledActualStartDate(plannedStartDate)} />
+          <DatePicker className="w-full" disabledDate={disabledActualStartDate(plannedStartDate, plannedEndDate)} />
         </Form.Item>
         <Form.Item
           name="remark"

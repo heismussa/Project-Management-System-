@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Document;
+use App\Models\ImplementationActivity;
 use App\Models\Project;
 use App\Models\Review;
 use App\Models\Role;
@@ -30,6 +31,26 @@ class ProjectWorkflowService
             ->get()
             ->filter(fn (Document $document) => strcasecmp((string) $document->document_type, $documentType) === 0);
 
+        self::approveDocuments($documents, $reviewerId, "Auto-approved with {$documentType}'s parent review.");
+    }
+
+    /**
+     * Approving an activity is the reviewer's sign-off on everything attached
+     * to it too — a supporting document doesn't need its own separate review
+     * once the activity carrying it has already been approved.
+     */
+    public static function autoApproveActivityDocuments(int $activityId, int $reviewerId): void
+    {
+        $documents = Document::where('activity_id', $activityId)
+            ->where('is_current', true)
+            ->where('review_status', '!=', 'approved')
+            ->get();
+
+        self::approveDocuments($documents, $reviewerId, 'Auto-approved with the activity\'s approval.');
+    }
+
+    private static function approveDocuments($documents, int $reviewerId, string $comment): void
+    {
         foreach ($documents as $document) {
             $document->update([
                 'review_status' => 'approved',
@@ -39,14 +60,41 @@ class ProjectWorkflowService
             ]);
 
             Review::create([
-                'project_id' => $projectId,
+                'project_id' => $document->project_id,
                 'entity_type' => 'document',
                 'entity_id' => $document->id,
                 'reviewer_id' => $reviewerId,
                 'decision' => 'approved',
-                'comment' => "Auto-approved with {$documentType}'s parent review.",
+                'comment' => $comment,
                 'reviewed_at' => now(),
             ]);
+        }
+    }
+
+    /**
+     * Real work is understood to begin the moment the project enters
+     * Execution — approved activities that haven't recorded a start yet get
+     * one now, rather than requiring a separate manual "Start" click. Kept
+     * on/after each activity's own planned start so it never records work
+     * starting earlier than it was ever scheduled to.
+     */
+    public static function autoStartApprovedActivities(Project $project): void
+    {
+        $today = now()->startOfDay();
+
+        $activities = $project->implementationActivities()
+            ->whereNull('actual_start_date')
+            ->where(function ($query) {
+                $query->whereNull('plan_change_status')->orWhere('plan_change_status', '!=', 'rejected');
+            })
+            ->get();
+
+        foreach ($activities as $activity) {
+            $start = $activity->planned_start_date && $activity->planned_start_date->gt($today)
+                ? $activity->planned_start_date
+                : $today;
+
+            $activity->update(['actual_start_date' => $start->toDateString()]);
         }
     }
 
@@ -55,16 +103,25 @@ class ProjectWorkflowService
      */
     public static function reviewTrack(Project $project): string
     {
-        $raw = strtoupper(trim((string) ($project->review_track ?: $project->category)));
-
-        if (str_contains($raw, 'DICT')) {
-            return 'DICT';
-        }
-        if (str_contains($raw, 'IDMM')) {
-            return 'IDMM';
+        $explicit = strtoupper(trim((string) $project->review_track));
+        if (in_array($explicit, ['DICT', 'IDMM', 'SDMM'], true)) {
+            return $explicit;
         }
 
-        return 'SDMM';
+        // No track explicitly set — derive it from category, per the BRD's
+        // automatic-routing rule. Category names ("System", "Infrastructure",
+        // "Security") don't literally contain "SDMM"/"IDMM"/"DICT", so this
+        // needs its own mapping rather than a substring match.
+        return self::trackForCategory($project->category);
+    }
+
+    public static function trackForCategory(?string $category): string
+    {
+        return match (strtolower(trim((string) $category))) {
+            'infrastructure' => 'IDMM',
+            'security' => 'DICT',
+            default => 'SDMM',
+        };
     }
 
     public static function destinationForProject(Project $project): array
@@ -230,6 +287,7 @@ class ProjectWorkflowService
         }
 
         $project->update($updates);
+        self::autoStartApprovedActivities($project);
 
         return $project->fresh([
             'reviewer',

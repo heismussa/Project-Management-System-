@@ -17,11 +17,14 @@ class DocumentController extends Controller
     public function index(Request $request, int $projectId): JsonResponse
     {
         $query = Document::where('project_id', $projectId)
-            ->with(['uploader:id,name', 'reviewer:id,name', 'activity:id,name'])
+            ->with(['uploader:id,name', 'reviewer:id,name', 'activity:id,name', 'requirement:id,requirement_code'])
             ->latest('uploaded_at');
 
         if ($request->filled('activity_id')) {
             $query->where('activity_id', $request->integer('activity_id'));
+        }
+        if ($request->filled('requirement_id')) {
+            $query->where('requirement_id', $request->integer('requirement_id'));
         }
 
         return response()->json(['data' => $query->get()]);

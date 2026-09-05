@@ -24,7 +24,9 @@ class RegisterProjectRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'budget' => ['nullable', 'numeric', 'min:0'],
             'team_type' => ['nullable', Rule::in(ProjectCatalog::TEAM_TYPES)],
-            'review_track' => ['required', Rule::in(ProjectCatalog::REVIEW_TRACKS)],
+            // The track (SDMM/IDMM) is the Coordinator's call when they
+            // recommend the project, not something chosen at registration.
+            'review_track' => ['nullable', Rule::in(ProjectCatalog::REVIEW_TRACKS)],
             'planner_id' => ['required', 'exists:users,id'],
             'coordinator_id' => ['nullable', 'exists:users,id'],
             'approver_id' => ['nullable', 'exists:users,id'],

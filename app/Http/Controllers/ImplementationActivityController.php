@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ImplementationActivity;
 use App\Models\ProgressUpdate;
+use App\Services\ProjectWorkflowService;
 use App\Support\ProgressDateRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,13 +34,28 @@ class ImplementationActivityController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        // Read early (unvalidated) just to bound the planned dates below —
+        // the 'exists:projects,id' rule still catches a genuinely bad id.
+        $earlyProject = \App\Models\Project::find($request->input('project_id'));
+
+        $plannedStartRule = ['required', 'date'];
+        $plannedEndRule = ['required', 'date', 'after_or_equal:planned_start_date'];
+        if ($earlyProject?->planned_start_date) {
+            $plannedStartRule[] = 'after_or_equal:'.$earlyProject->planned_start_date->toDateString();
+            $plannedEndRule[] = 'after_or_equal:'.$earlyProject->planned_start_date->toDateString();
+        }
+        if ($earlyProject?->planned_end_date) {
+            $plannedStartRule[] = 'before_or_equal:'.$earlyProject->planned_end_date->toDateString();
+            $plannedEndRule[] = 'before_or_equal:'.$earlyProject->planned_end_date->toDateString();
+        }
+
         $validated = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
             'name' => ['required', 'string', 'max:255'],
             'phase' => ['nullable', 'string', 'max:100'],
             'expected_deliverable' => ['required', 'string'],
-            'planned_start_date' => ['required', 'date'],
-            'planned_end_date' => ['required', 'date', 'after_or_equal:planned_start_date'],
+            'planned_start_date' => $plannedStartRule,
+            'planned_end_date' => $plannedEndRule,
             'responsible_person_id' => ['required', 'exists:users,id'],
         ]);
 
@@ -85,17 +101,31 @@ class ImplementationActivityController extends Controller
         $existingStart = optional($activity->actual_start_date)->toDateString();
         $dateRules = ProgressDateRules::actual(
             optional($activity->planned_start_date)->toDateString(),
-            $request->filled('actual_start_date') ? $request->input('actual_start_date') : $existingStart
+            $request->filled('actual_start_date') ? $request->input('actual_start_date') : $existingStart,
+            optional($project->planned_end_date)->toDateString()
         );
         $dateRules['actual_start_date'] = array_merge(['sometimes'], $dateRules['actual_start_date']);
         $dateRules['actual_end_date'] = array_merge(['sometimes'], $dateRules['actual_end_date']);
+
+        // An activity's own planned dates must stay inside the project's
+        // planned window too — when the project registered one.
+        $plannedStartRule = ['sometimes', 'required', 'date'];
+        $plannedEndRule = ['sometimes', 'required', 'date', 'after_or_equal:planned_start_date'];
+        if ($project->planned_start_date) {
+            $plannedStartRule[] = 'after_or_equal:'.$project->planned_start_date->toDateString();
+            $plannedEndRule[] = 'after_or_equal:'.$project->planned_start_date->toDateString();
+        }
+        if ($project->planned_end_date) {
+            $plannedStartRule[] = 'before_or_equal:'.$project->planned_end_date->toDateString();
+            $plannedEndRule[] = 'before_or_equal:'.$project->planned_end_date->toDateString();
+        }
 
         $validated = $request->validate(array_merge([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'phase' => ['sometimes', 'nullable', 'string', 'max:100'],
             'expected_deliverable' => ['sometimes', 'required', 'string'],
-            'planned_start_date' => ['sometimes', 'required', 'date'],
-            'planned_end_date' => ['sometimes', 'required', 'date', 'after_or_equal:planned_start_date'],
+            'planned_start_date' => $plannedStartRule,
+            'planned_end_date' => $plannedEndRule,
             'responsible_person_id' => ['sometimes', 'required', 'exists:users,id'],
             'status' => ['sometimes', 'nullable', 'string', 'max:50'],
             'remark' => ['sometimes', 'nullable', 'string'],
@@ -117,11 +147,13 @@ class ImplementationActivityController extends Controller
                 $activity->update([
                     'plan_change_status' => 'pending',
                     'pending_changes' => array_intersect_key($activity->fresh()->toArray(), array_flip(self::PLANNING_FIELDS)),
+                    'plan_change_comment' => null,
                 ]);
             } else {
                 $activity->update([
                     'plan_change_status' => null,
                     'pending_changes' => null,
+                    'plan_change_comment' => null,
                 ]);
             }
             $project->reopenPlanIfApproved();
@@ -205,7 +237,18 @@ class ImplementationActivityController extends Controller
         $activity->update(array_merge($changes, [
             'pending_changes' => null,
             'plan_change_status' => 'approved',
+            'plan_change_comment' => null,
         ]));
+
+        ProjectWorkflowService::autoApproveActivityDocuments($activity->id, $request->user()->id);
+
+        // If the project is already executing, this activity's own real work
+        // starts now, the moment it's approved — no separate manual click.
+        // (For the initial, pre-execution batch, this happens instead when
+        // the project itself first enters Execution.)
+        if ($activity->project?->execution_started_at) {
+            ProjectWorkflowService::autoStartApprovedActivities($activity->project);
+        }
 
         if ($request->filled('comment')) {
             ProgressUpdate::create([
@@ -231,23 +274,24 @@ class ImplementationActivityController extends Controller
                 'plan_change_status' => ['This activity has no pending plan change to return.'],
             ]);
         }
-        $request->validate(['comment' => ['nullable', 'string']]);
+        $validated = $request->validate(['comment' => ['required', 'string']]);
 
-        // Clear pending state so the planner can revise and re-submit the plan.
+        // Kept as 'rejected' (not cleared to null) so the planner sees it was
+        // reviewed and rejected, not just never submitted — the reason lives
+        // on the activity itself, not just buried in the audit log.
         $activity->update([
             'pending_changes' => null,
-            'plan_change_status' => null,
+            'plan_change_status' => 'rejected',
+            'plan_change_comment' => $validated['comment'],
         ]);
 
-        if ($request->filled('comment')) {
-            ProgressUpdate::create([
-                'entity_type' => 'activity',
-                'entity_id' => $activity->id,
-                'remark' => 'Plan change returned: '.$request->string('comment'),
-                'status' => $activity->status,
-                'updated_by' => $request->user()->id,
-            ]);
-        }
+        ProgressUpdate::create([
+            'entity_type' => 'activity',
+            'entity_id' => $activity->id,
+            'remark' => 'Plan change rejected: '.$validated['comment'],
+            'status' => $activity->status,
+            'updated_by' => $request->user()->id,
+        ]);
 
         return response()->json([
             'message' => 'Plan change rejected. Original plan kept.',
