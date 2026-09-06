@@ -59,7 +59,9 @@ class ImplementationActivityController extends Controller
             'responsible_person_id' => ['required', 'exists:users,id'],
         ]);
 
-        $project = \App\Models\Project::findOrFail($validated['project_id']);
+        // Already fetched above to bound the date rules, and validation just
+        // confirmed this id exists — reuse it instead of querying it twice.
+        $project = $earlyProject ?? \App\Models\Project::findOrFail($validated['project_id']);
         if (! $project->canBeManagedBy($request->user())) {
             return response()->json(['message' => 'You can only manage activities on projects assigned to you.'], 403);
         }
