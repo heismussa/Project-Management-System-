@@ -322,13 +322,11 @@ function ImplementationPlanPage({
       return
     }
 
-    // The activity itself is saved — close the popup now rather than making
-    // the user stare at it through every follow-up request below. Anything
-    // that fails from here on still surfaces as a toast.
-    setSavingActivity(false)
-    setFormTarget(null)
-    message.success(isEdit ? 'Changes saved' : 'Activity added')
-
+    // The activity itself is saved from here on — but keep the popup (and its
+    // spinner) up through the document upload / plan-auto-submit follow-up
+    // below instead of closing immediately, so the user sees one continuous
+    // "working" state rather than the popup closing and a second, unrelated
+    // notification landing a beat later with no visible cause.
     try {
       const uploadTasks = []
       if (documents?.length) {
@@ -351,18 +349,35 @@ function ImplementationPlanPage({
       const requiredTypes = workflow?.required_document_types || REQUIRED_PROJECT_DOCUMENT_TYPES
       const missing = getMissingRequiredDocumentTypes(docs, requiredTypes)
 
-      if (missing.length > 0) {
-        Modal.warning({
-          title: 'Missing required project documents',
-          content: `Attach these project-level documents before the plan can be submitted: ${missing.join(', ')}.`,
-        })
-      } else if (['draft', 'changes_requested'].includes(workflow?.plan_review_status || '')) {
+      let submittedPlan = false
+      if (missing.length === 0 && ['draft', 'changes_requested'].includes(workflow?.plan_review_status || '')) {
         await tryAutoSubmitPlan(projectId)
-        message.success('Plan submitted for reviewer approval.')
+        submittedPlan = true
+      }
+
+      setSavingActivity(false)
+      setFormTarget(null)
+
+      if (submittedPlan) {
+        message.success(
+          isEdit
+            ? 'Changes saved and plan submitted for reviewer approval.'
+            : 'Activity added and plan submitted for reviewer approval.',
+        )
+      } else {
+        message.success(isEdit ? 'Changes saved' : 'Activity added')
+        if (missing.length > 0) {
+          Modal.warning({
+            title: 'Missing required project documents',
+            content: `Attach these project-level documents before the plan can be submitted: ${missing.join(', ')}.`,
+          })
+        }
       }
 
       onProjectChanged?.()
     } catch (err) {
+      setSavingActivity(false)
+      setFormTarget(null)
       message.error(err.response?.data?.message || 'Activity saved, but a follow-up step failed.')
     }
   }
@@ -556,6 +571,7 @@ function ImplementationPlanPage({
       setActivities((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
       message.success('Activity marked complete')
       setDetailsTarget(null)
+      onProjectChanged?.()
     } catch (err) {
       message.error(err.response?.data?.message || 'Could not mark activity complete.')
     }
@@ -736,6 +752,7 @@ function ImplementationPlanPage({
       message.success('Requirement marked complete')
       setRtmViewTarget(null)
       await loadRequirements(projectId)
+      onProjectChanged?.()
     } catch (err) {
       message.error(err.response?.data?.message || 'Could not mark complete.')
     }

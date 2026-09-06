@@ -62,7 +62,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/projects/{projectId}/matrix/return', [RequirementController::class, 'returnMatrix']);
 
         Route::post('/documents', [DocumentController::class, 'store']);
-        Route::post('/documents/{document}/review', [DocumentController::class, 'review']);
         Route::post('/documents/{document}/replace', [DocumentController::class, 'replace']);
         Route::delete('/documents/{document}', [DocumentController::class, 'destroy']);
     });

@@ -17,21 +17,23 @@ class ProjectWorkflowService
     ];
 
     /**
-     * The Implementation Plan and SRS documents don't get their own manual
-     * review step — approving the plan (activities) or the RTM is the
-     * reviewer's sign-off on those documents too, so mark them approved
-     * automatically instead of asking for a second, redundant click.
+     * No document ever gets a manual approve/return click of its own — its
+     * approval is entirely inherited from whatever it's attached to. A
+     * document with neither an activity_id nor a requirement_id (the
+     * Implementation Plan itself, or a project-level Survey Report/Cost
+     * Estimate/Other upload) has nothing to attach to but the plan review
+     * itself, so approving the plan approves all of these at once.
      */
-    public static function autoApproveDocumentType(int $projectId, string $documentType, int $reviewerId): void
+    public static function autoApproveProjectLevelDocuments(int $projectId, int $reviewerId): void
     {
         $documents = Document::where('project_id', $projectId)
             ->whereNull('activity_id')
+            ->whereNull('requirement_id')
             ->where('is_current', true)
             ->where('review_status', '!=', 'approved')
-            ->get()
-            ->filter(fn (Document $document) => strcasecmp((string) $document->document_type, $documentType) === 0);
+            ->get();
 
-        self::approveDocuments($documents, $reviewerId, "Auto-approved with {$documentType}'s parent review.");
+        self::approveDocuments($documents, $reviewerId, "Auto-approved with the implementation plan's approval.");
     }
 
     /**
@@ -47,6 +49,22 @@ class ProjectWorkflowService
             ->get();
 
         self::approveDocuments($documents, $reviewerId, 'Auto-approved with the activity\'s approval.');
+    }
+
+    /**
+     * Same as above, for a requirement's own documents (its SRS extract,
+     * etc.) — approving the requirement in the RTM is the sign-off on
+     * everything attached to that requirement specifically, not on every
+     * SRS document in the project.
+     */
+    public static function autoApproveRequirementDocuments(int $requirementId, int $reviewerId): void
+    {
+        $documents = Document::where('requirement_id', $requirementId)
+            ->where('is_current', true)
+            ->where('review_status', '!=', 'approved')
+            ->get();
+
+        self::approveDocuments($documents, $reviewerId, "Auto-approved with the requirement's approval.");
     }
 
     private static function approveDocuments($documents, int $reviewerId, string $comment): void

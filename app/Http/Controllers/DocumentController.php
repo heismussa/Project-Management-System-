@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Document;
 use App\Models\Project;
-use App\Models\Review;
 use App\Support\InitiationDocuments;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -176,40 +175,6 @@ class DocumentController extends Controller
             $document->file_name,
             ['Content-Type' => $document->file_type ?: 'application/octet-stream']
         );
-    }
-
-    public function review(Request $request, Document $document): JsonResponse
-    {
-        $validated = $request->validate([
-            'decision' => ['required', 'in:approved,returned'],
-            'comment' => ['required_if:decision,returned', 'nullable', 'string'],
-        ]);
-
-        $document->update([
-            'review_status' => $validated['decision'],
-            'review_comment' => $validated['comment'] ?? null,
-            'reviewed_by' => $request->user()->id,
-            'reviewed_at' => now(),
-        ]);
-
-        Review::create([
-            'project_id' => $document->project_id,
-            'entity_type' => 'document',
-            'entity_id' => $document->id,
-            'reviewer_id' => $request->user()->id,
-            'decision' => $validated['decision'],
-            'comment' => $validated['comment'] ?? null,
-            'reviewed_at' => now(),
-        ]);
-
-        $message = $validated['decision'] === 'returned'
-            ? 'Document returned to planner with comments.'
-            : 'Document approved.';
-
-        return response()->json([
-            'message' => $message,
-            'data' => $document->fresh()->load(['uploader:id,name', 'reviewer:id,name', 'activity:id,name']),
-        ]);
     }
 
     public function replace(Request $request, Document $document): JsonResponse

@@ -6,7 +6,6 @@ import {
   Form,
   Input,
   Modal,
-  Select,
   Space,
   Spin,
   Tag,
@@ -16,7 +15,6 @@ import {
 import dayjs from 'dayjs'
 import RoleGuard from '../common/RoleGuard'
 import ClosurePanel from '../projects/ClosurePanel'
-import ReviewStatusBadge from '../common/ReviewStatusBadge'
 import DataTable from '../common/DataTable'
 import api from '../../lib/axios'
 import { unwrapList } from '../../lib/apiHelpers'
@@ -73,26 +71,22 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
   const activeRoleName = activeRole?.name ?? user?.role ?? null
   const [loading, setLoading] = useState(false)
   const [workflow, setWorkflow] = useState(null)
-  const [documents, setDocuments] = useState([])
   const [activities, setActivities] = useState([])
   const [closure, setClosure] = useState(null)
   const [commentForm] = Form.useForm()
   const [modal, setModal] = useState(null)
-  const [docTarget, setDocTarget] = useState(null)
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     if (!projectId) return
     setLoading(true)
     try {
-      const [workflowRes, docsRes, activitiesRes, closureRes] = await Promise.all([
+      const [workflowRes, activitiesRes, closureRes] = await Promise.all([
         api.get(`/projects/${projectId}/workflow`),
-        api.get(`/projects/${projectId}/documents`).catch(() => ({ data: { data: [] } })),
         api.get(`/projects/${projectId}/activities`).catch(() => ({ data: { data: [] } })),
         api.get(`/projects/${projectId}/closure-readiness`).catch(() => ({ data: { data: null } })),
       ])
       setWorkflow(workflowRes.data?.data)
-      setDocuments(unwrapList(docsRes.data))
       setActivities(unwrapList(activitiesRes.data))
       setClosure(closureRes.data?.data || null)
     } catch (err) {
@@ -106,7 +100,6 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
     load()
   }, [load])
 
-  const pendingDocs = documents.filter((doc) => doc.review_status === 'pending' || doc.review_status === 'returned')
   const pendingChanges = activities.filter((activity) => activity.plan_change_status === 'pending')
   const pendingProgress = activities.filter((activity) => activity.progress_review_status === 'pending')
   const blockers = workflow?.execution_blockers || []
@@ -118,7 +111,6 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
       const response = await api.post(path, payload)
       message.success(success || response.data.message)
       setModal(null)
-      setDocTarget(null)
       commentForm.resetFields()
       await load()
       onChanged?.()
@@ -144,11 +136,6 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
         runAction(`/projects/${projectId}/recommend`, { comment: values.comment }, 'Coordinator recommendation recorded')
       } else if (modal === 'signoff') {
         runAction(`/projects/${projectId}/approve-execution`, { comment: values.comment }, 'DICT execution sign-off recorded')
-      } else if (modal === 'doc' && docTarget) {
-        runAction(`/documents/${docTarget.id}/review`, {
-          decision: values.decision,
-          comment: values.comment,
-        })
       }
     })
   }
@@ -167,7 +154,6 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
   const showClosure = queue === 'closure_sign_off' || Boolean(workflow?.can_approve_closure)
   const showProgress = pendingProgress.length > 0
   const showChanges = pendingChanges.length > 0
-  const showDocs = pendingDocs.length > 0
   const showBlockers = blockers.length > 0
 
   const hasAny =
@@ -177,7 +163,6 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
     showClosure ||
     showProgress ||
     showChanges ||
-    showDocs ||
     showBlockers
 
   return (
@@ -283,42 +268,6 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
                         Reject
                       </Button>
                     </Space>
-                  </RoleGuard>
-                ),
-              },
-            ]}
-          />
-        </Section>
-      )}
-
-      {showDocs && (
-        <Section title="Documents">
-          <DataTable
-            rowKey="id"
-            data={pendingDocs}
-            hideSearch
-            columns={[
-              { title: 'File', dataIndex: 'file_name' },
-              { title: 'Type', dataIndex: 'document_type', width: 160 },
-              {
-                title: 'Status',
-                dataIndex: 'review_status',
-                width: 130,
-                render: (value) => <ReviewStatusBadge status={value} />,
-              },
-              {
-                title: 'Action',
-                render: (_, record) => (
-                  <RoleGuard allow={[ROLES.PRV, ROLES.PAD]}>
-                    <Button
-                      size="small"
-                      onClick={() => {
-                        setDocTarget(record)
-                        setModal('doc')
-                      }}
-                    >
-                      Review
-                    </Button>
                   </RoleGuard>
                 ),
               },
@@ -433,14 +382,12 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
             return: 'Return plan with comments',
             recommend: 'Coordinator recommendation',
             signoff: 'DICT execution sign-off',
-            doc: 'Review document',
           }[modal] || 'Comment'
         }
         open={modal !== null}
         confirmLoading={saving}
         onCancel={() => {
           setModal(null)
-          setDocTarget(null)
           commentForm.resetFields()
         }}
         footer={
@@ -451,7 +398,6 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
             <Button
               onClick={() => {
                 setModal(null)
-                setDocTarget(null)
                 commentForm.resetFields()
               }}
             >
@@ -460,17 +406,7 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
           </div>
         }
       >
-        <Form form={commentForm} layout="vertical" initialValues={{ decision: 'approved' }}>
-          {modal === 'doc' && (
-            <Form.Item name="decision" label="Decision" rules={[{ required: true }]}>
-              <Select
-                options={[
-                  { value: 'approved', label: 'Approve' },
-                  { value: 'returned', label: 'Return with comments' },
-                ]}
-              />
-            </Form.Item>
-          )}
+        <Form form={commentForm} layout="vertical">
           <Form.Item
             name="comment"
             label="Comment"

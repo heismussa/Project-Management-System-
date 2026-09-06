@@ -225,7 +225,7 @@ class ProjectController extends Controller
                 'plan_change_status' => 'approved',
                 'pending_changes' => null,
             ]);
-            ProjectWorkflowService::autoApproveDocumentType($project->id, 'Implementation Plan', $request->user()->id);
+            ProjectWorkflowService::autoApproveProjectLevelDocuments($project->id, $request->user()->id);
             foreach ($project->implementationActivities as $activity) {
                 ProjectWorkflowService::autoApproveActivityDocuments($activity->id, $request->user()->id);
             }

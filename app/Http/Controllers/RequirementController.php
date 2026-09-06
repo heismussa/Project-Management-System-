@@ -200,7 +200,7 @@ class RequirementController extends Controller
         ]);
 
         if ($validated['review_decision'] === 'approved') {
-            ProjectWorkflowService::autoApproveDocumentType($requirement->project_id, 'SRS', $request->user()->id);
+            ProjectWorkflowService::autoApproveRequirementDocuments($requirement->id, $request->user()->id);
         }
 
         if (! empty($validated['comment'])) {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Button, Descriptions, Input, Modal, Space, Form, Select, message } from 'antd'
+import { Button, Descriptions, Modal, Space, message } from 'antd'
 import { UploadOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import DataTable from '../common/DataTable'
@@ -13,7 +13,6 @@ import {
   fetchAuthorizedFileUrl,
   getStoredProjectId,
   storeProjectId,
-  unwrapItem,
   unwrapList,
 } from '../../lib/apiHelpers'
 
@@ -22,11 +21,6 @@ const DOCUMENT_ACCENT = '#962c30'
 function DocumentList({ embedded = false, projectId: projectIdProp = null, compact = false } = {}) {
   const { id: routeId } = useParams()
   const readOnly = isSpecReadOnlyRole(useActiveRoleName())
-  // The embedded/compact Documents view (planner & reviewer's shared project
-  // overview popup) is always view-only — Implementation Plan/SRS approval
-  // now happens automatically alongside the activity/RTM review that covers
-  // them, so there's no separate manual document review step to offer there.
-  const canReviewDoc = !readOnly && !compact
   const [projects, setProjects] = useState([])
   const [projectId, setProjectId] = useState(() => {
     if (projectIdProp) {
@@ -43,7 +37,6 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
   const [documents, setDocuments] = useState([])
   const [uploadOpen, setUploadOpen] = useState(false)
   const [viewTarget, setViewTarget] = useState(null)
-  const [reviewForm] = Form.useForm()
 
   const loadProjects = useCallback(async () => {
     const fromRoute = Number(routeId)
@@ -107,21 +100,6 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
 
   const closeView = () => {
     setViewTarget(null)
-    reviewForm.resetFields()
-  }
-
-  const submitReview = () => {
-    reviewForm.validateFields().then(async (values) => {
-      try {
-        const response = await api.post(`/documents/${viewTarget.id}/review`, values)
-        const updated = unwrapItem(response.data)
-        setDocuments((prev) => prev.map((doc) => (doc.id === updated.id ? updated : doc)))
-        message.success(response.data.message)
-        closeView()
-      } catch (err) {
-        message.error(err.response?.data?.message || 'Review failed')
-      }
-    })
   }
 
   const columns = [
@@ -242,27 +220,11 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
         open={viewTarget !== null}
         onCancel={closeView}
         destroyOnHidden
-        footer={
-          canReviewDoc
-            ? [
-                <Button
-                  key="save"
-                  type="primary"
-                  style={{ background: DOCUMENT_ACCENT, borderColor: DOCUMENT_ACCENT }}
-                  onClick={submitReview}
-                >
-                  Save review
-                </Button>,
-                <Button key="cancel" onClick={closeView}>
-                  Cancel
-                </Button>,
-              ]
-            : [
-                <Button key="close" onClick={closeView}>
-                  Close
-                </Button>,
-              ]
-        }
+        footer={[
+          <Button key="close" onClick={closeView}>
+            Close
+          </Button>,
+        ]}
       >
         <Descriptions column={1} bordered size="small" className="mb-4">
           <Descriptions.Item label="File name">{viewTarget?.file_name}</Descriptions.Item>
@@ -293,27 +255,6 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
         >
           Download
         </Button>
-
-        {canReviewDoc && (
-          <>
-            <p className="mb-3 text-sm text-gray-600">
-              Returning a document requires a comment. The planner must upload a replacement before execution can start.
-            </p>
-            <Form form={reviewForm} layout="vertical">
-              <Form.Item name="decision" label="Decision" rules={[{ required: true, message: 'Choose approve or return' }]}>
-                <Select
-                  options={[
-                    { value: 'approved', label: 'Approve' },
-                    { value: 'returned', label: 'Return with comments' },
-                  ]}
-                />
-              </Form.Item>
-              <Form.Item name="comment" label="Comment">
-                <Input.TextArea rows={3} placeholder="Comments for the planner" />
-              </Form.Item>
-            </Form>
-          </>
-        )}
       </Modal>
     </div>
   )
