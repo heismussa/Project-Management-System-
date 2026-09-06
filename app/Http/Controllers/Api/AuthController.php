@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
 
@@ -32,7 +34,7 @@ class AuthController extends Controller
                     }
                 },
             ],
-            'password' => ['required', 'string', 'min:8'],
+            'password' => ['required', 'string', Password::min(8)->numbers()],
         ]);
 
         $user = User::create([
@@ -59,6 +61,14 @@ class AuthController extends Controller
         $fieldType = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
 
         if (! Auth::attempt([$fieldType => $request->login, 'password' => $request->password])) {
+            // Only logged when the identifier matches a real account — that's
+            // the actionable "someone is guessing this account's password"
+            // signal; a typo'd/unknown login isn't worth a row.
+            $attemptedUser = User::where($fieldType, $request->login)->first();
+            if ($attemptedUser) {
+                $this->recordAudit($attemptedUser->id, 'login_failed', $request);
+            }
+
             throw ValidationException::withMessages([
                 'login' => ['The provided credentials do not match our records.'],
             ]);
@@ -69,6 +79,7 @@ class AuthController extends Controller
 
         if ($user->is_active === false) {
             Auth::logout();
+            $this->recordAudit($user->id, 'login_blocked_disabled', $request);
             throw ValidationException::withMessages([
                 'login' => ['This account is disabled. Contact ICT Support.'],
             ]);
@@ -77,6 +88,7 @@ class AuthController extends Controller
         $this->ensureKnownAccountHasRole($user);
         $user->refresh();
         $token = $user->createToken('auth_token')->plainTextToken;
+        $this->recordAudit($user->id, 'login_success', $request);
 
         return response()->json([
             'message'        => 'Login successful',
@@ -95,6 +107,10 @@ class AuthController extends Controller
 
         if ($token) {
             $token->delete();
+        }
+
+        if ($user) {
+            $this->recordAudit($user->id, 'logout', $request);
         }
 
         return response()->json(['message' => 'Logout successful'], 200);
@@ -197,6 +213,16 @@ class AuthController extends Controller
 
         $user->roles()->sync([
             $role->id => ['is_active' => true, 'assigned_at' => now()],
+        ]);
+    }
+
+    private function recordAudit(int $userId, string $action, Request $request, ?string $description = null): void
+    {
+        AuditLog::create([
+            'user_id' => $userId,
+            'action' => $action,
+            'description' => $description,
+            'ip_address' => $request->ip(),
         ]);
     }
 }

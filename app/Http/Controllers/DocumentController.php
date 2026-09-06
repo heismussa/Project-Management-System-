@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Document;
 use App\Models\Project;
 use App\Support\InitiationDocuments;
@@ -40,7 +41,9 @@ class DocumentController extends Controller
         ]);
 
         $file = $request->file('file');
-        $path = $file->store('documents', 'public');
+        // 'local' (storage/app/private) is not web-reachable — every file is
+        // only ever served through file() below, which checks auth first.
+        $path = $file->store('documents', 'local');
 
         $activityId = $validated['activity_id'] ?? null;
         $documentType = $validated['document_type'] ?? null;
@@ -132,7 +135,7 @@ class DocumentController extends Controller
         ]);
 
         $file = $request->file('file');
-        $path = $file->store('documents', 'public');
+        $path = $file->store('documents', 'local');
 
         $existing = Document::query()
             ->where('project_id', $project->id)
@@ -166,11 +169,20 @@ class DocumentController extends Controller
         ], 201);
     }
 
-    public function file(Document $document): StreamedResponse
+    public function file(Request $request, Document $document): StreamedResponse
     {
-        abort_unless(Storage::disk('public')->exists($document->file_url), 404);
+        abort_unless(Storage::disk('local')->exists($document->file_url), 404);
 
-        return Storage::disk('public')->response(
+        if ($request->user()) {
+            AuditLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'document_viewed',
+                'description' => "{$document->file_name} (project {$document->project_id})",
+                'ip_address' => $request->ip(),
+            ]);
+        }
+
+        return Storage::disk('local')->response(
             $document->file_url,
             $document->file_name,
             ['Content-Type' => $document->file_type ?: 'application/octet-stream']
@@ -184,7 +196,7 @@ class DocumentController extends Controller
         ]);
 
         $file = $validated['file'];
-        $path = $file->store('documents', 'public');
+        $path = $file->store('documents', 'local');
 
         $document->update(['is_current' => false]);
 
@@ -214,7 +226,7 @@ class DocumentController extends Controller
     public function destroy(Document $document): JsonResponse
     {
         if ($document->file_url) {
-            Storage::disk('public')->delete($document->file_url);
+            Storage::disk('local')->delete($document->file_url);
         }
         $document->delete();
 

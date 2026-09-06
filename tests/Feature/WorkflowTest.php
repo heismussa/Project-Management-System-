@@ -100,7 +100,7 @@ class WorkflowTest extends TestCase
             'responsible_person_id' => $user->id,
         ]);
 
-        Storage::fake('public');
+        Storage::fake('local');
         foreach (['Implementation Plan', 'SRS'] as $type) {
             $this->post('/api/documents', [
                 'project_id' => $project->id,

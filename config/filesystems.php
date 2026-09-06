@@ -73,8 +73,9 @@ return [
     |
     */
 
-    'links' => [
-        public_path('storage') => storage_path('app/public'),
-    ],
+    // No public symlink: uploaded documents live on the 'local' (private)
+    // disk and are only ever served through the authenticated
+    // /documents/{id}/file route, never a direct web path.
+    'links' => [],
 
 ];

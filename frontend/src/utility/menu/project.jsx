@@ -6,6 +6,7 @@ import {
   Inbox,
   Database,
   Users,
+  History,
 } from 'lucide-react'
 
 /**
@@ -61,6 +62,12 @@ export default function Project() {
       url: '/user-management',
       roles: [ROLES.IS, ROLES.PAD],
       icon: Users,
+    },
+    {
+      label: 'Audit log',
+      url: '/audit-log',
+      roles: [ROLES.IS, ROLES.PAD],
+      icon: History,
     },
   ]
 }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\UserManagementController;
@@ -15,7 +16,9 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::post('/login', [AuthController::class, 'login']);
+// 5 attempts per minute per IP+email — stops scripted password guessing
+// without a real user ever noticing it's there.
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -31,6 +34,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/roles', [UserManagementController::class, 'roles']);
         Route::post('/users/{user}/password', [UserManagementController::class, 'updatePassword']);
         Route::post('/users/{user}/toggle-status', [UserManagementController::class, 'toggleStatus']);
+        Route::get('/audit-logs', [AuditLogController::class, 'index']);
     });
 
     Route::middleware('can.mutate')->group(function () {

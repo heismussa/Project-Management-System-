@@ -50,7 +50,10 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Tokens used to never expire — a leaked one stayed valid forever. 12
+    // hours covers a normal working session; after that, logging back in
+    // is expected, not a bug.
+    'expiration' => env('SANCTUM_TOKEN_EXPIRATION', 720),
 
     /*
     |--------------------------------------------------------------------------

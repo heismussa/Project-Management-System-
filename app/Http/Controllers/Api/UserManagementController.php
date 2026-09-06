@@ -11,6 +11,7 @@ use App\Models\UserActivityLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
 class UserManagementController extends Controller
@@ -109,7 +110,7 @@ class UserManagementController extends Controller
     public function updatePassword(Request $request, User $user): JsonResponse
     {
         $validated = $request->validate([
-            'password' => 'required|string|min:8|confirmed',
+            'password' => ['required', 'string', 'confirmed', Password::min(8)->numbers()],
         ]);
 
         $user->update([

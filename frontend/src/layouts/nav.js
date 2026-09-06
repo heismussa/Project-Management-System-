@@ -28,7 +28,9 @@ export function formatRoleLabel(name) {
 }
 
 export const NAV_ITEMS = Project()
-export const ICT_SUPPORT_NAV_ITEMS = NAV_ITEMS.filter((item) => item.url === '/user-management')
+export const ICT_SUPPORT_NAV_ITEMS = NAV_ITEMS.filter((item) =>
+  ['/user-management', '/audit-log'].includes(item.url),
+)
 
 export function getAssignedRoles(user) {
   if (!user) return []
