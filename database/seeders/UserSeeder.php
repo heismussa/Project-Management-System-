@@ -16,8 +16,8 @@ class UserSeeder extends Seeder
         // added through the app itself (Admin/ICT Support > User Management),
         // not baked into every fresh install.
         $accounts = [
-            ['email' => 'admin@gmail.com', 'name' => 'System Admin', 'password' => 'password', 'role' => 'Project Administrator'],
-            ['email' => 'ictsupport@gmail.com', 'name' => 'ICT Support', 'password' => 'password', 'role' => 'ICT Support'],
+            ['email' => 'admin@gmail.com', 'name' => 'System Admin', 'password' => 'password123', 'role' => 'Project Administrator'],
+            ['email' => 'ictsupport@gmail.com', 'name' => 'ICT Support', 'password' => 'password123', 'role' => 'ICT Support'],
         ];
 
         foreach ($accounts as $account) {
