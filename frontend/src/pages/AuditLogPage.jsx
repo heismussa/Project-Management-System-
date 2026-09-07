@@ -96,13 +96,8 @@ function AuditLogPage() {
 
   return (
     <div className="page-container">
-      <Card className="page-shell-card" styles={{ body: { padding: 16 } }}>
-        <div className="mb-4">
-          <Text type="secondary">
-            Who logged in, who failed to, who logged out, and who opened which document. Kept separate from account
-            management activity.
-          </Text>
-        </div>
+      <Card className="page-shell-card" styles={{ body: { padding: 10 } }}>
+       
 
         <Table
           rowKey="id"

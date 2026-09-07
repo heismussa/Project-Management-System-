@@ -160,7 +160,7 @@ export default function ProjectRegistration({ open, onClose, onRegistered }) {
 
   return (
     <Modal
-      title={<span style={{ color: '#800000', fontWeight: 800 }}>Create Project</span>}
+      title={<span style={{ color: '#800000', fontWeight: 800 }}>Register Project</span>}
       open={open}
       onCancel={closeRegistration}
       destroyOnHidden

@@ -32,18 +32,7 @@ export default function UserActionDrawer({ open, onClose }) {
           </div>
 
           <ul role="list" className="mb-4 flex flex-1 flex-col gap-y-2.5">
-            <li>
-              <button
-                type="button"
-                className="navbar-drawer-item"
-                onClick={() => {
-                  onClose()
-                  navigate('/settings')
-                }}
-              >
-                Settings
-              </button>
-            </li>
+            
           </ul>
         </div>
 
