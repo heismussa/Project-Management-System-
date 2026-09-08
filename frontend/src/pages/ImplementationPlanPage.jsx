@@ -11,7 +11,6 @@ import ActivityFormModal from '../components/activities/ActivityFormModal'
 import ActivityReviewDrawer from '../components/activities/ActivityReviewDrawer'
 import ActivityDetailsModal from '../components/activities/ActivityDetailsModal'
 import AddRtmModal from '../components/activities/AddRtmModal'
-import PlanExportButton from '../components/activities/PlanExportButton'
 import ActivitiesTable from '../components/activities/ActivitiesTable'
 import WorkflowBar from '../components/activities/WorkflowBar'
 import ActivityDocumentsModal from '../components/activities/ActivityDocumentsModal'
@@ -22,6 +21,7 @@ import PreventMutation from '../components/common/PreventMutation'
 import { isSpecReadOnlyRole, useActiveRoleName } from '../components/common/RoleGuard'
 import { ROLES } from '../utility/Config.jsx'
 import api from '../lib/axios'
+import { fetchProjectsCached } from '../lib/projectsCache'
 import { submitPlanForReview } from '../api/planner'
 import {
   getMissingRequiredDocumentTypes,
@@ -180,7 +180,7 @@ function ImplementationPlanPage({
       }
 
       const [projectsRes, usersRes] = await Promise.all([
-        api.get('/projects'),
+        fetchProjectsCached(),
         api.get('/users'),
       ])
       const projectList = unwrapList(projectsRes.data)
@@ -657,12 +657,18 @@ function ImplementationPlanPage({
   }
 
   const planStatus = workflow?.plan_review_status
-  const canAddRtm = Boolean(workflow?.recommended_at) && canAddActivity
-  const canReviewRtm = Boolean(workflow?.recommended_at) && (roleName === ROLES.PRV || roleName === ROLES.PAD)
+  // Execution has actually started once either a Coordinator recommends
+  // (SDMM/IDMM) or an Approver signs off directly (DICT, which skips
+  // recommendation entirely) — recommended_at alone is never set on the
+  // DICT path, so gating on it left the requirements matrix permanently
+  // locked for that track even after sign-off.
+  const executionUnderway = Boolean(workflow?.execution_started_at)
+  const canAddRtm = executionUnderway && canAddActivity
+  const canReviewRtm = executionUnderway && (roleName === ROLES.PRV || roleName === ROLES.PAD)
   // Start / Record test result / Mark complete are the Planner's own
   // reporting of what actually happened — the Reviewer's role here is
   // Approve/Reject only, not doing the work.
-  const canUpdateRtmProgress = Boolean(workflow?.recommended_at) && canAddActivity
+  const canUpdateRtmProgress = executionUnderway && canAddActivity
 
   const openRtmView = (requirement) => {
     setRtmViewTarget(requirement)
@@ -787,7 +793,6 @@ function ImplementationPlanPage({
       {!embedded && (
         <ProjectPicker projects={projects} value={projectId} onChange={handleProjectChange} />
       )}
-      <PlanExportButton activities={activities} />
       {canAddActivity && (
         <PreventMutation fallback={null}>
           <button
@@ -880,7 +885,7 @@ function ImplementationPlanPage({
                     render: (value) => `${value ?? 0}%`,
                   },
                   {
-                    title: 'Review decision',
+                    title: 'Review Decision',
                     dataIndex: 'review_decision',
                     width: 140,
                     onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
@@ -1170,7 +1175,7 @@ function ImplementationPlanPage({
                   locale={{ emptyText: 'No documents attached to this requirement.' }}
                   columns={[
                     { title: 'File', dataIndex: 'file_name' },
-                    { title: 'Document type', dataIndex: 'document_type', render: (value) => value || 'Document' },
+                    { title: 'Document Type', dataIndex: 'document_type', render: (value) => value || 'Document' },
                     {
                       title: 'Action',
                       width: 160,

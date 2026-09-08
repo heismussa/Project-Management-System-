@@ -29,8 +29,19 @@ api.interceptors.request.use(
 // this sends the user to a clean re-login instead. A wrong-password 401 on
 // the login attempt itself is a normal form error, not an expired session, so
 // it's excluded here and left to the login page's own handling.
+// Any write to a project or something under one (activities, requirements,
+// documents, closure, plan review, etc.) can change what the cached project
+// list would show, so a successful non-GET call anywhere under /projects
+// clears it rather than every call site having to remember to.
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const method = response.config?.method?.toLowerCase();
+    const url = response.config?.url || '';
+    if (method && method !== 'get' && url.includes('/projects')) {
+      import('./projectsCache').then(({ invalidateProjectsCache }) => invalidateProjectsCache());
+    }
+    return response;
+  },
   (error) => {
     const isLoginRequest = error.config?.url?.includes('/login');
     const onLoginPage = window.location.pathname === '/login';

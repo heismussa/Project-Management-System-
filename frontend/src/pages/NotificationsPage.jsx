@@ -25,7 +25,7 @@ export default function NotificationsPage() {
         Notifications
       </Title>
       <Paragraph type="secondary">Deadline and workflow alerts for your account.</Paragraph>
-      <Card className="page-shell-card">
+      <Card className="page-shell-card" style={{ marginTop: 0 }}>
         <Table
           className="pms-house-table"
           rowKey="id"

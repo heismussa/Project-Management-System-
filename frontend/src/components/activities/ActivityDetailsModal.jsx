@@ -154,7 +154,7 @@ function ActivityDetailsModal({
             locale={{ emptyText: 'No documents attached to this activity.' }}
             columns={[
               { title: 'File', dataIndex: 'file_name' },
-              { title: 'Document type', dataIndex: 'document_type', render: (value) => value || 'Document' },
+              { title: 'Document Type', dataIndex: 'document_type', render: (value) => value || 'Document' },
               {
                 title: 'Action',
                 width: 160,

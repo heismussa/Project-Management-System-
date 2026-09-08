@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Descriptions, Modal, Select, Spin, Table, Tag, message } from 'antd'
+import { Alert, Button, Descriptions, Input, Modal, Spin, Table, Tag, message } from 'antd'
 import { EyeOutlined } from '@ant-design/icons'
 import api from '../../lib/axios'
 import { fetchAuthorizedFileUrl, unwrapList } from '../../lib/apiHelpers'
@@ -9,30 +9,25 @@ const MAROON = '#800000'
 const PRIMARY_BTN = { backgroundColor: MAROON, borderColor: MAROON }
 
 /**
- * Coordinator's "Recommend execution" flow: project details, a compact
- * activity list (full details + the planner's own documents live behind a
- * per-activity View popup), and a Recommend action that opens a small
- * track-selection popup (SDMM / IDMM) before submitting.
- *
- * A project can land in this queue (plan approved, not yet recommended)
- * while still failing the execution-readiness gate underneath (a missing
- * required document, an activity with none attached) — the queue list
- * itself doesn't check that. Rather than let the Coordinator find out only
- * after clicking Recommend, the blockers are fetched and shown up front.
+ * Approver's DICT "Sign off execution" flow — the same project-context
+ * treatment as CoordinatorRecommendationModal (details + activities, each
+ * with its own documents on demand), but with no track choice: DICT is
+ * already fixed by the project's category, so the only decision here is
+ * approve or not — one button, an optional comment, nothing else.
  */
-export default function CoordinatorRecommendationModal({ open, project, onClose, onCompleted }) {
+export default function ApproverSignOffModal({ open, project, onClose, onCompleted }) {
   const [loading, setLoading] = useState(false)
   const [activities, setActivities] = useState([])
   const [activityTarget, setActivityTarget] = useState(null)
-  const [trackModalOpen, setTrackModalOpen] = useState(false)
-  const [track, setTrack] = useState('SDMM')
+  const [workflow, setWorkflow] = useState(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [comment, setComment] = useState('')
   const [saving, setSaving] = useState(false)
-  const [blockers, setBlockers] = useState([])
 
   const loadData = useCallback(async () => {
     if (!project?.id) {
       setActivities([])
-      setBlockers([])
+      setWorkflow(null)
       return
     }
     setLoading(true)
@@ -42,10 +37,10 @@ export default function CoordinatorRecommendationModal({ open, project, onClose,
         api.get(`/projects/${project.id}`),
       ])
       setActivities(unwrapList(activitiesRes.data))
-      setBlockers(projectRes.data?.workflow?.execution_blockers || [])
+      setWorkflow(projectRes.data?.workflow ?? null)
     } catch {
       setActivities([])
-      setBlockers([])
+      setWorkflow(null)
     } finally {
       setLoading(false)
     }
@@ -54,9 +49,9 @@ export default function CoordinatorRecommendationModal({ open, project, onClose,
   useEffect(() => {
     if (!open) return
     loadData()
-    setTrack(project?.workflow?.review_track || project?.review_track || 'SDMM')
     setActivityTarget(null)
-    setTrackModalOpen(false)
+    setConfirmOpen(false)
+    setComment('')
   }, [open, project, loadData])
 
   const viewDocument = async (doc) => {
@@ -68,22 +63,25 @@ export default function CoordinatorRecommendationModal({ open, project, onClose,
     }
   }
 
-  const submitRecommend = async () => {
+  const submitSignOff = async () => {
     if (!project?.id) return
     setSaving(true)
     try {
-      await api.post(`/projects/${project.id}/recommend`, { review_track: track })
-      setTrackModalOpen(false)
+      await api.post(`/projects/${project.id}/approve-execution`, { comment: comment.trim() || undefined })
+      message.success('DICT execution sign-off recorded')
+      setConfirmOpen(false)
       onCompleted?.()
       onClose?.()
     } catch (err) {
-      message.error(err.response?.data?.message || 'Could not record the recommendation.')
+      message.error(err.response?.data?.message || 'Could not record the sign-off.')
     } finally {
       setSaving(false)
     }
   }
 
   const activityDocs = (activityTarget?.documents || []).filter((doc) => doc.is_current !== false)
+  const blockers = workflow?.execution_blockers || []
+  const canSignOff = Boolean(workflow?.can_sign_off_execution)
 
   return (
     <>
@@ -97,13 +95,8 @@ export default function CoordinatorRecommendationModal({ open, project, onClose,
         styles={{ body: { maxHeight: '78vh', overflowY: 'auto', paddingRight: 4 } }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button
-              type="primary"
-              style={PRIMARY_BTN}
-              disabled={blockers.length > 0}
-              onClick={() => setTrackModalOpen(true)}
-            >
-              Recommend
+            <Button type="primary" style={PRIMARY_BTN} disabled={!canSignOff} onClick={() => setConfirmOpen(true)}>
+              Sign off execution
             </Button>
             <Button onClick={onClose}>Close</Button>
           </div>
@@ -116,6 +109,10 @@ export default function CoordinatorRecommendationModal({ open, project, onClose,
               <Descriptions.Item label="Category">{project.category || '—'}</Descriptions.Item>
               <Descriptions.Item label="Type">{project.project_type || '—'}</Descriptions.Item>
               <Descriptions.Item label="Planner">{project.planner?.name || '—'}</Descriptions.Item>
+              <Descriptions.Item label="Reviewer">{project.reviewer?.name || '—'}</Descriptions.Item>
+              <Descriptions.Item label="Planned dates">
+                {formatDate(project.planned_start_date)} — {formatDate(project.planned_end_date)}
+              </Descriptions.Item>
               <Descriptions.Item label="Status" span={2}>
                 <Tag>{project.status || '—'}</Tag>
               </Descriptions.Item>
@@ -218,32 +215,24 @@ export default function CoordinatorRecommendationModal({ open, project, onClose,
       </Modal>
 
       <Modal
-        title="Coordinator recommendation"
-        open={trackModalOpen}
-        onCancel={() => setTrackModalOpen(false)}
+        title="DICT execution sign-off"
+        open={confirmOpen}
+        onCancel={() => setConfirmOpen(false)}
         destroyOnHidden
         centered
         zIndex={1100}
         width={480}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button type="primary" style={PRIMARY_BTN} loading={saving} onClick={submitRecommend}>
-              Recommend
+            <Button type="primary" style={PRIMARY_BTN} loading={saving} onClick={submitSignOff}>
+              Sign off
             </Button>
-            <Button onClick={() => setTrackModalOpen(false)}>Close</Button>
+            <Button onClick={() => setConfirmOpen(false)}>Close</Button>
           </div>
         }
       >
-        <div className="mb-2 text-sm font-medium">Review track</div>
-        <Select
-          className="w-full"
-          value={track}
-          onChange={setTrack}
-          options={[
-            { value: 'SDMM', label: 'SDMM' },
-            { value: 'IDMM', label: 'IDMM' },
-          ]}
-        />
+        <div className="mb-2 text-sm font-medium">Comment (optional)</div>
+        <Input.TextArea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} />
       </Modal>
     </>
   )

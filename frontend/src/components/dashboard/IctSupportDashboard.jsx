@@ -42,7 +42,7 @@ function relativeTime(value) {
 
 function MetricCard({ icon: Icon, color, label, value }) {
   return (
-    <Card className="page-shell-card" style={DASHBOARD_CARD_STYLE} styles={{ body: { padding: 20 } }}>
+    <Card className="page-shell-card" style={{ ...DASHBOARD_CARD_STYLE, marginTop: 0 }} styles={{ body: { padding: 20 } }}>
       <div className="flex flex-col items-center text-center">
         <Icon size={22} color={color} />
         <Text type="secondary" className="mt-2 text-xs">
@@ -96,7 +96,7 @@ function IctSupportDashboard() {
 
   if (loading || !ict) {
     return (
-      <Card className="page-shell-card" loading={loading}>
+      <Card className="page-shell-card" style={{ marginTop: 0 }} loading={loading}>
         {!loading && <Text type="secondary">No dashboard data available.</Text>}
       </Card>
     )

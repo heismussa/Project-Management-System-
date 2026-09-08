@@ -216,6 +216,23 @@ class ProjectWorkflowService
         }
     }
 
+    /**
+     * The one rule that applies no matter who's asking or what they were
+     * able to do before: a closed project is frozen. No new activities or
+     * requirements, no edits, no documents — regardless of role or whether
+     * that person's own part of the workflow already passed. Shared here so
+     * every controller that can mutate something under a project (not just
+     * ProjectController's own actions) enforces it the same way.
+     */
+    public static function assertProjectOpen(Project $project): void
+    {
+        if ($project->closed_at) {
+            throw ValidationException::withMessages([
+                'project' => ['This project is closed and can no longer be changed.'],
+            ]);
+        }
+    }
+
     public static function resolveForwardUser(Project $project, string $key, string $roleName): ?User
     {
         if ($key === 'approver' && $project->approver_id) {
@@ -286,6 +303,7 @@ class ProjectWorkflowService
         $forwardUser = self::resolveForwardUser($project, $destination['key'], $destination['role_name']);
 
         $updates = [
+            'lifecycle_stage' => 'execution',
             'execution_started_at' => now(),
             'phase' => 'Execution',
             'status' => 'In Execution',
@@ -337,7 +355,14 @@ class ProjectWorkflowService
             'status' => $project->status,
             'category' => $project->category,
             'review_track' => $track,
-            'queue' => self::queueName($project, $track, $inExecution, $closed),
+            'queue' => self::queueName(
+                $project->plan_review_status,
+                $track,
+                $inExecution,
+                $closed,
+                (bool) $project->closure_requested_at,
+                (bool) $project->recommended_at,
+            ),
             'forward_target' => $destination,
             'forwarded_role' => $project->forwarded_role,
             'forwarded_to_user_id' => $project->forwarded_to_user_id,
@@ -384,34 +409,52 @@ class ProjectWorkflowService
             'phase' => $project->phase,
             'status' => $project->status,
             'review_track' => $track,
-            'queue' => self::queueName($project, $track, $inExecution, $closed),
+            'queue' => self::queueName(
+                $project->plan_review_status,
+                $track,
+                $inExecution,
+                $closed,
+                (bool) $project->closure_requested_at,
+                (bool) $project->recommended_at,
+            ),
             'closure_requested_at' => $project->closure_requested_at,
             'closure_return_comment' => $project->closure_return_comment,
             'closed_at' => $project->closed_at,
         ];
     }
 
-    private static function queueName(Project $project, string $track, bool $inExecution, bool $closed): string
-    {
+    /**
+     * Pure/scalar on purpose (no Project param) — this is called per-row
+     * over a couple thousand projects on the list endpoint, straight off raw
+     * query results, and doesn't need a hydrated model to decide a queue name.
+     */
+    public static function queueName(
+        ?string $planReviewStatus,
+        string $track,
+        bool $inExecution,
+        bool $closed,
+        bool $closureRequested,
+        bool $recommended,
+    ): string {
         if ($closed) {
             return 'closed';
         }
-        if ($project->closure_requested_at) {
+        if ($closureRequested) {
             return 'closure_sign_off';
         }
         if ($inExecution) {
             return 'in_execution';
         }
-        if ($project->plan_review_status === 'pending_review') {
+        if ($planReviewStatus === 'pending_review') {
             return 'plan_review';
         }
-        if ($project->plan_review_status === 'approved' && $track === 'DICT') {
+        if ($planReviewStatus === 'approved' && $track === 'DICT') {
             return 'execution_sign_off';
         }
-        if ($project->plan_review_status === 'approved' && ! $project->recommended_at) {
+        if ($planReviewStatus === 'approved' && ! $recommended) {
             return 'recommendation';
         }
-        if ($project->plan_review_status === 'approved') {
+        if ($planReviewStatus === 'approved') {
             return 'execution_sign_off';
         }
 

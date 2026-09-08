@@ -28,9 +28,6 @@ export function formatRoleLabel(name) {
 }
 
 export const NAV_ITEMS = Project()
-export const ICT_SUPPORT_NAV_ITEMS = NAV_ITEMS.filter((item) =>
-  ['/user-management', '/audit-log'].includes(item.url),
-)
 
 export function getAssignedRoles(user) {
   if (!user) return []
@@ -98,15 +95,14 @@ export function pathAllowedForRole(pathname, roleName) {
   if (pathname.startsWith('/recommendations')) {
     return roleName === ROLES.PCO || roleName === ROLES.PAD
   }
-  if (pathname.startsWith('/reports') || pathname.startsWith('/notifications')) {
-    // Reviewer sidebar hides these; direct URL still allowed for other roles and bookmarks.
+  if (pathname.startsWith('/reports')) {
+    return [ROLES.PAD, ROLES.PRV].includes(roleName)
+  }
+  if (pathname.startsWith('/notifications')) {
     return true
   }
   if (pathname.startsWith('/settings')) {
     return [ROLES.IS, ROLES.PRV, ROLES.PVO, ROLES.PAD].includes(roleName)
-  }
-  if (pathname.startsWith('/admin/master-data')) {
-    return roleName === ROLES.IS || roleName === ROLES.PAD
   }
   return canAccessNavItem(getActiveNavItem(pathname), roleName)
 }
@@ -121,14 +117,6 @@ export function formatUserRoles(user, activeRole = null) {
 
 export function getBreadcrumbCrumbs(pathname, projectName) {
   const active = getActiveNavItem(pathname)
-  const isIctSupport = ICT_SUPPORT_NAV_ITEMS.some((item) => item.url === active.url)
-
-  if (isIctSupport) {
-    return [
-      { label: 'ICT Support', current: false },
-      { label: active.label, link: active.url, current: true },
-    ]
-  }
 
   const crumbs = [
     { label: active.label, link: active.url, current: pathname === active.url || pathname === '/home' },

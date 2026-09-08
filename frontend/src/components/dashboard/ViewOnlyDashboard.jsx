@@ -20,7 +20,7 @@ const REQUIREMENT_SEGMENTS = [
 
 function MetricCard({ label, value }) {
   return (
-    <Card className="page-shell-card" style={DASHBOARD_CARD_STYLE} styles={{ body: { padding: 20 } }}>
+    <Card className="page-shell-card" style={{ ...DASHBOARD_CARD_STYLE, marginTop: 0 }} styles={{ body: { padding: 20 } }}>
       <Text type="secondary">{label}</Text>
       <div className="mt-1 text-3xl font-semibold">{value}</div>
     </Card>
@@ -85,7 +85,7 @@ function ViewOnlyDashboard() {
 
   if (loading || !viewOnly) {
     return (
-      <Card className="page-shell-card" loading={loading}>
+      <Card className="page-shell-card" style={{ marginTop: 0 }} loading={loading}>
         {!loading && <Text type="secondary">No dashboard data available.</Text>}
       </Card>
     )
@@ -179,7 +179,7 @@ function ViewOnlyDashboard() {
           pagination={{ pageSize: 10 }}
           columns={[
             { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
-            { title: 'Project', dataIndex: 'name' },
+            { title: 'Project Name', dataIndex: 'name' },
             { title: 'Category', dataIndex: 'category', render: (value) => value || '—' },
             {
               title: 'Score',

@@ -1,47 +1,57 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Card, Input, Select, Space, Table, Tag, message } from 'antd'
+import { DownloadOutlined, SearchOutlined } from '@ant-design/icons'
 import api from '../lib/axios'
+import { fetchProjectsCached } from '../lib/projectsCache'
 import { unwrapList } from '../lib/apiHelpers'
 import { exportExcel } from '../lib/reportExport'
-import PlanExportButton from '../components/activities/PlanExportButton'
+import { QUEUE_LABELS } from '../lib/queueLabels'
 
-const { Title, Paragraph } = Typography
+function formatMoney(value) {
+  if (!value && value !== 0) return '—'
+  return Number(value).toLocaleString('en-US', { maximumFractionDigits: 0 })
+}
 
 export default function ReportsPage() {
   const [projects, setProjects] = useState([])
-  const [projectId, setProjectId] = useState(null)
-  const [activities, setActivities] = useState([])
+  const [search, setSearch] = useState('')
+  const [reportProjectId, setReportProjectId] = useState(null)
+  const [downloadingReport, setDownloadingReport] = useState(false)
 
   useEffect(() => {
-    api.get('/projects').then((response) => {
+    fetchProjectsCached().then((response) => {
       const list = unwrapList(response.data)
       setProjects(list)
-      setProjectId(list[0]?.id ?? null)
+      setReportProjectId((current) => current ?? list[0]?.id ?? null)
     })
   }, [])
 
-  useEffect(() => {
-    if (!projectId) {
-      setActivities([])
-      return
-    }
-    api
-      .get(`/projects/${projectId}/activities`)
-      .then((response) => setActivities(unwrapList(response.data)))
-      .catch(() => setActivities([]))
-  }, [projectId])
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    if (!term) return projects
+    return projects.filter((project) => {
+      const track = project.review_track || project.workflow?.review_track
+      return [project.name, project.category, project.status, track, project.planner?.name]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(term)
+    })
+  }, [projects, search])
 
   const rows = useMemo(
     () =>
-      projects.map((project) => ({
+      filtered.map((project) => ({
+        id: project.id,
         name: project.name,
-        apr: project.annual_plan_reference,
+        category: project.category,
         status: project.status,
         track: project.review_track || project.workflow?.review_track,
         planner: project.planner?.name,
+        budget: project.budget,
         queue: project.workflow?.queue,
       })),
-    [projects],
+    [filtered],
   )
 
   const exportPortfolio = () => {
@@ -51,52 +61,86 @@ export default function ReportsPage() {
         {
           name: 'Projects',
           columns: [
-            { header: 'Project', key: 'name', width: 32 },
-            { header: 'APR', key: 'apr', width: 20 },
+            { header: 'Project Name', key: 'name', width: 32 },
+            { header: 'Category', key: 'category', width: 16 },
             { header: 'Status', key: 'status', width: 18 },
             { header: 'Track', key: 'track', width: 12 },
             { header: 'Planner', key: 'planner', width: 22 },
+            { header: 'Budget', key: 'budget', width: 16 },
             { header: 'Queue', key: 'queue', width: 20 },
           ],
-          rows,
+          rows: rows.map((row) => ({ ...row, queue: QUEUE_LABELS[row.queue] || row.queue })),
         },
       ],
-    }).then(() => message.success('Portfolio exported'))
+    }).then(() => message.success(`Exported ${rows.length} project(s)`))
+  }
+
+  const downloadProjectReport = async () => {
+    if (!reportProjectId) return
+    setDownloadingReport(true)
+    try {
+      const response = await api.get(`/projects/${reportProjectId}/report`, { responseType: 'blob' })
+      const project = projects.find((item) => item.id === reportProjectId)
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${project?.name || 'project'}-report.docx`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      message.error('Could not download the project report.')
+    } finally {
+      setDownloadingReport(false)
+    }
   }
 
   return (
     <div>
-      <Title level={4} className="!mb-1">
-        Reports
-      </Title>
-      <Paragraph type="secondary">Export the portfolio or the selected implementation plan.</Paragraph>
-
-      <Space wrap className="mb-4">
-        <Button type="primary" onClick={exportPortfolio}>
-          Export portfolio (Excel)
-        </Button>
-        <Select
-          className="min-w-[260px]"
-          value={projectId}
-          onChange={setProjectId}
-          options={projects.map((project) => ({ value: project.id, label: project.name }))}
-        />
-        <PlanExportButton activities={activities} />
+      <Space wrap className="mb-2" style={{ width: '100%', justifyContent: 'space-between' }}>
+        <Space wrap>
+          <Input
+            allowClear
+            prefix={<SearchOutlined className="text-gray-400" />}
+            placeholder="Search project, category, planner, status"
+            className="w-72"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <Button type="primary" icon={<DownloadOutlined />} onClick={exportPortfolio}>
+            Export portfolio (Excel)
+          </Button>
+        </Space>
+        <Space wrap>
+          <Select
+            className="w-64"
+            value={reportProjectId}
+            onChange={setReportProjectId}
+            options={projects.map((project) => ({ value: project.id, label: project.name }))}
+            placeholder="Choose a project"
+          />
+          <Button icon={<DownloadOutlined />} loading={downloadingReport} onClick={downloadProjectReport}>
+            Download project report (Word)
+          </Button>
+        </Space>
       </Space>
 
-      <Card className="page-shell-card">
+      <Card className="page-shell-card" style={{ marginTop: 0 }} styles={{ body: { padding: 10 } }}>
         <Table
           className="pms-house-table"
-          rowKey="name"
+          rowKey="id"
           dataSource={rows}
           columns={[
             { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
-            { title: 'Project', dataIndex: 'name' },
-            { title: 'APR', dataIndex: 'apr' },
+            { title: 'Project Name', dataIndex: 'name' },
+            { title: 'Category', dataIndex: 'category' },
             { title: 'Status', dataIndex: 'status', render: (value) => <Tag>{value}</Tag> },
             { title: 'Track', dataIndex: 'track' },
             { title: 'Planner', dataIndex: 'planner' },
-            { title: 'Queue', dataIndex: 'queue' },
+            { title: 'Budget', dataIndex: 'budget', render: (value) => formatMoney(value) },
+            { title: 'Queue', dataIndex: 'queue', render: (value) => <Tag>{QUEUE_LABELS[value] || value}</Tag> },
           ]}
         />
       </Card>

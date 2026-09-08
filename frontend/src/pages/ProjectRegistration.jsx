@@ -105,7 +105,6 @@ export default function ProjectRegistration({ open, onClose, onRegistered }) {
       const [plannedStart, plannedEnd] = plannedRange || []
       const payload = {
         ...values,
-        annual_plan_reference: values.annual_plan_reference || null,
         planned_start_date: plannedStart ? plannedStart.format('YYYY-MM-DD') : null,
         planned_end_date: plannedEnd ? plannedEnd.format('YYYY-MM-DD') : null,
         initiation_document_id: values.initiation_document_id || null,

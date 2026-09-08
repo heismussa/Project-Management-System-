@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   Alert,
   Button,
-  Drawer,
   Form,
   Input,
   Modal,
@@ -185,13 +184,13 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
             columns={[
               { title: 'Activity', dataIndex: 'name' },
               {
-                title: 'Actual start',
+                title: 'Actual Start',
                 dataIndex: 'actual_start_date',
                 width: 130,
                 render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
               },
               {
-                title: 'Actual end',
+                title: 'Actual End',
                 dataIndex: 'actual_end_date',
                 width: 130,
                 render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
@@ -239,7 +238,7 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
             columns={[
               { title: 'Activity', dataIndex: 'name' },
               {
-                title: 'Proposed change',
+                title: 'Proposed Change',
                 render: (_, record) => JSON.stringify(record.pending_changes || {}),
               },
               {
@@ -422,31 +421,26 @@ export function ReviewWorkspacePanel({ projectId, projectName, onChanged }) {
 
 export default function ReviewWorkspaceDrawer({ open, project, onClose, onCompleted }) {
   return (
-    <Drawer
-      title={null}
+    <Modal
+      title={project ? <span style={{ color: MAROON, fontWeight: 800 }}>Project: {project.name}</span> : null}
       open={open}
-      onClose={onClose}
-      width={Math.min(720, typeof window !== 'undefined' ? window.innerWidth - 24 : 720)}
+      onCancel={onClose}
       destroyOnHidden
-      styles={{ body: { paddingTop: 16 } }}
+      width={720}
+      centered
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      }
     >
       {project && (
         <>
-          <div className="mb-5 border-b border-gray-200 pb-4">
-            <Text type="secondary" className="text-xs uppercase tracking-wide">
-              Review
+          {(project.workflow?.queue || project.queue) && (
+            <Text type="secondary" className="mb-4 block text-sm">
+              Queue: {String(project.workflow?.queue || project.queue).replaceAll('_', ' ')}
             </Text>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <Title level={4} className="!mb-0">
-                Project: {project.name}
-              </Title>
-            </div>
-            {(project.workflow?.queue || project.queue) && (
-              <Text type="secondary" className="mt-1 block text-sm">
-                Queue: {String(project.workflow?.queue || project.queue).replaceAll('_', ' ')}
-              </Text>
-            )}
-          </div>
+          )}
 
           <ReviewWorkspacePanel
             projectId={project.id}
@@ -455,6 +449,6 @@ export default function ReviewWorkspaceDrawer({ open, project, onClose, onComple
           />
         </>
       )}
-    </Drawer>
+    </Modal>
   )
 }

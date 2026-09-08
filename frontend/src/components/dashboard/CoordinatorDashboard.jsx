@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Col, Row, Statistic, Table, Tag, message } from 'antd'
-import api from '../../lib/axios'
 import { storeProjectId, unwrapList } from '../../lib/apiHelpers'
+import { fetchProjectsCached } from '../../lib/projectsCache'
 import CoordinatorRecommendationModal from '../reviews/CoordinatorRecommendationModal'
 import { DASHBOARD_CARD_STYLE } from './chartConstants'
 
@@ -12,8 +12,7 @@ export default function CoordinatorDashboard() {
   const [reviewTarget, setReviewTarget] = useState(null)
 
   const refresh = () =>
-    api
-      .get('/projects')
+    fetchProjectsCached()
       .then((response) => setProjects(unwrapList(response.data)))
       .catch(() => message.error('Could not load projects.'))
 
@@ -42,17 +41,17 @@ export default function CoordinatorDashboard() {
     <div>
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={8}>
-          <Card className="page-shell-card" style={DASHBOARD_CARD_STYLE}>
+          <Card className="page-shell-card" style={{ ...DASHBOARD_CARD_STYLE, marginTop: 0 }}>
             <Statistic title="Awaiting recommendation" value={inbox.length} />
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card className="page-shell-card" style={DASHBOARD_CARD_STYLE}>
+          <Card className="page-shell-card" style={{ ...DASHBOARD_CARD_STYLE, marginTop: 0 }}>
             <Statistic title="SDMM" value={byTrack.SDMM || 0} />
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card className="page-shell-card" style={DASHBOARD_CARD_STYLE}>
+          <Card className="page-shell-card" style={{ ...DASHBOARD_CARD_STYLE, marginTop: 0 }}>
             <Statistic title="IDMM" value={byTrack.IDMM || 0} />
           </Card>
         </Col>
@@ -66,7 +65,7 @@ export default function CoordinatorDashboard() {
           locale={{ emptyText: 'No projects waiting for recommendation.' }}
           columns={[
             { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
-            { title: 'Project', dataIndex: 'name' },
+            { title: 'Project Name', dataIndex: 'name' },
             {
               title: 'Track',
               render: (_, record) => (

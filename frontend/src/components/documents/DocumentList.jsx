@@ -9,6 +9,7 @@ import DocumentUploadModal from './DocumentUploadModal'
 import ProjectPicker from '../common/ProjectPicker'
 import { isSpecReadOnlyRole, useActiveRoleName } from '../common/RoleGuard'
 import api from '../../lib/axios'
+import { fetchProjectsCached } from '../../lib/projectsCache'
 import {
   fetchAuthorizedFileUrl,
   getStoredProjectId,
@@ -47,7 +48,7 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
       return
     }
 
-    const response = await api.get('/projects')
+    const response = await fetchProjectsCached()
     const list = unwrapList(response.data)
     setProjects(list)
     if (Number.isFinite(fromRoute) && fromRoute > 0) {
@@ -103,7 +104,7 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
   }
 
   const columns = [
-    { title: 'File name', dataIndex: 'file_name', key: 'file_name', width: 220 },
+    { title: 'File', dataIndex: 'file_name', key: 'file_name', width: 220 },
     { title: 'Document Type', dataIndex: 'document_type', key: 'document_type', width: 140 },
     {
       title: 'Activity Name',
@@ -124,7 +125,7 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
             render: (value) => `v${value}`,
           },
           {
-            title: 'Review status',
+            title: 'Review Status',
             dataIndex: 'review_status',
             width: 140,
             render: (value) => <ReviewStatusBadge status={value} />,
@@ -134,26 +135,26 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
       ? []
       : [
           {
-            title: 'Reviewer comment',
+            title: 'Reviewer Comment',
             dataIndex: 'review_comment',
             render: (value) => value || '—',
           },
         ]),
     {
-      title: 'Uploaded by',
+      title: 'Uploaded By',
       key: 'uploaded_by',
       width: 160,
       render: (_, record) => record.uploader?.name || '—',
       searchValue: (record) => record.uploader?.name || '',
     },
     {
-      title: 'Uploaded at',
+      title: 'Uploaded At',
       dataIndex: 'uploaded_at',
       width: 105,
       render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
     },
     {
-      title: 'Document Action',
+      title: 'Action',
       key: 'actions',
       width: 155,
       onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),

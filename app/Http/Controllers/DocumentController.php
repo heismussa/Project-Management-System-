@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AuditLog;
 use App\Models\Document;
 use App\Models\Project;
+use App\Services\ProjectWorkflowService;
 use App\Support\InitiationDocuments;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,6 +39,8 @@ class DocumentController extends Controller
             'document_type' => ['nullable', 'string', 'max:100'],
             'file' => ['required', 'file', 'mimes:pdf,docx,xlsx', 'max:10240'],
         ]);
+
+        ProjectWorkflowService::assertProjectOpen(Project::findOrFail($validated['project_id']));
 
         $file = $request->file('file');
         // 'local' (storage/app/private) is not web-reachable — every file is
@@ -128,6 +130,7 @@ class DocumentController extends Controller
         if (! $request->user() || ! $request->user()->hasPermission('projects.register')) {
             return response()->json(['message' => 'Unauthorized access.'], 403);
         }
+        ProjectWorkflowService::assertProjectOpen($project);
 
         $validated = $request->validate([
             'document_type' => ['required', Rule::in(InitiationDocuments::keys())],
@@ -173,15 +176,11 @@ class DocumentController extends Controller
     {
         abort_unless(Storage::disk('local')->exists($document->file_url), 404);
 
-        if ($request->user()) {
-            AuditLog::create([
-                'user_id' => $request->user()->id,
-                'action' => 'document_viewed',
-                'description' => "{$document->file_name} (project {$document->project_id})",
-                'ip_address' => $request->ip(),
-            ]);
-        }
-
+        // Opening a document used to write an audit_logs row on every single
+        // view — the accountability log is meant for actions (approvals,
+        // closures, edits), not routine reads, and this was both cluttering
+        // it and adding a synchronous DB write to the hottest read path in
+        // the app.
         return Storage::disk('local')->response(
             $document->file_url,
             $document->file_name,
@@ -191,6 +190,8 @@ class DocumentController extends Controller
 
     public function replace(Request $request, Document $document): JsonResponse
     {
+        ProjectWorkflowService::assertProjectOpen($document->project);
+
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:pdf,docx,xlsx', 'max:10240'],
         ]);
@@ -225,6 +226,8 @@ class DocumentController extends Controller
 
     public function destroy(Document $document): JsonResponse
     {
+        ProjectWorkflowService::assertProjectOpen($document->project);
+
         if ($document->file_url) {
             Storage::disk('local')->delete($document->file_url);
         }

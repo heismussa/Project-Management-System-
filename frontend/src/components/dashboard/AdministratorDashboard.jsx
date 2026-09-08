@@ -18,7 +18,7 @@ function ClickableStat({ label, value, onClick, accent }) {
   return (
     <Card
       hoverable
-      className="page-shell-card" style={DASHBOARD_CARD_STYLE}
+      className="page-shell-card" style={{ ...DASHBOARD_CARD_STYLE, marginTop: 0 }}
       onClick={onClick}
       styles={{ body: { padding: 20 } }}
       role="button"
@@ -66,7 +66,7 @@ function AdministratorDashboard() {
 
   if (loading || !admin) {
     return (
-      <Card className="page-shell-card" loading={loading}>
+      <Card className="page-shell-card" style={{ marginTop: 0 }} loading={loading}>
         {!loading && <Text type="secondary">No dashboard data available.</Text>}
       </Card>
     )
@@ -206,7 +206,7 @@ function AdministratorDashboard() {
             })}
             columns={[
               { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
-              { title: 'Project', dataIndex: 'project_name' },
+              { title: 'Project Name', dataIndex: 'project_name' },
               { title: 'Blocker', dataIndex: 'reason' },
               {
                 title: 'Days',

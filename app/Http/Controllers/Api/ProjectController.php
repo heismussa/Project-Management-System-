@@ -8,11 +8,15 @@ use App\Models\ImplementationActivity;
 use App\Models\Project;
 use App\Models\Requirement;
 use App\Models\Review;
+use App\Services\ProjectArchiveSummaryBuilder;
 use App\Services\ProjectWorkflowService;
 use App\Support\Roles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProjectController extends Controller
 {
@@ -25,11 +29,11 @@ class ProjectController extends Controller
         $validated['lifecycle_stage'] = 'initiation';
         $validated['plan_review_status'] = 'draft';
         $validated['plan_status'] = 'draft';
-        // The track is derived from category at registration, not chosen by
-        // whoever registers — the Coordinator can still override it when
-        // they recommend the project.
-        $validated['review_track'] = $validated['review_track']
-            ?? ProjectWorkflowService::trackForCategory($validated['category'] ?? null);
+        // review_track is intentionally left unset here — it's not a
+        // registration-time decision. ProjectWorkflowService::reviewTrack()
+        // derives SDMM/IDMM/DICT from category on the fly wherever it's
+        // needed (queue routing, dashboards) until a Coordinator/Approver
+        // actually recommends the project.
 
         $project = Project::create($validated)->load(['reviewer', 'planner', 'coordinator', 'approver']);
 
@@ -40,33 +44,165 @@ class ProjectController extends Controller
         ], 201);
     }
 
+    /**
+     * projects.* has 13 date/datetime-cast columns, and Eloquent's toArray()
+     * spends real time per row re-parsing each of those through Carbon just
+     * to serialize it back out — negligible at dozens of projects, but at a
+     * couple thousand it alone was the entire cost of this endpoint (~2s).
+     * This does the same joins Eloquent's eager-loaded relations would have,
+     * but reshapes plain query-builder rows instead of hydrating and
+     * re-serializing full models, and formats dates with a direct string
+     * transform instead of a Carbon round-trip — same output, far cheaper.
+     */
     public function index(Request $request): JsonResponse
     {
-        $query = Project::with(['reviewer', 'planner', 'coordinator', 'approver', 'forwardedTo'])
-            ->latest();
-
         $plannerId = $request->integer('planner_id') ?: null;
         $role = $request->query('role');
 
+        $query = DB::table('projects')
+            ->leftJoin('users as reviewer_u', 'reviewer_u.id', '=', 'projects.reviewer_id')
+            ->leftJoin('users as planner_u', 'planner_u.id', '=', 'projects.planner_id')
+            ->leftJoin('users as coordinator_u', 'coordinator_u.id', '=', 'projects.coordinator_id')
+            ->leftJoin('users as approver_u', 'approver_u.id', '=', 'projects.approver_id')
+            ->leftJoin('users as forwarded_u', 'forwarded_u.id', '=', 'projects.forwarded_to_user_id')
+            ->select([
+                'projects.*',
+                'reviewer_u.id as reviewer_user_id', 'reviewer_u.name as reviewer_name', 'reviewer_u.email as reviewer_email',
+                'planner_u.id as planner_user_id', 'planner_u.name as planner_name', 'planner_u.email as planner_email',
+                'coordinator_u.id as coordinator_user_id', 'coordinator_u.name as coordinator_name', 'coordinator_u.email as coordinator_email',
+                'approver_u.id as approver_user_id', 'approver_u.name as approver_name', 'approver_u.email as approver_email',
+                'forwarded_u.id as forwarded_user_id', 'forwarded_u.name as forwarded_name', 'forwarded_u.email as forwarded_email',
+            ]);
+
         // Project Planners only see projects assigned to them.
         if ($role === Roles::PLANNER_ROLE && $request->user()) {
-            $query->where('planner_id', $request->user()->id);
+            $query->where('projects.planner_id', $request->user()->id);
         } elseif ($plannerId) {
-            $query->where('planner_id', $plannerId);
+            $query->where('projects.planner_id', $plannerId);
         }
 
-        $projects = $query
-            ->get()
-            ->map(function (Project $project) {
-                $payload = $project->toArray();
-                $payload['workflow'] = ProjectWorkflowService::workflowListPayload($project);
+        $rows = $query->orderByDesc('projects.created_at')->orderByDesc('projects.id')->get();
 
-                return $payload;
-            });
+        $projects = $rows->map(fn ($row) => self::listRowToPayload($row));
 
         return response()->json([
             'data' => $projects,
         ], 200);
+    }
+
+    // datetime-cast columns keep whatever time-of-day is actually stored.
+    private const LIST_DATETIME_COLUMNS = [
+        'plan_reviewed_at', 'plan_submitted_at', 'recommended_at', 'execution_started_at',
+        'execution_approved_at', 'matrix_returned_at', 'closed_at', 'closure_requested_at',
+        'created_at', 'updated_at',
+    ];
+
+    // date-cast columns — Eloquent's `date` cast always normalizes these to
+    // midnight regardless of any time-of-day component in the stored value,
+    // so the raw string has to be truncated to just the date part first.
+    private const LIST_DATE_ONLY_COLUMNS = [
+        'planned_start_date', 'planned_end_date', 'actual_start_date', 'actual_end_date',
+    ];
+
+    private static function listRowToPayload(object $row): array
+    {
+        $attributes = (array) $row;
+
+        $relations = [
+            'reviewer' => self::relationOrNull($attributes, 'reviewer'),
+            'planner' => self::relationOrNull($attributes, 'planner'),
+            'coordinator' => self::relationOrNull($attributes, 'coordinator'),
+            'approver' => self::relationOrNull($attributes, 'approver'),
+            'forwarded_to' => self::relationOrNull($attributes, 'forwarded'),
+        ];
+        foreach (['reviewer', 'planner', 'coordinator', 'approver', 'forwarded'] as $prefix) {
+            unset($attributes["{$prefix}_user_id"], $attributes["{$prefix}_name"], $attributes["{$prefix}_email"]);
+        }
+
+        foreach (self::LIST_DATETIME_COLUMNS as $column) {
+            if (array_key_exists($column, $attributes)) {
+                $attributes[$column] = self::isoDateOrNull($attributes[$column]);
+            }
+        }
+        foreach (self::LIST_DATE_ONLY_COLUMNS as $column) {
+            if (array_key_exists($column, $attributes) && $attributes[$column] !== null) {
+                $attributes[$column] = self::isoDateOrNull(substr($attributes[$column], 0, 10));
+            }
+        }
+        if (array_key_exists('budget', $attributes) && $attributes['budget'] !== null) {
+            $attributes['budget'] = (float) $attributes['budget'];
+        }
+        if (array_key_exists('plan_pending_reapproval', $attributes)) {
+            $attributes['plan_pending_reapproval'] = (bool) $attributes['plan_pending_reapproval'];
+        }
+
+        // Deliberately not routed through workflowListPayload()/a hydrated
+        // Project here — constructing a model (even via forceFill, skipping
+        // toArray()) still runs every date column through Eloquent's cast
+        // system to set it, which was almost as expensive as the toArray()
+        // this rewrite was trying to avoid. queueName() is pure/scalar for
+        // exactly this reason; the track/queue logic below mirrors
+        // reviewTrack()'s own (trivial, stable) explicit-override check.
+        $explicitTrack = strtoupper(trim((string) ($row->review_track ?? '')));
+        $track = in_array($explicitTrack, ['DICT', 'IDMM', 'SDMM'], true)
+            ? $explicitTrack
+            : ProjectWorkflowService::trackForCategory($row->category ?? null);
+        $inExecution = (bool) $row->execution_started_at;
+        $closed = (bool) $row->closed_at;
+        $closureRequested = (bool) $row->closure_requested_at;
+        $recommended = (bool) $row->recommended_at;
+
+        return array_merge($attributes, $relations, [
+            'workflow' => [
+                'plan_review_status' => $row->plan_review_status,
+                'phase' => $row->phase,
+                'status' => $row->status,
+                'review_track' => $track,
+                'queue' => ProjectWorkflowService::queueName(
+                    $row->plan_review_status,
+                    $track,
+                    $inExecution,
+                    $closed,
+                    $closureRequested,
+                    $recommended,
+                ),
+                'closure_requested_at' => self::isoDateOrNull($row->closure_requested_at),
+                'closure_return_comment' => $row->closure_return_comment,
+                'closed_at' => self::isoDateOrNull($row->closed_at),
+            ],
+        ]);
+    }
+
+    private static function relationOrNull(array $attributes, string $prefix): ?array
+    {
+        $id = $attributes["{$prefix}_user_id"] ?? null;
+        if (! $id) {
+            return null;
+        }
+
+        return [
+            'id' => $id,
+            'name' => $attributes["{$prefix}_name"] ?? null,
+            'email' => $attributes["{$prefix}_email"] ?? null,
+        ];
+    }
+
+    /**
+     * Matches Carbon's default JSON serialization for date/datetime casts
+     * (e.g. "2026-09-17T00:00:00.000000Z") without constructing a Carbon
+     * instance — SQLite stores these as "Y-m-d" or "Y-m-d H:i:s", and both
+     * are a fixed-format string away from that, so there's nothing to parse.
+     */
+    private static function isoDateOrNull($raw): ?string
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+        if (strlen($raw) === 10) {
+            return $raw.'T00:00:00.000000Z';
+        }
+
+        return str_replace(' ', 'T', $raw).'.000000Z';
     }
 
     public function show(Project $project): JsonResponse
@@ -517,6 +653,80 @@ class ProjectController extends Controller
         ]);
     }
 
+    /**
+     * Everything about a finished project in one file: every current
+     * document plus a formatted Word summary of the activities, RTM, and
+     * key dates — for handover/archival once there's nothing left to change.
+     */
+    public function archive(Project $project): BinaryFileResponse|JsonResponse
+    {
+        if (! $project->closed_at) {
+            return response()->json(['message' => 'Only a closed project can be downloaded as an archive.'], 422);
+        }
+
+        $documents = $this->loadForSummary($project);
+
+        $tempDir = storage_path('app/private/tmp');
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+        $tempPath = $tempDir.'/project-'.$project->id.'-'.uniqid().'.zip';
+
+        $zip = new \ZipArchive();
+        $zip->open($tempPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        $zip->addFromString('Project Summary.docx', ProjectArchiveSummaryBuilder::build($project, $documents));
+
+        $usedNames = [];
+        foreach ($documents as $document) {
+            $localPath = Storage::disk('local')->path($document->file_url);
+            if (! is_file($localPath)) {
+                continue; // sample/demo rows have no real file behind them
+            }
+            $name = $document->file_name ?: ('document-'.$document->id);
+            while (in_array($name, $usedNames, true)) {
+                $name = pathinfo($name, PATHINFO_FILENAME).'-'.$document->id.'.'.pathinfo($name, PATHINFO_EXTENSION);
+            }
+            $usedNames[] = $name;
+            $zip->addFile($localPath, 'Documents/'.$name);
+        }
+        $zip->close();
+
+        $downloadName = str()->slug($project->name ?: 'project').'-archive.zip';
+
+        return response()->download($tempPath, $downloadName)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * The same formatted Word summary the archive bundles, available for any
+     * project at any stage — not gated on closure like archive() is, since a
+     * planner or reviewer may want a snapshot of a project that's still open.
+     */
+    public function report(Project $project): \Illuminate\Http\Response
+    {
+        $documents = $this->loadForSummary($project);
+        $content = ProjectArchiveSummaryBuilder::build($project, $documents);
+        $downloadName = str()->slug($project->name ?: 'project').'-report.docx';
+
+        return response($content, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'Content-Disposition' => 'attachment; filename="'.$downloadName.'"',
+        ]);
+    }
+
+    private function loadForSummary(Project $project): \Illuminate\Support\Collection
+    {
+        $project->load([
+            'implementationActivities.responsiblePerson:id,name',
+            'requirements',
+            'planner:id,name,email',
+            'reviewer:id,name,email',
+            'coordinator:id,name,email',
+            'approver:id,name,email',
+        ]);
+
+        return $project->documents()->where('is_current', true)->get();
+    }
+
     private function allows(Request $request, array $permissions): bool
     {
         $user = $request->user();
@@ -535,10 +745,6 @@ class ProjectController extends Controller
 
     private function guardOpen(Project $project): void
     {
-        if ($project->closed_at) {
-            throw ValidationException::withMessages([
-                'project' => ['This project is closed.'],
-            ]);
-        }
+        ProjectWorkflowService::assertProjectOpen($project);
     }
 }

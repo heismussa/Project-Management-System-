@@ -4,38 +4,46 @@ import {
   FolderKanban,
   ClipboardCheck,
   Inbox,
-  Database,
   Users,
   History,
+  FileText,
 } from 'lucide-react'
 
 /**
  * Minimalist sidebar: high-level queues/dashboards only.
- * Secondary tools (notifications, reports, nested workspaces) live in header
- * overlays or row-level drawers — not as standalone menu links.
+ * Secondary tools (notifications, nested workspaces) live in header
+ * overlays or row-level drawers — not as standalone menu links. Reports is
+ * the deliberate exception: Admin/Reviewer asked for it as a real tab.
  */
 export default function Project() {
   return [
     {
-      label: 'Dashboard',
+      // Every tab label in this list is deliberately two words — Dashboard
+      // alone next to Project Management/User Management/Audit Log/Project
+      // Reports read as inconsistent line lengths in the same sidebar.
+      label: 'Main Dashboard',
       url: '/',
       roles: [],
       icon: LayoutDashboard,
     },
     {
+      // Same page and label for every role that lands here — the Planner's
+      // copy is scoped to their own assigned projects while everyone else
+      // sees the full list, but it's the same feature, so it keeps the same
+      // name rather than "Assigned Projects" vs "Project Management".
       label: 'Project Management',
       url: '/projects',
-      roles: [ROLES.IS, ROLES.PAD, ROLES.PRV, ROLES.PVO],
+      // Coordinator/Approver are here too, view-only — their part is done
+      // once they've recommended/signed off, but they can still look up any
+      // project (including the ones no longer in their own queue). Every
+      // mutating action in this view is already independently gated to
+      // Planner/Reviewer/Admin, so adding these two roles doesn't grant
+      // them anything beyond visibility.
+      roles: [ROLES.IS, ROLES.PAD, ROLES.PRV, ROLES.PVO, ROLES.PCO, ROLES.PAP, ROLES.PPL],
       icon: FolderKanban,
     },
     {
-      label: 'Assigned Projects',
-      url: '/projects',
-      roles: [ROLES.PPL],
-      icon: FolderKanban,
-    },
-    {
-      label: 'Recommendations',
+      label: 'Project Recommendations',
       url: '/reviews',
       // Reviewer's activity/plan review now lives inline in Project Management
       // (the Details popup) — this queue is Approver execution sign-off (DICT
@@ -46,28 +54,28 @@ export default function Project() {
       icon: ClipboardCheck,
     },
     {
-      label: 'Recommendations',
+      label: 'Project Recommendations',
       url: '/recommendations',
       roles: [ROLES.PCO],
       icon: Inbox,
     },
     {
-      label: 'Master data',
-      url: '/admin/master-data',
-      roles: [ROLES.IS, ROLES.PAD],
-      icon: Database,
-    },
-    {
-      label: 'User management',
+      label: 'User Management',
       url: '/user-management',
       roles: [ROLES.IS, ROLES.PAD],
       icon: Users,
     },
     {
-      label: 'Audit log',
+      label: 'Audit Log',
       url: '/audit-log',
       roles: [ROLES.IS, ROLES.PAD],
       icon: History,
+    },
+    {
+      label: 'Project Reports',
+      url: '/reports',
+      roles: [ROLES.PAD, ROLES.PRV],
+      icon: FileText,
     },
   ]
 }

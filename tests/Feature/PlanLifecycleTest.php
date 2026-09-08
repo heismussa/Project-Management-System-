@@ -420,6 +420,78 @@ class PlanLifecycleTest extends TestCase
         $this->assertDatabaseHas('projects', ['id' => $project->id, 'plan_status' => 'approved']);
     }
 
+    #[Test]
+    public function resaving_unchanged_planning_fields_does_not_reopen_the_plan_or_flag_a_pending_change()
+    {
+        $user = $this->authenticate();
+        $project = Project::create(['name' => 'Test Project', 'planner_id' => $user->id, 'plan_status' => 'approved']);
+        $activity = ImplementationActivity::create([
+            'project_id' => $project->id,
+            'name' => 'Excavation',
+            'expected_deliverable' => 'Trench',
+            'planned_start_date' => '2026-01-01',
+            'planned_end_date' => '2026-01-05',
+            'responsible_person_id' => $user->id,
+            'plan_change_status' => 'approved',
+        ]);
+
+        // Same edit form always resubmits every planning field, even the
+        // ones nobody touched — this reproduces clicking Save without
+        // actually changing anything.
+        $response = $this->putJson("/api/activities/{$activity->id}", [
+            'name' => 'Excavation',
+            'expected_deliverable' => 'Trench',
+            'planned_start_date' => '2026-01-01',
+            'planned_end_date' => '2026-01-05',
+            'responsible_person_id' => $user->id,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertDatabaseHas('projects', ['id' => $project->id, 'plan_status' => 'approved']);
+        $this->assertDatabaseHas('implementation_activities', [
+            'id' => $activity->id,
+            'plan_change_status' => 'approved',
+        ]);
+    }
+
+    #[Test]
+    public function editing_an_activity_after_execution_has_started_does_not_regress_the_project_back_to_planning()
+    {
+        $user = $this->authenticate();
+        $project = Project::create([
+            'name' => 'Test Project',
+            'planner_id' => $user->id,
+            'plan_status' => 'approved',
+            'plan_review_status' => 'approved',
+            'phase' => 'Execution',
+            'status' => 'In Execution',
+            'execution_started_at' => now(),
+        ]);
+        $activity = ImplementationActivity::create([
+            'project_id' => $project->id,
+            'name' => 'Excavation',
+            'plan_change_status' => 'approved',
+        ]);
+
+        $response = $this->putJson("/api/activities/{$activity->id}", ['name' => 'Renamed']);
+
+        $response->assertStatus(200);
+        // The activity's own change still needs sign-off...
+        $this->assertDatabaseHas('implementation_activities', [
+            'id' => $activity->id,
+            'name' => 'Renamed',
+            'plan_change_status' => 'pending',
+        ]);
+        // ...but the project itself must not be relabelled back to Planning
+        // just because one already-executing activity was tweaked.
+        $this->assertDatabaseHas('projects', [
+            'id' => $project->id,
+            'plan_status' => 'approved',
+            'phase' => 'Execution',
+            'status' => 'In Execution',
+        ]);
+    }
+
     // --- activity mutation authorisation ------------------------------------
 
     #[Test]

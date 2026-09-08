@@ -37,6 +37,12 @@ class ImplementationActivityController extends Controller
         // Read early (unvalidated) just to bound the planned dates below —
         // the 'exists:projects,id' rule still catches a genuinely bad id.
         $earlyProject = \App\Models\Project::find($request->input('project_id'));
+        // Checked here, before validation, so a closed project always
+        // reports "this project is closed" rather than an incidental date
+        // error that happens to fire first.
+        if ($earlyProject) {
+            ProjectWorkflowService::assertProjectOpen($earlyProject);
+        }
 
         $plannedStartRule = ['required', 'date'];
         $plannedEndRule = ['required', 'date', 'after_or_equal:planned_start_date'];
@@ -65,6 +71,7 @@ class ImplementationActivityController extends Controller
         if (! $project->canBeManagedBy($request->user())) {
             return response()->json(['message' => 'You can only manage activities on projects assigned to you.'], 403);
         }
+        ProjectWorkflowService::assertProjectOpen($project);
         if ($project->isPlanLocked()) {
             return response()->json(['message' => 'Plan activities cannot be added while the plan is pending review.'], 403);
         }
@@ -99,6 +106,7 @@ class ImplementationActivityController extends Controller
         if (! $project->canBeManagedBy($request->user())) {
             return response()->json(['message' => 'You can only manage activities on projects assigned to you.'], 403);
         }
+        ProjectWorkflowService::assertProjectOpen($project);
 
         $existingStart = optional($activity->actual_start_date)->toDateString();
         $dateRules = ProgressDateRules::actual(
@@ -143,23 +151,45 @@ class ImplementationActivityController extends Controller
         }
 
         if ($planning !== []) {
-            $wasApproved = $project->currentPlanStatus() === 'approved';
-            $activity->update($planning);
-            if ($wasApproved) {
-                $activity->update([
-                    'plan_change_status' => 'pending',
-                    'pending_changes' => array_intersect_key($activity->fresh()->toArray(), array_flip(self::PLANNING_FIELDS)),
-                    'plan_change_comment' => null,
-                ]);
-            } else {
-                $activity->update([
-                    'plan_change_status' => null,
-                    'pending_changes' => null,
-                    'plan_change_comment' => null,
-                ]);
+            // The edit form always resubmits every planning field, even when
+            // the user only opened it to attach a document or just clicked
+            // Save without changing anything — so only treat this as a real
+            // plan change (and send it back through review) when a value
+            // actually differs from what's already stored. Otherwise every
+            // re-save of an already-approved activity was needlessly kicking
+            // it back to "pending" and forcing a second review of nothing.
+            $changed = false;
+            foreach ($planning as $field => $value) {
+                $current = $activity->{$field};
+                if ($current instanceof \Illuminate\Support\Carbon) {
+                    $current = $current->toDateString();
+                }
+                if ((string) $current !== (string) $value) {
+                    $changed = true;
+                    break;
+                }
             }
-            $project->reopenPlanIfApproved();
-            $project->markEditedAfterReturn();
+
+            $activity->update($planning);
+
+            if ($changed) {
+                $wasApproved = $project->currentPlanStatus() === 'approved';
+                if ($wasApproved) {
+                    $activity->update([
+                        'plan_change_status' => 'pending',
+                        'pending_changes' => array_intersect_key($activity->fresh()->toArray(), array_flip(self::PLANNING_FIELDS)),
+                        'plan_change_comment' => null,
+                    ]);
+                } else {
+                    $activity->update([
+                        'plan_change_status' => null,
+                        'pending_changes' => null,
+                        'plan_change_comment' => null,
+                    ]);
+                }
+                $project->reopenPlanIfApproved();
+                $project->markEditedAfterReturn();
+            }
         }
 
         if ($progress !== []) {
@@ -194,6 +224,7 @@ class ImplementationActivityController extends Controller
         if (! $project->canBeManagedBy($request->user())) {
             return response()->json(['message' => 'You can only manage activities on projects assigned to you.'], 403);
         }
+        ProjectWorkflowService::assertProjectOpen($project);
         if ($project->isPlanLocked()) {
             return response()->json(['message' => 'Plan activities cannot be deleted while the plan is pending review.'], 403);
         }
@@ -220,6 +251,7 @@ class ImplementationActivityController extends Controller
     public function approvePlanChange(Request $request, $id): JsonResponse
     {
         $activity = ImplementationActivity::with('project')->findOrFail($id);
+        ProjectWorkflowService::assertProjectOpen($activity->project);
         if ($activity->plan_change_status !== 'pending') {
             throw ValidationException::withMessages([
                 'plan_change_status' => ['This activity has no pending plan change to approve.'],
@@ -270,7 +302,8 @@ class ImplementationActivityController extends Controller
 
     public function rejectPlanChange(Request $request, $id): JsonResponse
     {
-        $activity = ImplementationActivity::findOrFail($id);
+        $activity = ImplementationActivity::with('project')->findOrFail($id);
+        ProjectWorkflowService::assertProjectOpen($activity->project);
         if ($activity->plan_change_status !== 'pending') {
             throw ValidationException::withMessages([
                 'plan_change_status' => ['This activity has no pending plan change to return.'],
@@ -303,7 +336,8 @@ class ImplementationActivityController extends Controller
 
     public function submitProgressReview($id): JsonResponse
     {
-        $activity = ImplementationActivity::findOrFail($id);
+        $activity = ImplementationActivity::with('project')->findOrFail($id);
+        ProjectWorkflowService::assertProjectOpen($activity->project);
 
         $activity->update([
             'progress_review_status' => 'pending',
@@ -319,7 +353,8 @@ class ImplementationActivityController extends Controller
 
     public function approveProgressReview(Request $request, $id): JsonResponse
     {
-        $activity = ImplementationActivity::findOrFail($id);
+        $activity = ImplementationActivity::with('project')->findOrFail($id);
+        ProjectWorkflowService::assertProjectOpen($activity->project);
 
         if ($activity->progress_review_status !== 'pending') {
             throw ValidationException::withMessages([
@@ -352,7 +387,8 @@ class ImplementationActivityController extends Controller
 
     public function rejectProgressReview(Request $request, $id): JsonResponse
     {
-        $activity = ImplementationActivity::findOrFail($id);
+        $activity = ImplementationActivity::with('project')->findOrFail($id);
+        ProjectWorkflowService::assertProjectOpen($activity->project);
         $request->validate(['comment' => ['nullable', 'string']]);
 
         if ($activity->progress_review_status !== 'pending') {

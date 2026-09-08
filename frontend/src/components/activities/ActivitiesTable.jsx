@@ -89,7 +89,7 @@ function ActivitiesTable({
         render: (_, __, index) => index + 1,
       },
       {
-        title: 'Activity Done',
+        title: 'Activity',
         dataIndex: 'name',
         key: 'name',
         ellipsis: true,
@@ -142,7 +142,7 @@ function ActivitiesTable({
       },
       useApprovalStatus
         ? {
-            title: 'Project Status',
+            title: 'Status',
             key: 'status',
             width: STATUS_COLUMN_WIDTH,
             align: 'center',
@@ -154,7 +154,7 @@ function ActivitiesTable({
             },
           }
         : {
-            title: 'Project Status',
+            title: 'Status',
             key: 'status',
             width: STATUS_COLUMN_WIDTH,
             align: 'center',
@@ -177,7 +177,7 @@ function ActivitiesTable({
     return [
       ...baseColumns,
       {
-        title: 'Activity Action',
+        title: 'Action',
         key: 'actions',
         fixed: 'right',
         width: ACTION_COLUMN_WIDTH,

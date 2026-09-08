@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'manage.users' => \App\Http\Middleware\EnsureCanManageUsers::class,
             'can.mutate' => \App\Http\Middleware\EnsureCanMutate::class,
+            'log.denied' => \App\Http\Middleware\LogFailedAuthorization::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

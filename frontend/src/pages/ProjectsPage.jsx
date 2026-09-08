@@ -20,6 +20,7 @@ import {
 import { CloseCircleOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
 import { Search } from 'lucide-react'
 import api from '../lib/axios'
+import { fetchProjectsCached } from '../lib/projectsCache'
 import { fetchAuthorizedFileUrl, storeProjectId, unwrapItem, unwrapList } from '../lib/apiHelpers'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../utility/Config.jsx'
@@ -83,6 +84,7 @@ function ProjectsPage() {
   const [detailTarget, setDetailTarget] = useState(null)
   const [detailWorkflow, setDetailWorkflow] = useState(null)
   const [requestingClosure, setRequestingClosure] = useState(false)
+  const [downloadingArchive, setDownloadingArchive] = useState(false)
   const [signingOffClosure, setSigningOffClosure] = useState(false)
   const [returningClosure, setReturningClosure] = useState(false)
   const [closureReturnOpen, setClosureReturnOpen] = useState(false)
@@ -128,7 +130,7 @@ function ProjectsPage() {
         projectParams.role = ROLES.PPL
       }
 
-      const projectsRes = await api.get('/projects', { params: projectParams })
+      const projectsRes = await fetchProjectsCached(projectParams)
 
       let list = unwrapList(projectsRes.data)
       if (isPlannerRole && user) {
@@ -271,6 +273,26 @@ function ProjectsPage() {
       message.error(err.response?.data?.message || 'Could not close the project.')
     } finally {
       setSigningOffClosure(false)
+    }
+  }
+
+  const downloadProjectArchive = async () => {
+    if (!detailTarget) return
+    setDownloadingArchive(true)
+    try {
+      const response = await api.get(`/projects/${detailTarget.id}/archive`, { responseType: 'blob' })
+      const blob = new Blob([response.data], { type: 'application/zip' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${detailTarget.name || 'project'}-archive.zip`
+      link.click()
+      URL.revokeObjectURL(url)
+      setDetailTarget(null)
+    } catch {
+      message.error('Could not download the project archive.')
+    } finally {
+      setDownloadingArchive(false)
     }
   }
 
@@ -504,7 +526,7 @@ function ProjectsPage() {
       render: (_, __, index) => index + 1,
     },
     {
-      title: 'Name',
+      title: 'Project Name',
       dataIndex: 'name',
       key: 'name',
       ellipsis: true,
@@ -548,7 +570,7 @@ function ProjectsPage() {
       ),
     },
     {
-      title: 'Actions',
+      title: 'Action',
       key: 'actions',
       width: 110,
       align: 'center',
@@ -571,7 +593,7 @@ function ProjectsPage() {
   return (
     <div>
       {/* One 12px gutter, not the card's 1rem class padding plus a body padding on top. */}
-      <Card className="page-shell-card" style={{ padding: 12 }} styles={{ body: { padding: 0 } }}>
+      <Card className="page-shell-card" style={{ padding: 12, marginTop: 0 }} styles={{ body: { padding: 0 } }}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <Tabs
             type="card"
@@ -695,6 +717,11 @@ function ProjectsPage() {
                 </Popconfirm>
                 <Button onClick={openClosureReturn}>Return to planner</Button>
               </>
+            )}
+            {detailTarget?.closed_at && (
+              <Button icon={<DownloadOutlined />} loading={downloadingArchive} onClick={downloadProjectArchive}>
+                Download project
+              </Button>
             )}
             <Button type="default" onClick={() => setDetailTarget(null)}>
               Close
@@ -855,7 +882,7 @@ function ProjectsPage() {
                   locale={{ emptyText: 'No documents attached to this activity.' }}
                   columns={[
                     { title: 'File', dataIndex: 'file_name' },
-                    { title: 'Type', dataIndex: 'document_type', render: (value) => value || 'Document' },
+                    { title: 'Document Type', dataIndex: 'document_type', render: (value) => value || 'Document' },
                     {
                       title: 'Action',
                       width: 100,

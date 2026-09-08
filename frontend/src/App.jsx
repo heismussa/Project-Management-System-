@@ -11,12 +11,10 @@ import { pathAllowedForRole } from './layouts/nav'
 
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'))
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'))
-const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'))
 const AuditLogPage = lazy(() => import('./pages/AuditLogPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
-const MasterDataPage = lazy(() => import('./pages/MasterDataPage'))
 const LegacyProjectRedirect = lazy(() => import('./pages/LegacyProjectRedirect'))
 
 function PageFallback() {
@@ -117,17 +115,15 @@ export default function App() {
                   </RolePageRoute>
                 }
               />
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/notifications" element={<NotificationsPage />} />
               <Route
-                path="/admin/master-data"
+                path="/reports"
                 element={
                   <RolePageRoute>
-                    <MasterDataPage />
+                    <ReportsPage />
                   </RolePageRoute>
                 }
               />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route
                 path="/user-management"
                 element={

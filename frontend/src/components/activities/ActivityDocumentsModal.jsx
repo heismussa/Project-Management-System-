@@ -52,15 +52,15 @@ function ActivityDocumentsModal({ open, activity, projectId, onCancel }) {
             searchPlaceholder="Search documents..."
             columns={[
               { title: 'File', dataIndex: 'file_name' },
-              { title: 'Type', dataIndex: 'document_type', width: 160 },
+              { title: 'Document Type', dataIndex: 'document_type', width: 160 },
               {
-                title: 'Review',
+                title: 'Review Status',
                 dataIndex: 'review_status',
                 width: 130,
                 render: (value) => <ReviewStatusBadge status={value} />,
               },
               {
-                title: 'Uploaded',
+                title: 'Uploaded At',
                 dataIndex: 'uploaded_at',
                 width: 130,
                 render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),

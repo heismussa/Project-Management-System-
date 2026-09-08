@@ -33,6 +33,8 @@ class RequirementController extends Controller
             'remarks' => 'nullable|string',
         ]);
 
+        ProjectWorkflowService::assertProjectOpen(Project::findOrFail($validated['project_id']));
+
         $validated['implementation_status'] = 'Pending';
 
         $requirement = Requirement::create($validated);
@@ -50,7 +52,8 @@ class RequirementController extends Controller
      */
     public function update(Request $request, $id): JsonResponse
     {
-        $requirement = Requirement::findOrFail($id);
+        $requirement = Requirement::with('project')->findOrFail($id);
+        ProjectWorkflowService::assertProjectOpen($requirement->project);
 
         $validated = $request->validate([
             'requirement_code' => 'required|string',
@@ -105,6 +108,7 @@ class RequirementController extends Controller
     public function updateStatus(Request $request, $id): JsonResponse
     {
         $requirement = Requirement::with('project')->findOrFail($id);
+        ProjectWorkflowService::assertProjectOpen($requirement->project);
         $dateRules = ProgressDateRules::actual(
             optional($requirement->project?->planned_start_date)->toDateString(),
             null,
@@ -152,6 +156,7 @@ class RequirementController extends Controller
     public function review(Request $request, $id): JsonResponse
     {
         $requirement = Requirement::with('project')->findOrFail($id);
+        ProjectWorkflowService::assertProjectOpen($requirement->project);
         $dateRules = ProgressDateRules::actual(
             optional($requirement->project?->planned_start_date)->toDateString(),
             null,
@@ -222,6 +227,7 @@ class RequirementController extends Controller
     public function returnMatrix(Request $request, $projectId): JsonResponse
     {
         $project = Project::findOrFail($projectId);
+        ProjectWorkflowService::assertProjectOpen($project);
         $validated = $request->validate([
             'comment' => ['required', 'string'],
         ]);

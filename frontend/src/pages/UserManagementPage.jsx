@@ -270,7 +270,7 @@ function UserManagementPage() {
 
   return (
     <div className="page-container">
-      <Card className="page-shell-card" styles={{ body: { padding: 16 } }}>
+      <Card className="page-shell-card" style={{ marginTop: 0 }} styles={{ body: { padding: 16 } }}>
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <Input
             allowClear

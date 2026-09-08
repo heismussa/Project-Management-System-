@@ -171,6 +171,17 @@ class Project extends Model
 
     public function reopenPlanIfApproved(): void
     {
+        // Once execution has actually started, there's no more "whole plan"
+        // submit/review cycle left to redo — a post-sign-off edit to one
+        // activity's planning fields is settled entirely through that
+        // activity's own plan_change_status (see approvePlanChange), not by
+        // dragging the whole project back into "Planning" / "Plan Returned".
+        // Without this, editing a single approved activity after execution
+        // sign-off silently relabelled the whole project as returned-to-planning.
+        if ($this->execution_started_at) {
+            return;
+        }
+
         if ($this->currentPlanStatus() === 'approved') {
             $this->applyPlanStatus('changes_requested', [
                 'phase' => 'Planning',

@@ -20,7 +20,7 @@ Route::get('/user', function (Request $request) {
 // without a real user ever noticing it's there.
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'log.denied'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/users', [AuthController::class, 'users']);
@@ -76,6 +76,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/projects/{project}/reviews', [ProjectController::class, 'reviews']);
     Route::get('/projects/{project}/closure-readiness', [ProjectController::class, 'closureReadiness']);
     Route::get('/projects/{project}/initiation-readiness', [ProjectController::class, 'initiationReadiness']);
+    Route::get('/projects/{project}/archive', [ProjectController::class, 'archive']);
+    Route::get('/projects/{project}/report', [ProjectController::class, 'report']);
 
     Route::get('/projects/{projectId}/activities', [ImplementationActivityController::class, 'index']);
     Route::get('/activities/{id}/progress', [ImplementationActivityController::class, 'progressHistory']);

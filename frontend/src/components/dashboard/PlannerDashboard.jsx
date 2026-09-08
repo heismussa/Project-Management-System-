@@ -4,6 +4,7 @@ import { Card, Col, Row, message } from 'antd'
 import { FolderKanban, RotateCcw, Clock } from 'lucide-react'
 import dayjs from 'dayjs'
 import api from '../../lib/axios'
+import { fetchProjectsCached } from '../../lib/projectsCache'
 import { storeProjectId, unwrapItem, unwrapList } from '../../lib/apiHelpers'
 import { useAuth } from '../../context/AuthContext'
 import { ROLES } from '../../utility/Config.jsx'
@@ -59,8 +60,7 @@ export default function PlannerDashboard() {
     api.get('/dashboard', { params: { role: ROLES.PPL } }).then((response) => {
       setPayload(unwrapItem(response.data))
     })
-    api
-      .get('/projects', { params: { planner_id: user?.id, role: ROLES.PPL } })
+    fetchProjectsCached({ planner_id: user?.id, role: ROLES.PPL })
       .then((response) => setProjects(unwrapList(response.data)))
       .catch(() => message.error('Could not load assigned projects.'))
 
@@ -131,7 +131,7 @@ export default function PlannerDashboard() {
           searchPlaceholder="Search returned projects..."
           emptyText="No returned plans or closure requests."
           columns={[
-            { title: 'Project', dataIndex: 'name', width: 220 },
+            { title: 'Project Name', dataIndex: 'name', width: 220 },
             {
               title: 'Reason',
               render: (_, record) =>

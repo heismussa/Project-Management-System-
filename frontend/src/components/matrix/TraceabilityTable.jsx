@@ -21,6 +21,7 @@ import { getRequirementStatus } from './requirementStatus'
 import RequirementProgressModal from './RequirementProgressModal'
 import TestScoreModal from './TestScoreModal'
 import api from '../../lib/axios'
+import { fetchProjectsCached } from '../../lib/projectsCache'
 import {
   apiStatusToUi,
   apiTestResultToUi,
@@ -96,7 +97,7 @@ function TraceabilityTable({ embedded = false, projectId: projectIdProp = null }
         return
       }
 
-      const response = await api.get('/projects')
+      const response = await fetchProjectsCached()
       const projectList = unwrapList(response.data)
       setProjects(projectList)
       if (Number.isFinite(fromRoute) && fromRoute > 0) {
@@ -291,7 +292,7 @@ function TraceabilityTable({ embedded = false, projectId: projectIdProp = null }
       render: (value) => `${value ?? 0}%`,
     },
     {
-      title: 'Review decision',
+      title: 'Review Decision',
       key: 'review_decision',
       width: 150,
       onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
@@ -301,7 +302,7 @@ function TraceabilityTable({ embedded = false, projectId: projectIdProp = null }
       },
     },
     {
-      title: 'Test result',
+      title: 'Test Result',
       key: 'test_result',
       width: 120,
       filters: TEST_RESULT_FILTERS,
@@ -310,7 +311,7 @@ function TraceabilityTable({ embedded = false, projectId: projectIdProp = null }
       render: (_, record) => <TestResultBadge result={record.test_result_ui} />,
     },
     {
-      title: 'Actions',
+      title: 'Action',
       key: 'actions',
       fixed: 'right',
       width: 100,
