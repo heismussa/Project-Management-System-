@@ -1,0 +1,305 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Button, Modal, Space, Spin, Tooltip, Typography, message } from 'antd'
+import {
+  CheckCircleFilled,
+  CloseCircleFilled,
+  DownloadOutlined,
+  EyeOutlined,
+  MinusCircleFilled,
+  UploadOutlined,
+} from '@ant-design/icons'
+import api from '../../lib/axios'
+import { fetchAuthorizedFileUrl, storeProjectId, unwrapItem } from '../../lib/apiHelpers'
+
+const { Text } = Typography
+
+function Pill({ bg, color, children }) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        background: bg,
+        color,
+        padding: '3px 10px',
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+        lineHeight: 1.4,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </span>
+  )
+}
+
+function RequirementTag({ required }) {
+  return required ? (
+    <Pill bg="#FBEAEA" color="#962c30">Required</Pill>
+  ) : (
+    <Pill bg="#F2F3F5" color="#555F6D">Optional</Pill>
+  )
+}
+
+function ChecklistRow({ item }) {
+  if (item.uploaded) {
+    return (
+      <div className="flex items-center gap-2 py-1.5">
+        <CheckCircleFilled style={{ color: '#278A45' }} />
+        <Text>{item.label}</Text>
+      </div>
+    )
+  }
+
+  if (item.required) {
+    return (
+      <div className="flex items-center gap-2 py-1.5">
+        <CloseCircleFilled style={{ color: '#B3261E' }} />
+        <Text>Missing required document: {item.label}.</Text>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 py-1.5">
+      <MinusCircleFilled style={{ color: '#98A2B3' }} />
+      <Text type="secondary">{item.label} (optional, not attached)</Text>
+    </div>
+  )
+}
+
+export default function InitiationDocumentsPanel({ projectId, hideProceed = false, onProceeded = null }) {
+  const navigate = useNavigate()
+  const fileInputRef = useRef(null)
+  const uploadKeyRef = useRef(null)
+  const [readiness, setReadiness] = useState(null)
+  const [uploadingKey, setUploadingKey] = useState(null)
+  const [advancing, setAdvancing] = useState(null)
+  const [previewDoc, setPreviewDoc] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+
+  const loadReadiness = useCallback(async () => {
+    if (!projectId) {
+      setReadiness(null)
+      return
+    }
+    try {
+      const response = await api.get(`/projects/${projectId}/initiation-readiness`)
+      setReadiness(unwrapItem(response.data))
+    } catch {
+      message.error('Could not load initiation readiness.')
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    loadReadiness()
+  }, [loadReadiness])
+
+  const triggerUpload = (key) => {
+    if (!projectId) return
+    uploadKeyRef.current = key
+    fileInputRef.current?.click()
+  }
+
+  const handleFileSelected = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    const documentType = uploadKeyRef.current
+    if (!file || !documentType || !projectId) return
+
+    setUploadingKey(documentType)
+    try {
+      const formData = new FormData()
+      formData.append('document_type', documentType)
+      formData.append('file', file)
+      await api.post(`/projects/${projectId}/documents`, formData)
+      message.success('Document uploaded.')
+      await loadReadiness()
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not upload document.')
+    } finally {
+      setUploadingKey(null)
+    }
+  }
+
+  const viewDocument = async (document) => {
+    setPreviewDoc(document)
+    setPreviewUrl(null)
+    setPreviewLoading(true)
+    try {
+      const url = await fetchAuthorizedFileUrl(document.id)
+      setPreviewUrl(url)
+    } catch {
+      message.error('Could not open file.')
+      setPreviewDoc(null)
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  const closePreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewDoc(null)
+    setPreviewUrl(null)
+  }
+
+  const downloadPreview = () => {
+    if (!previewUrl || !previewDoc) return
+    const link = document.createElement('a')
+    link.href = previewUrl
+    link.download = previewDoc.file_name || 'document'
+    link.click()
+  }
+
+  const proceedToPlanning = async () => {
+    if (!projectId) return
+    setAdvancing(true)
+    try {
+      await api.post(`/projects/${projectId}/advance-to-planning`)
+      message.success('Project advanced to Planning.')
+      storeProjectId(projectId)
+      if (onProceeded) {
+        onProceeded()
+      } else {
+        navigate('/projects', { replace: true })
+      }
+    } catch (err) {
+      const blockers = err.response?.data?.errors?.blockers
+      if (Array.isArray(blockers) && blockers.length) {
+        blockers.forEach((blocker) => message.error(blocker))
+      } else {
+        message.error(err.response?.data?.message || 'Could not advance to Planning.')
+      }
+    } finally {
+      setAdvancing(false)
+    }
+  }
+
+  const disabled = !projectId
+  const documents = readiness?.documents ?? []
+  const ready = Boolean(readiness?.ready)
+  const blockers = readiness?.blockers ?? []
+
+  return (
+    <div className={disabled ? 'pointer-events-none opacity-50' : ''}>
+      <input ref={fileInputRef} type="file" accept=".pdf,.docx,.xlsx" className="hidden" onChange={handleFileSelected} />
+
+      <div className="mb-4">
+        <Text strong className="text-base">Initiation Documents</Text>
+      </div>
+
+      {disabled && (
+        <Text type="secondary">Complete Details & assignment first — documents can be attached once the project is saved.</Text>
+      )}
+
+      {!disabled && (
+        <>
+          <div className="rounded-xl border border-[var(--pms-border,#ECE8E4)]">
+            {documents.map((item, index) => (
+              <div
+                key={item.key}
+                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                style={{ borderTop: index === 0 ? 'none' : '1px solid #ECE8E4' }}
+              >
+                <div className="flex items-center gap-3">
+                  <Text strong>{item.label}</Text>
+                  <RequirementTag required={item.required} />
+                </div>
+
+                <Space wrap>
+                  {item.uploaded ? (
+                    <>
+                      <Text type="secondary">
+                        {item.document.file_name} (v{item.document.version_number})
+                      </Text>
+                      <Button size="small" icon={<EyeOutlined />} onClick={() => viewDocument(item.document)}>
+                        View
+                      </Button>
+                      <Button
+                        size="small"
+                        icon={<UploadOutlined />}
+                        loading={uploadingKey === item.key}
+                        onClick={() => triggerUpload(item.key)}
+                      >
+                        Replace
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<UploadOutlined />}
+                      loading={uploadingKey === item.key}
+                      onClick={() => triggerUpload(item.key)}
+                    >
+                      Upload
+                    </Button>
+                  )}
+                </Space>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6">
+            <Text strong className="text-base">Readiness Checklist</Text>
+            <div className="mt-2">
+              {documents.map((item) => (
+                <ChecklistRow key={item.key} item={item} />
+              ))}
+            </div>
+          </div>
+
+          {!hideProceed && (
+            <div className="mt-6 flex items-center gap-3">
+              <Tooltip
+                title={
+                  ready
+                    ? 'All required initiation documents are attached.'
+                    : `Missing: ${blockers.map((b) => b.replace('Missing required document: ', '').replace(/\.$/, '')).join(', ')}`
+                }
+              >
+                <Button type="primary" disabled={!ready} loading={advancing} onClick={proceedToPlanning}>
+                  Proceed to Planning
+                </Button>
+              </Tooltip>
+            </div>
+          )}
+        </>
+      )}
+
+      <Modal
+        title={previewDoc?.file_name}
+        open={previewDoc !== null}
+        onCancel={closePreview}
+        destroyOnHidden
+        width={860}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button icon={<DownloadOutlined />} onClick={downloadPreview}>
+              Download
+            </Button>
+            <Button onClick={closePreview}>Close</Button>
+          </div>
+        }
+      >
+        {previewLoading ? (
+          <div className="flex justify-center py-16">
+            <Spin />
+          </div>
+        ) : previewUrl && previewDoc?.file_name?.toLowerCase().endsWith('.pdf') ? (
+          <iframe
+            src={previewUrl}
+            title={previewDoc.file_name}
+            style={{ width: '100%', height: '70vh', border: 'none' }}
+          />
+        ) : previewUrl ? (
+          <div className="py-16 text-center text-sm text-gray-500">
+            Preview isn't available for this file type — use Download to view it.
+          </div>
+        ) : null}
+      </Modal>
+    </div>
+  )
+}

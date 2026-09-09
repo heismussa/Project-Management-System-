@@ -1,0 +1,118 @@
+.pms-datatable-container {
+  width: 100%;
+  padding: 20px 25px;
+  box-sizing: border-box;
+}
+
+.pms-datatable-search {
+  display: flex;
+  align-items: center;
+  width: 55%;
+  height: 42px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background: #fff;
+  margin-bottom: 12px;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.pms-datatable-search-icon {
+  color: #555;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.pms-datatable-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #333;
+}
+
+.pms-datatable-search-input::placeholder {
+  color: #999;
+}
+
+.pms-datatable-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Compact embedding (e.g. the Planner's simplified workspace): trim the
+   outer padding and cap the table's height to about 3 rows so it doesn't
+   grow unbounded — the rest is reachable by scrolling inside the table. */
+.pms-datatable-limited {
+  padding: 4px 0;
+}
+
+.pms-datatable-limited .pms-datatable-scroll {
+  max-height: 205px;
+  overflow-y: auto;
+}
+
+.pms-datatable-limited .pms-datatable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* The header color lives on .pms-datatable thead tr, but a sticky element
+     needs its own opaque background — otherwise scrolled-under row content
+     shows through the (transparent) sticky <th> cells. */
+  background: #962c30;
+}
+
+.pms-datatable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: #fff;
+}
+
+.pms-datatable thead tr {
+  background: #962c30;
+  height: 45px;
+}
+
+.pms-datatable thead th {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  padding: 0 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pms-datatable thead th:last-child {
+  border-right: none;
+}
+
+.pms-datatable tbody td {
+  height: 52px;
+  padding: 0 12px;
+  font-size: 15px;
+  color: #555;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  background: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pms-datatable tbody tr:hover td {
+  background: #fafafa;
+}
+
+.pms-datatable-row-clickable {
+  cursor: pointer;
+}
+
+.pms-datatable-empty {
+  text-align: center;
+  color: #999;
+  height: 80px;
+}
