@@ -11,7 +11,8 @@ import ViewOnlyDashboard from '../components/dashboard/ViewOnlyDashboard'
 import IctSupportDashboard from '../components/dashboard/IctSupportDashboard'
 import PlannerDashboard from '../components/dashboard/PlannerDashboard'
 import CoordinatorDashboard from '../components/dashboard/CoordinatorDashboard'
-import { DASHBOARD_CARD_STYLE } from '../components/dashboard/chartConstants'
+import ApproverDashboard from '../components/dashboard/ApproverDashboard'
+import { DASHBOARD_CARD_STYLE } from '../components/dashboard/shared/chartConstants'
 
 const METRIC_LABELS = {
   new_registrations: 'New registrations',
@@ -35,6 +36,7 @@ function DashboardPage() {
   const isIctSupport = activeRole?.name === ROLES.IS
   const isPlanner = activeRole?.name === ROLES.PPL
   const isCoordinator = activeRole?.name === ROLES.PCO
+  const isApprover = activeRole?.name === ROLES.PAP
   const [payload, setPayload] = useState(null)
 
   useEffect(() => {
@@ -73,6 +75,10 @@ function DashboardPage() {
 
   if (isCoordinator) {
     return <CoordinatorDashboard />
+  }
+
+  if (isApprover) {
+    return <ApproverDashboard />
   }
 
   if (isViewOnly) {

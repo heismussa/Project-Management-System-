@@ -135,7 +135,11 @@ function AppLayoutShell() {
               <BreadCrumb crumbs={crumbs} className="w-full flex-1" />
             </div>
           )}
-          {pathAllowedForRole(location.pathname, activeRole?.name) ? <Outlet /> : <Navigate to="/" replace />}
+          {pathAllowedForRole(location.pathname, activeRole?.name, location.search) ? (
+            <Outlet />
+          ) : (
+            <Navigate to="/" replace />
+          )}
         </div>
       </div>
 

@@ -61,12 +61,16 @@ export function documentFileUrl(documentId) {
   return `http://localhost:8000/api/documents/${documentId}/file`
 }
 
-export async function fetchAuthorizedFileUrl(documentId) {
+export async function fetchAuthorizedFile(documentId) {
   const token = localStorage.getItem('auth_token')
   const response = await fetch(documentFileUrl(documentId), {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
   if (!response.ok) throw new Error('Could not load file')
-  const blob = await response.blob()
+  return response.blob()
+}
+
+export async function fetchAuthorizedFileUrl(documentId) {
+  const blob = await fetchAuthorizedFile(documentId)
   return URL.createObjectURL(blob)
 }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentController;
@@ -76,8 +77,9 @@ Route::middleware(['auth:sanctum', 'log.denied'])->group(function () {
     Route::get('/projects/{project}/reviews', [ProjectController::class, 'reviews']);
     Route::get('/projects/{project}/closure-readiness', [ProjectController::class, 'closureReadiness']);
     Route::get('/projects/{project}/initiation-readiness', [ProjectController::class, 'initiationReadiness']);
-    Route::get('/projects/{project}/archive', [ProjectController::class, 'archive']);
-    Route::get('/projects/{project}/report', [ProjectController::class, 'report']);
+    Route::get('/projects/{project}/archive', [ReportController::class, 'archive']);
+    Route::get('/projects/{project}/report', [ReportController::class, 'report']);
+    Route::post('/reports/portfolio/word', [ReportController::class, 'portfolioReportWord']);
 
     Route::get('/projects/{projectId}/activities', [ImplementationActivityController::class, 'index']);
     Route::get('/activities/{id}/progress', [ImplementationActivityController::class, 'progressHistory']);

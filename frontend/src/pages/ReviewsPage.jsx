@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { Button, Card, Table, Tag, message } from 'antd'
 import ReviewWorkspaceDrawer, { ReviewWorkspacePanel } from '../components/reviews/ReviewWorkspaceDrawer'
@@ -10,12 +10,6 @@ import { useActiveRoleName } from '../components/common/RoleGuard'
 import { ROLES } from '../utility/Config.jsx'
 import { QUEUE_LABELS } from '../lib/queueLabels'
 
-// This page only ever lists queues someone can act on here — planning/
-// in_execution/closed projects show up in Reports and Project Management,
-// not in this actionable queue, even though QUEUE_LABELS now has a label
-// for every queue (it's shared with pages that show all of them).
-const ACTIONABLE_QUEUES = new Set(['plan_review', 'recommendation', 'execution_sign_off', 'closure_sign_off'])
-
 const REVIEW_BTN_STYLE = { backgroundColor: '#800000', borderColor: '#800000' }
 
 function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
@@ -25,6 +19,8 @@ function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
   const [searchParams] = useSearchParams()
   const [projects, setProjects] = useState([])
   const [reviewTarget, setReviewTarget] = useState(null)
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(false)
   const [projectId, setProjectId] = useState(() => {
     const fromRoute = Number(routeId)
     if (Number.isFinite(fromRoute) && fromRoute > 0) {
@@ -43,12 +39,14 @@ function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
     }
   }, [routeId])
 
+  // Embedded mode (a single project's review panel) wants the plain,
+  // unscoped list to resolve this one project's name.
   useEffect(() => {
+    if (!embedded) return
     fetchProjectsCached()
       .then((response) => {
         const list = unwrapList(response.data)
         setProjects(list)
-        if (!embedded) return
         setProjectId((current) => {
           if (current && list.some((project) => project.id === current)) return current
           const first = list[0]?.id ?? null
@@ -59,31 +57,39 @@ function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
       .catch((err) => message.error(err.response?.data?.message || 'Could not load queue.'))
   }, [embedded])
 
-  const refreshQueue = useCallback(async () => {
-    const list = unwrapList((await fetchProjectsCached()).data)
-    setProjects(list)
-  }, [])
+  // Coordinator's page (queueFilter='recommendation'), Approver's
+  // (queueFilter=null, isApprover), and Reviewer's (queueFilter=[plan_review,
+  // closure_sign_off]) each map to their own server-side scope — GET
+  // /projects?scope=<x>_pending — so only the rows this role can act on
+  // ever cross the wire, not the whole portfolio filtered client-side.
+  const scopePrefix = queueFilter === 'recommendation' ? 'coordinator' : isApprover ? 'approver' : 'reviewer'
 
-  const queueRows = useMemo(() => {
-    return projects
-      .filter((project) => {
-        const queue = project.workflow?.queue
-        if (!ACTIONABLE_QUEUES.has(queue)) return false
-        if (queueFilter) return queue === queueFilter
-        // Approver only ever has something to do at DICT execution sign-off —
-        // plan review and closure sign-off are always the Reviewer's call,
-        // even for a DICT-track project, so those stages don't belong here.
-        if (isApprover) {
-          const track = project.workflow?.review_track || project.review_track
-          return track === 'DICT' && queue === 'execution_sign_off'
-        }
-        return true
-      })
-      .map((project) => ({
-        ...project,
-        queue: project.workflow?.queue,
-      }))
-  }, [projects, queueFilter, isApprover])
+  const loadQueue = useCallback(async () => {
+    setLoading(true)
+    try {
+      const response = await fetchProjectsCached({ scope: `${scopePrefix}_pending` })
+      const list = unwrapList(response.data).map((project) => ({ ...project, queue: project.workflow?.queue }))
+      setRows(list)
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Could not load queue.')
+    } finally {
+      setLoading(false)
+    }
+  }, [scopePrefix])
+
+  useEffect(() => {
+    if (embedded) return
+    loadQueue()
+  }, [embedded, loadQueue])
+
+  const refreshQueue = useCallback(async () => {
+    if (embedded) {
+      const list = unwrapList((await fetchProjectsCached()).data)
+      setProjects(list)
+      return
+    }
+    await loadQueue()
+  }, [embedded, loadQueue])
 
   if (embedded) {
     return (
@@ -101,18 +107,26 @@ function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
         <Table
           className="pms-house-table"
           rowKey="id"
+          loading={loading}
           pagination={{ pageSize: 8 }}
-          dataSource={queueRows}
+          dataSource={rows}
           locale={{ emptyText: 'Nothing in this queue.' }}
           columns={[
             { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
-            { title: 'Project Name', dataIndex: 'name' },
+            {
+              title: 'Project Name',
+              dataIndex: 'name',
+            },
             {
               title: 'Queue',
               dataIndex: 'queue',
               render: (value) => <Tag>{QUEUE_LABELS[value] || value}</Tag>,
             },
-            { title: 'Planner', render: (_, record) => record.planner?.name || '—' },
+            {
+              title: 'Planner',
+              key: 'planner',
+              render: (_, record) => record.planner?.name || '—',
+            },
             {
               title: 'Action',
               width: 130,

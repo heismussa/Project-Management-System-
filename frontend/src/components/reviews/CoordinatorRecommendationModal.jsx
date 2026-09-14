@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { Alert, Button, Descriptions, Modal, Select, Spin, Table, Tag, message } from 'antd'
 import { EyeOutlined } from '@ant-design/icons'
 import api from '../../lib/axios'
-import { fetchAuthorizedFileUrl, unwrapList } from '../../lib/apiHelpers'
+import { unwrapList } from '../../lib/apiHelpers'
 import { formatDate } from '../../lib/dates'
+import { useDocumentPreview } from '../../lib/useDocumentPreview'
+import DocumentPreviewModal from '../documents/DocumentPreviewModal'
 
 const MAROON = '#800000'
 const PRIMARY_BTN = { backgroundColor: MAROON, borderColor: MAROON }
@@ -59,14 +61,17 @@ export default function CoordinatorRecommendationModal({ open, project, onClose,
     setTrackModalOpen(false)
   }, [open, project, loadData])
 
-  const viewDocument = async (doc) => {
-    try {
-      const url = await fetchAuthorizedFileUrl(doc.id)
-      window.open(url, '_blank', 'noopener')
-    } catch {
-      message.error('Could not open document.')
-    }
-  }
+  const {
+    previewDoc,
+    previewUrl,
+    previewHtml,
+    previewKind,
+    previewLoading,
+    downloadingId,
+    viewDocument,
+    closePreview,
+    downloadDocument,
+  } = useDocumentPreview()
 
   const submitRecommend = async () => {
     if (!project?.id) return
@@ -245,6 +250,18 @@ export default function CoordinatorRecommendationModal({ open, project, onClose,
           ]}
         />
       </Modal>
+
+      <DocumentPreviewModal
+        doc={previewDoc}
+        url={previewUrl}
+        html={previewHtml}
+        kind={previewKind}
+        loading={previewLoading}
+        downloading={downloadingId === previewDoc?.id}
+        onClose={closePreview}
+        onDownload={downloadDocument}
+        zIndex={1100}
+      />
     </>
   )
 }

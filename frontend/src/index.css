@@ -237,13 +237,57 @@ html.dark {
   box-shadow: inset 3px 0 0 #d9a323;
 }
 
-/* Hide the classic up/down scrollbar arrow buttons everywhere (Chromium).
-   The app relies on the draggable thumb + wheel/trackpad; the arrow
-   buttons just added visual noise on every scrollable panel. */
-*::-webkit-scrollbar-button {
+/* Hide the scrollbar everywhere — track, thumb, and arrow buttons alike.
+   Scrolling itself still works (wheel, trackpad, drag, keyboard); only the
+   visible bar is gone. Hiding just the arrow buttons (the previous
+   approach) depended on ::-webkit-scrollbar-button, which only Chromium
+   understands — Firefox ignores it outright, so the buttons kept
+   reappearing there no matter how that selector was tuned. Hiding the
+   whole bar uses one rule per engine instead, so there's nothing left
+   that can selectively fail: `scrollbar-width: none` (Firefox),
+   `-ms-overflow-style: none` (old Edge), and `::-webkit-scrollbar {
+   display: none }` (Chromium/Safari) each remove it completely on their
+   own engine. */
+html,
+body,
+.pms-main,
+.pms-sidebar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.pms-main::-webkit-scrollbar,
+.pms-sidebar::-webkit-scrollbar {
   display: none;
   width: 0;
   height: 0;
+}
+
+/* Dashboard banner greeting — staggered per-word rise+fade ("wave"); see
+   DashboardHeaderBanner.jsx. Skipped entirely for anyone who has asked
+   their OS/browser for reduced motion. */
+.dashboard-banner-greeting__word {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: dashboard-banner-wave 0.5s ease-out forwards;
+}
+
+@keyframes dashboard-banner-wave {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-banner-greeting__word {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .avatar {

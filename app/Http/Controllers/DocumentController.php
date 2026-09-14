@@ -16,9 +16,14 @@ class DocumentController extends Controller
 {
     public function index(Request $request, int $projectId): JsonResponse
     {
-        $query = Document::where('project_id', $projectId)
-            ->with(['uploader:id,name', 'reviewer:id,name', 'activity:id,name', 'requirement:id,requirement_code'])
-            ->latest('uploaded_at');
+        $query = Document::where('project_id', $projectId)->latest('uploaded_at');
+
+        // Report generation pulls this for every selected project at once
+        // and only reads native columns (file_name, document_type, etc.) —
+        // ?lite=1 skips relations it never reads.
+        if (! $request->boolean('lite')) {
+            $query->with(['uploader:id,name', 'reviewer:id,name', 'activity:id,name', 'requirement:id,requirement_code']);
+        }
 
         if ($request->filled('activity_id')) {
             $query->where('activity_id', $request->integer('activity_id'));

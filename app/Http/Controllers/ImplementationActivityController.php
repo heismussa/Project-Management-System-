@@ -21,10 +21,17 @@ class ImplementationActivityController extends Controller
         'responsible_person_id',
     ];
 
-    public function index($projectId): JsonResponse
+    public function index(Request $request, $projectId): JsonResponse
     {
+        // Report generation pulls this for every selected project at once —
+        // ?lite=1 skips the role/documents eager loads it never reads,
+        // which otherwise fire an extra query per project for nothing.
+        $relations = $request->boolean('lite')
+            ? ['responsiblePerson:id,name']
+            : ['responsiblePerson:id,name,email', 'responsiblePerson.activeRoles', 'documents'];
+
         $activities = ImplementationActivity::where('project_id', $projectId)
-            ->with(['responsiblePerson:id,name,email', 'responsiblePerson.activeRoles', 'documents'])
+            ->with($relations)
             ->orderBy('planned_start_date')
             ->orderBy('id')
             ->get();

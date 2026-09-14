@@ -10,6 +10,7 @@ class Roles
 {
     public const PLANNER_ROLE = 'Project Planner';
     public const ADMINISTRATOR_ROLE = 'Project Administrator';
+    public const REVIEWER_ROLE = 'Project Reviewer';
 
     // Anyone in this list may perform Planner actions somewhere in the
     // app. It does NOT by itself encode the ownership rule (a Planner may

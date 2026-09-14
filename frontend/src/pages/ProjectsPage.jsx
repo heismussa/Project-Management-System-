@@ -9,27 +9,34 @@ import {
   Input,
   Modal,
   Popconfirm,
-  Select,
   Space,
-  Spin,
   Table,
   Tabs,
   Tag,
   message,
 } from 'antd'
-import { CloseCircleOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
+import { CloseCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { Search } from 'lucide-react'
 import api from '../lib/axios'
 import { fetchProjectsCached } from '../lib/projectsCache'
-import { fetchAuthorizedFileUrl, storeProjectId, unwrapItem, unwrapList } from '../lib/apiHelpers'
+import { storeProjectId, unwrapItem, unwrapList } from '../lib/apiHelpers'
+import { useDocumentPreview } from '../lib/useDocumentPreview'
+import DocumentPreviewModal from '../components/documents/DocumentPreviewModal'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../utility/Config.jsx'
 import { deriveStatus } from '../lib/status'
 import { formatDate } from '../lib/dates'
 import InitiationDocumentsPanel from '../components/projects/InitiationDocumentsPanel'
 import ProjectWorkspaceTabs from '../components/projects/ProjectWorkspaceTabs'
+import ActivityReviewModal from '../components/projects/ActivityReviewModal'
+import ReassignPlannerModal from '../components/projects/ReassignPlannerModal'
+import ClosureReturnModal from '../components/projects/ClosureReturnModal'
 
 const ProjectRegistration = lazy(() => import('./ProjectRegistration'))
+
+// Stable reference so a scope with no rows yet doesn't make `projects` (and
+// everything memoized off it) look like a new value on every render.
+const EMPTY_PROJECTS = []
 
 const DERIVED_STATUS_LABELS = { not_started: 'Not started', ongoing: 'Ongoing', completed: 'Completed' }
 const LIFECYCLE_STAGE_LABELS = { initiation: 'Initiation', planning: 'Planning', execution: 'Execution', closure: 'Closure' }
@@ -58,22 +65,25 @@ function hasPermission(user, code) {
   return (user?.permissions || []).includes(code)
 }
 
-function isAssignedToPlanner(project, user) {
-  if (!user) return false
-  if (project.planner_id != null && Number(project.planner_id) === Number(user.id)) return true
-  const userName = user.name || user.full_name
-  if (userName && project.planner?.name === userName) return true
-  return false
-}
-
 export function isCompletedProject(project) {
   return Boolean(project?.closed_at) || project?.status === 'Closed'
 }
 
+// Only Reviewer reaches the full, unscoped portfolio table — everyone else
+// has their own Pending/History queue page and reaches this component only
+// via a ?detail= deep link to one specific project (see canBrowseAll
+// below), never the list itself.
+const PROJECT_LIST_ROLES = [ROLES.PRV]
+
 function ProjectsPage() {
   const { user, activeRole } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [projects, setProjects] = useState([])
+  const canBrowseAll = PROJECT_LIST_ROLES.includes(activeRole?.name)
+  // Keyed by scope ('ongoing' | 'completed') so switching tabs never
+  // refetches or re-renders the tab you're leaving — each tab's rows are
+  // fetched once, on first visit, straight from the server (GET
+  // /projects?scope=...), not filtered client-side out of one big list.
+  const [projectsByScope, setProjectsByScope] = useState({})
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState(() => searchParams.get('q') || '')
@@ -84,7 +94,6 @@ function ProjectsPage() {
   const [detailTarget, setDetailTarget] = useState(null)
   const [detailWorkflow, setDetailWorkflow] = useState(null)
   const [requestingClosure, setRequestingClosure] = useState(false)
-  const [downloadingArchive, setDownloadingArchive] = useState(false)
   const [signingOffClosure, setSigningOffClosure] = useState(false)
   const [returningClosure, setReturningClosure] = useState(false)
   const [closureReturnOpen, setClosureReturnOpen] = useState(false)
@@ -101,10 +110,6 @@ function ProjectsPage() {
   const [isRejectingActivity, setIsRejectingActivity] = useState(false)
   const [activityRejectReason, setActivityRejectReason] = useState('')
   const [activityReviewSaving, setActivityReviewSaving] = useState(false)
-  const [downloadingDocId, setDownloadingDocId] = useState(null)
-  const [previewDoc, setPreviewDoc] = useState(null)
-  const [previewUrl, setPreviewUrl] = useState(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
   const [actionsOpenId, setActionsOpenId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [registerOpen, setRegisterOpen] = useState(false)
@@ -121,29 +126,20 @@ function ProjectsPage() {
     (activeRole?.name === ROLES.PRV || activeRole?.name === ROLES.PAD) &&
     hasPermission(user, 'projects.register')
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (scope) => {
     setLoading(true)
     try {
-      const projectParams = {}
-      if (isPlannerRole && user?.id) {
-        projectParams.planner_id = user.id
-        projectParams.role = ROLES.PPL
-      }
-
-      const projectsRes = await fetchProjectsCached(projectParams)
-
-      let list = unwrapList(projectsRes.data)
-      if (isPlannerRole && user) {
-        list = list.filter((project) => isAssignedToPlanner(project, user))
-      }
-
-      setProjects(list)
+      const projectsRes = await fetchProjectsCached({ scope })
+      const list = unwrapList(projectsRes.data)
+      setProjectsByScope((prev) => ({ ...prev, [scope]: list }))
     } catch (err) {
       message.error(err.response?.data?.message || 'Could not load projects.')
     } finally {
       setLoading(false)
     }
-  }, [isPlannerRole, user])
+  }, [])
+
+  const projects = useMemo(() => projectsByScope[view] ?? EMPTY_PROJECTS, [projectsByScope, view])
 
   const loadUsersForReassign = useCallback(async () => {
     if (users.length) return
@@ -175,21 +171,31 @@ function ProjectsPage() {
   }
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (!canBrowseAll) return
+    load(view)
+  }, [canBrowseAll, view, load])
 
   useEffect(() => {
     const detailId = Number(searchParams.get('detail'))
     if (!Number.isFinite(detailId) || detailId <= 0) return
+    if (detailTarget && detailTarget.id === detailId) return
 
-    const project = projects.find((item) => item.id === detailId)
-    if (!project) return
-
-    if (!detailTarget || detailTarget.id !== detailId) {
-      openDetail(project)
+    // Browse-all roles already have this tab's rows loaded — reuse them.
+    // Everyone else (deep-linked in from their own queue page) never loads
+    // the table at all, and a browse-all role can also land here with the
+    // linked project sitting in the OTHER tab — either way, fetch that one
+    // project directly instead of depending on a list that may not have it.
+    const cached = canBrowseAll ? projects.find((item) => item.id === detailId) : null
+    if (cached) {
+      openDetail(cached)
+      return
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- open when list loads with ?detail=
-  }, [projects, searchParams])
+    api
+      .get(`/projects/${detailId}`)
+      .then((response) => openDetail(unwrapItem(response.data)))
+      .catch(() => message.error('Could not load that project.'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open when the link target loads
+  }, [projects, searchParams, canBrowseAll])
 
   // After Register project → land on Ongoing list, toast, and refresh.
   const handleRegistered = ({ id, name }) => {
@@ -201,7 +207,7 @@ function ProjectsPage() {
     }
     message.success(`Project "${name}" registered successfully`)
     storeProjectId(id)
-    load()
+    load(view)
   }
 
   const planners = useMemo(() => {
@@ -214,9 +220,6 @@ function ProjectsPage() {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return projects.filter((project) => {
-      const completed = isCompletedProject(project)
-      if (isCompletedView && !completed) return false
-      if (!isCompletedView && completed) return false
       if (derivedStatusFilter && deriveStatus(project) !== derivedStatusFilter) return false
       if (lifecycleStageFilter && project.lifecycle_stage !== lifecycleStageFilter) return false
       if (!term) return true
@@ -226,7 +229,7 @@ function ProjectsPage() {
         .toLowerCase()
         .includes(term)
     })
-  }, [projects, search, derivedStatusFilter, lifecycleStageFilter, isCompletedView])
+  }, [projects, search, derivedStatusFilter, lifecycleStageFilter])
 
   const clearStructuredFilter = () => {
     const next = new URLSearchParams(searchParams)
@@ -245,7 +248,10 @@ function ProjectsPage() {
         setDetailTarget((prev) => (prev ? { ...prev, ...updated } : updated))
       })
       .catch(() => {})
-    load()
+    // Non-browse-all roles never loaded the scoped table in the first
+    // place — the direct GET above already keeps their one open project
+    // current, nothing else on screen depends on the list.
+    if (canBrowseAll) load(view)
   }
 
   const requestClosure = async () => {
@@ -273,26 +279,6 @@ function ProjectsPage() {
       message.error(err.response?.data?.message || 'Could not close the project.')
     } finally {
       setSigningOffClosure(false)
-    }
-  }
-
-  const downloadProjectArchive = async () => {
-    if (!detailTarget) return
-    setDownloadingArchive(true)
-    try {
-      const response = await api.get(`/projects/${detailTarget.id}/archive`, { responseType: 'blob' })
-      const blob = new Blob([response.data], { type: 'application/zip' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${detailTarget.name || 'project'}-archive.zip`
-      link.click()
-      URL.revokeObjectURL(url)
-      setDetailTarget(null)
-    } catch {
-      message.error('Could not download the project archive.')
-    } finally {
-      setDownloadingArchive(false)
     }
   }
 
@@ -348,42 +334,17 @@ function ProjectsPage() {
     loadUsersForReassign()
   }
 
-  const viewDocument = async (doc) => {
-    setPreviewDoc(doc)
-    setPreviewUrl(null)
-    setPreviewLoading(true)
-    try {
-      const url = await fetchAuthorizedFileUrl(doc.id)
-      setPreviewUrl(url)
-    } catch {
-      message.error('Could not open document.')
-      setPreviewDoc(null)
-    } finally {
-      setPreviewLoading(false)
-    }
-  }
-
-  const closePreview = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-    setPreviewDoc(null)
-    setPreviewUrl(null)
-  }
-
-  const downloadSingleDocument = async (doc) => {
-    setDownloadingDocId(doc.id)
-    try {
-      const url = await fetchAuthorizedFileUrl(doc.id)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = doc.file_name || 'document'
-      link.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      message.error('Could not download document.')
-    } finally {
-      setDownloadingDocId(null)
-    }
-  }
+  const {
+    previewDoc,
+    previewUrl,
+    previewHtml,
+    previewKind,
+    previewLoading,
+    downloadingId,
+    viewDocument,
+    closePreview,
+    downloadDocument,
+  } = useDocumentPreview()
 
   const openActivityReview = (activity) => {
     setActivityReviewComment('')
@@ -437,7 +398,7 @@ function ProjectsPage() {
         setDetailTarget((prev) => (prev ? { ...prev, ...updated } : updated))
         closeActivityReview()
         loadDetailWorkflow(detailTarget.id)
-        load()
+        if (canBrowseAll) load(view)
       } catch (err) {
         message.error(err.response?.data?.message || 'Could not submit the plan decision.')
       } finally {
@@ -485,7 +446,7 @@ function ProjectsPage() {
       message.success('Planner reassigned.')
       setReassignTarget(null)
       form.resetFields()
-      await load()
+      if (canBrowseAll) await load(view)
     } catch (err) {
       message.error(err.response?.data?.message || 'Could not reassign planner.')
     } finally {
@@ -592,81 +553,79 @@ function ProjectsPage() {
 
   return (
     <div>
-      {/* One 12px gutter, not the card's 1rem class padding plus a body padding on top. */}
-      <Card className="page-shell-card" style={{ padding: 12, marginTop: 0 }} styles={{ body: { padding: 0 } }}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <Tabs
-            type="card"
-            activeKey={view}
-            className="!mb-0"
-            tabBarStyle={{ marginBottom: 0 }}
-            onChange={(key) => {
-              const next = new URLSearchParams(searchParams)
-              if (key === 'completed') next.set('view', 'completed')
-              else next.delete('view')
-              setSearchParams(next, { replace: true })
-            }}
-            items={[
-              { key: 'ongoing', label: 'Ongoing' },
-              { key: 'completed', label: 'Completed' },
-            ]}
-          />
-          {canRegister && !isCompletedView && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              // 40px matches the card-type tab strip's height so the two line up.
-              style={{ backgroundColor: '#800000', borderColor: '#800000', height: 40 }}
-              onClick={() => {
-                setRegisterLoaded(true)
-                setRegisterOpen(true)
+      {canBrowseAll && (
+        // One 12px gutter, not the card's 1rem class padding plus a body padding on top.
+        <Card className="page-shell-card" style={{ padding: 12, marginTop: 0 }} styles={{ body: { padding: 0 } }}>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <Tabs
+              type="card"
+              activeKey={view}
+              className="!mb-0"
+              tabBarStyle={{ marginBottom: 0 }}
+              onChange={(key) => {
+                const next = new URLSearchParams(searchParams)
+                if (key === 'completed') next.set('view', 'completed')
+                else next.delete('view')
+                setSearchParams(next, { replace: true })
               }}
+              items={[
+                { key: 'ongoing', label: 'Ongoing' },
+                { key: 'completed', label: 'Completed' },
+              ]}
+            />
+            {canRegister && !isCompletedView && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                // 40px matches the card-type tab strip's height so the two line up.
+                style={{ backgroundColor: '#800000', borderColor: '#800000', height: 40 }}
+                onClick={() => {
+                  setRegisterLoaded(true)
+                  setRegisterOpen(true)
+                }}
+              >
+                Register project
+              </Button>
+            )}
+          </div>
+          {(derivedStatusFilter || lifecycleStageFilter) && (
+            <Tag
+              closable
+              closeIcon={<CloseCircleOutlined />}
+              onClose={clearStructuredFilter}
+              color="#962c30"
+              className="mb-3"
             >
-              Register project
-            </Button>
+              Filtered by:{' '}
+              {[
+                derivedStatusFilter && (DERIVED_STATUS_LABELS[derivedStatusFilter] ?? derivedStatusFilter),
+                lifecycleStageFilter && (LIFECYCLE_STAGE_LABELS[lifecycleStageFilter] ?? lifecycleStageFilter),
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </Tag>
           )}
-        </div>
-        {(derivedStatusFilter || lifecycleStageFilter) && (
-          <Tag
-            closable
-            closeIcon={<CloseCircleOutlined />}
-            onClose={clearStructuredFilter}
-            color="#962c30"
-            className="mb-3"
-          >
-            Filtered by:{' '}
-            {[
-              derivedStatusFilter && (DERIVED_STATUS_LABELS[derivedStatusFilter] ?? derivedStatusFilter),
-              lifecycleStageFilter && (LIFECYCLE_STAGE_LABELS[lifecycleStageFilter] ?? lifecycleStageFilter),
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </Tag>
-        )}
-        <Input
-          allowClear
-          prefix={<Search className="h-4 w-4 text-gray-400" />}
-          placeholder="Search name, category, planner, status"
-          className="mb-3 max-w-md"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <Table
-          className="pms-house-table"
-          rowKey="id"
-          loading={loading}
-          columns={columns}
-          dataSource={filtered}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
-          locale={{
-            emptyText: isCompletedView
-              ? 'No completed projects yet.'
-              : isPlannerRole
-                ? 'No projects assigned to you.'
-                : 'No ongoing projects.',
-          }}
-        />
-      </Card>
+          <Input
+            allowClear
+            prefix={<Search className="h-4 w-4 text-gray-400" />}
+            placeholder="Search name, category, planner, status"
+            className="mb-3 max-w-md"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <Table
+            className="pms-house-table"
+            rowKey="id"
+            loading={loading}
+            columns={columns}
+            dataSource={filtered}
+            pagination={{ pageSize: 10, showSizeChanger: true }}
+            locale={{
+              emptyText: isCompletedView ? 'No completed projects yet.' : 'No ongoing projects.',
+            }}
+          />
+        </Card>
+      )}
 
       {registerLoaded && (
         <Suspense fallback={null}>
@@ -717,11 +676,6 @@ function ProjectsPage() {
                 </Popconfirm>
                 <Button onClick={openClosureReturn}>Return to planner</Button>
               </>
-            )}
-            {detailTarget?.closed_at && (
-              <Button icon={<DownloadOutlined />} loading={downloadingArchive} onClick={downloadProjectArchive}>
-                Download project
-              </Button>
             )}
             <Button type="default" onClick={() => setDetailTarget(null)}>
               Close
@@ -787,7 +741,7 @@ function ProjectsPage() {
                   projectId={detailTarget.id}
                   onProceeded={() => {
                     setDetailTarget(null)
-                    load()
+                    if (canBrowseAll) load(view)
                   }}
                 />
               </div>
@@ -803,268 +757,67 @@ function ProjectsPage() {
         )}
       </Modal>
 
-      <Modal
-        title={<span style={{ color: '#800000', fontWeight: 700 }}>Review activity</span>}
-        open={Boolean(activityReviewTarget)}
+      <ActivityReviewModal
+        target={activityReviewTarget}
+        docs={activityReviewDocs}
+        docsLoading={activityReviewDocsLoading}
+        comment={activityReviewComment}
+        onCommentChange={setActivityReviewComment}
+        rejecting={isRejectingActivity}
+        rejectReason={activityRejectReason}
+        onRejectReasonChange={setActivityRejectReason}
+        saving={activityReviewSaving}
+        pendingMessage={activityReviewTarget ? activityPendingMessage(activityReviewTarget) : ''}
+        onApprove={() => submitActivityReview('approve')}
+        onReject={() => submitActivityReview('reject')}
+        onBack={() => setIsRejectingActivity(false)}
         onCancel={closeActivityReview}
-        destroyOnHidden
-        centered
-        width={760}
-        zIndex={1100}
-        maskClosable={false}
-        footer={
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            {isRejectingActivity ? (
-              <>
-                <Button danger loading={activityReviewSaving} onClick={() => submitActivityReview('reject')}>
-                  Confirm reject
-                </Button>
-                <Button onClick={() => setIsRejectingActivity(false)}>Back</Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  type="primary"
-                  style={{ backgroundColor: '#800000', borderColor: '#800000' }}
-                  loading={activityReviewSaving}
-                  onClick={() => submitActivityReview('approve')}
-                >
-                  Approve
-                </Button>
-                <Button danger loading={activityReviewSaving} onClick={() => submitActivityReview('reject')}>
-                  Reject
-                </Button>
-                <Button onClick={closeActivityReview}>Cancel</Button>
-              </>
-            )}
-          </div>
-        }
-      >
-        {activityReviewTarget && (
-          <div>
-            <Descriptions column={1} size="small" bordered>
-              <Descriptions.Item label="Activity">{activityReviewTarget.name}</Descriptions.Item>
-              <Descriptions.Item label="Expected Deliverable">
-                {activityReviewTarget.expected_deliverable || 'â€”'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Planned Start">
-                {formatDate(activityReviewTarget.planned_start_date)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Planned End">
-                {formatDate(activityReviewTarget.planned_end_date)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Responsible Person">
-                {activityReviewTarget.responsible_person?.name || 'â€”'}
-              </Descriptions.Item>
-              {activityReviewTarget.progress_review_status === 'pending' && (
-                <>
-                  <Descriptions.Item label="Actual Start">
-                    {formatDate(activityReviewTarget.actual_start_date)}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Actual End">
-                    {formatDate(activityReviewTarget.actual_end_date)}
-                  </Descriptions.Item>
-                </>
-              )}
-              <Descriptions.Item label="What's pending">
-                {activityPendingMessage(activityReviewTarget)}
-              </Descriptions.Item>
-            </Descriptions>
+        onViewDocument={viewDocument}
+      />
 
-            <div className="mt-4">
-              <div className="mb-1 text-sm font-semibold">Documents</div>
-              <Spin spinning={activityReviewDocsLoading}>
-                <Table
-                  rowKey="id"
-                  size="small"
-                  dataSource={activityReviewDocs}
-                  pagination={false}
-                  locale={{ emptyText: 'No documents attached to this activity.' }}
-                  columns={[
-                    { title: 'File', dataIndex: 'file_name' },
-                    { title: 'Document Type', dataIndex: 'document_type', render: (value) => value || 'Document' },
-                    {
-                      title: 'Action',
-                      width: 100,
-                      render: (_, doc) => (
-                        <Button size="small" onClick={() => viewDocument(doc)}>
-                          View
-                        </Button>
-                      ),
-                    },
-                  ]}
-                />
-              </Spin>
-            </div>
-
-            {isRejectingActivity ? (
-              <div className="mt-4">
-                <div className="mb-1 text-sm font-semibold text-red-600">Reason for rejection (required)</div>
-                <Input.TextArea
-                  rows={3}
-                  autoFocus
-                  placeholder="Explain what needs to change before this can be approved"
-                  value={activityRejectReason}
-                  onChange={(event) => setActivityRejectReason(event.target.value)}
-                />
-              </div>
-            ) : (
-              <div className="mt-4">
-                <div className="mb-1 text-sm font-semibold">Comment (optional)</div>
-                <Input.TextArea
-                  rows={3}
-                  placeholder="Any remarks about this activity"
-                  value={activityReviewComment}
-                  onChange={(event) => setActivityReviewComment(event.target.value)}
-                />
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
-
-      <Modal
-        title={reassignTarget ? `Reassign planner â€” ${reassignTarget.name}` : 'Reassign planner'}
-        open={Boolean(reassignTarget)}
+      <ReassignPlannerModal
+        target={reassignTarget}
+        planners={planners}
+        saving={saving}
+        form={form}
         onCancel={() => {
           setReassignTarget(null)
           form.resetFields()
         }}
-        onOk={() => form.submit()}
-        confirmLoading={saving}
-        footer={(_, { OkBtn, CancelBtn }) => (
-          <>
-            <OkBtn />
-            <CancelBtn />
-          </>
-        )}
-        destroyOnHidden
-      >
-        <Form form={form} layout="vertical" onFinish={submitReassign} className="pt-2">
-          <Form.Item name="planner_id" label="Planner" rules={[{ required: true, message: 'Select a planner' }]}>
-            <Select
-              showSearch
-              optionFilterProp="label"
-              options={planners.map((item) => ({
-                value: item.id,
-                label: `${item.name} (${item.email})`,
-              }))}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
+        onFinish={submitReassign}
+      />
 
-      <Modal
-        title="Return to planner"
+      <ClosureReturnModal
         open={closureReturnOpen}
+        saving={returningClosure}
+        itemsLoading={closureItemsLoading}
+        comment={closureReturnComment}
+        onCommentChange={setClosureReturnComment}
+        completedActivities={closureCompletedActivities}
+        completedRequirements={closureCompletedRequirements}
+        activityIds={closureActivityIds}
+        onActivityIdsChange={setClosureActivityIds}
+        requirementIds={closureRequirementIds}
+        onRequirementIdsChange={setClosureRequirementIds}
+        onSubmit={submitReturnClosure}
         onCancel={() => {
           setClosureReturnOpen(false)
           setClosureReturnComment('')
           setClosureActivityIds([])
           setClosureRequirementIds([])
         }}
-        destroyOnHidden
-        footer={
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button type="primary" loading={returningClosure} onClick={submitReturnClosure}>
-              Return to planner
-            </Button>
-            <Button
-              onClick={() => {
-                setClosureReturnOpen(false)
-                setClosureReturnComment('')
-                setClosureActivityIds([])
-                setClosureRequirementIds([])
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        }
-      >
-        <p className="mb-3 text-sm text-gray-600">
-          Clears the closure request and sends the project back to the Planner. Pick any completed activities or
-          requirements that actually need rework — selecting one reopens it (clears its actual end date, and its
-          test result if it's a requirement) so the Planner can update and redo it.
-        </p>
+      />
 
-        <div className="mb-3">
-          <div className="mb-1 text-sm font-medium">Activities to reopen</div>
-          <Select
-            mode="multiple"
-            allowClear
-            style={{ width: '100%' }}
-            placeholder={closureCompletedActivities.length ? 'Select activities that need rework' : 'No completed activities'}
-            loading={closureItemsLoading}
-            value={closureActivityIds}
-            onChange={setClosureActivityIds}
-            options={closureCompletedActivities.map((item) => ({ value: item.id, label: item.name }))}
-          />
-        </div>
-
-        <div className="mb-3">
-          <div className="mb-1 text-sm font-medium">Requirements to reopen</div>
-          <Select
-            mode="multiple"
-            allowClear
-            style={{ width: '100%' }}
-            placeholder={
-              closureCompletedRequirements.length ? 'Select requirements that need rework' : 'No completed requirements'
-            }
-            loading={closureItemsLoading}
-            value={closureRequirementIds}
-            onChange={setClosureRequirementIds}
-            options={closureCompletedRequirements.map((item) => ({
-              value: item.id,
-              label: `${item.requirement_code} — ${item.description}`,
-            }))}
-          />
-        </div>
-
-        <div className="mb-1 text-sm font-medium">Comment</div>
-        <Input.TextArea
-          rows={3}
-          value={closureReturnComment}
-          onChange={(event) => setClosureReturnComment(event.target.value)}
-          placeholder="What still needs to be fixed before this can close?"
-        />
-      </Modal>
-
-      <Modal
-        title={previewDoc?.file_name}
-        open={previewDoc !== null}
-        onCancel={closePreview}
-        destroyOnHidden
-        width={860}
-        footer={
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button
-              icon={<DownloadOutlined />}
-              loading={downloadingDocId === previewDoc?.id}
-              onClick={() => previewDoc && downloadSingleDocument(previewDoc)}
-            >
-              Download
-            </Button>
-            <Button onClick={closePreview}>Close</Button>
-          </div>
-        }
-      >
-        {previewLoading ? (
-          <div className="flex justify-center py-16">
-            <Spin />
-          </div>
-        ) : previewUrl && previewDoc?.file_name?.toLowerCase().endsWith('.pdf') ? (
-          <iframe
-            src={previewUrl}
-            title={previewDoc.file_name}
-            style={{ width: '100%', height: '70vh', border: 'none' }}
-          />
-        ) : previewUrl ? (
-          <div className="py-16 text-center text-sm text-gray-500">
-            Preview isn't available for this file type — use Download to view it.
-          </div>
-        ) : null}
-      </Modal>
+      <DocumentPreviewModal
+        doc={previewDoc}
+        url={previewUrl}
+        html={previewHtml}
+        kind={previewKind}
+        loading={previewLoading}
+        downloading={downloadingId === previewDoc?.id}
+        onClose={closePreview}
+        onDownload={downloadDocument}
+      />
     </div>
   )
 }

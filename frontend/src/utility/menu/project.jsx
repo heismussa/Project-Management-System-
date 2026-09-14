@@ -3,7 +3,9 @@ import {
   LayoutDashboard,
   FolderKanban,
   ClipboardCheck,
+  ClipboardList,
   Inbox,
+  ListChecks,
   Users,
   History,
   FileText,
@@ -13,7 +15,7 @@ import {
  * Minimalist sidebar: high-level queues/dashboards only.
  * Secondary tools (notifications, nested workspaces) live in header
  * overlays or row-level drawers — not as standalone menu links. Reports is
- * the deliberate exception: Admin/Reviewer asked for it as a real tab.
+ * the deliberate exception: Reviewer asked for it as a real tab.
  */
 export default function Project() {
   return [
@@ -27,30 +29,43 @@ export default function Project() {
       icon: LayoutDashboard,
     },
     {
-      // Same page and label for every role that lands here — the Planner's
-      // copy is scoped to their own assigned projects while everyone else
-      // sees the full list, but it's the same feature, so it keeps the same
-      // name rather than "Assigned Projects" vs "Project Management".
+      // Full, unscoped portfolio browser — Reviewer-only. Planner/
+      // Coordinator/Approver each have their own Pending/History queue page
+      // instead (scoped to only what's relevant to them), and nobody else
+      // gets a project-level browse screen.
       label: 'Project Management',
       url: '/projects',
-      // Coordinator/Approver are here too, view-only — their part is done
-      // once they've recommended/signed off, but they can still look up any
-      // project (including the ones no longer in their own queue). Every
-      // mutating action in this view is already independently gated to
-      // Planner/Reviewer/Admin, so adding these two roles doesn't grant
-      // them anything beyond visibility.
-      roles: [ROLES.IS, ROLES.PAD, ROLES.PRV, ROLES.PVO, ROLES.PCO, ROLES.PAP, ROLES.PPL],
+      roles: [ROLES.PRV],
       icon: FolderKanban,
+    },
+    {
+      label: 'Planning Queue',
+      url: '/planning-queue',
+      // The Planner's own action list — projects with no plan yet or a plan
+      // returned for fixes — each opening straight into the Implementation
+      // Plan workspace. Project Management already shows this Planner's
+      // full assigned list; this is the "what needs me right now" subset.
+      // (Overdue activities / rejected items already have their own tables
+      // on the Planner's dashboard.)
+      roles: [ROLES.PPL],
+      icon: ClipboardList,
+    },
+    {
+      label: 'Review Queue',
+      url: '/review-queue',
+      // The Reviewer's own action list — plan reviews and closure sign-offs
+      // awaiting a decision. Same underlying queue page Coordinator/Approver
+      // use below, scoped to the two queues a Reviewer acts on.
+      roles: [ROLES.PRV],
+      icon: ListChecks,
     },
     {
       label: 'Project Recommendations',
       url: '/reviews',
-      // Reviewer's activity/plan review now lives inline in Project Management
-      // (the Details popup) — this queue is Approver execution sign-off (DICT
-      // only) for PAP; Administrator lands on the same page but unfiltered,
-      // so they see every track (SDMM/IDMM/DICT) — no separate admin entry
-      // needed for the Coordinator-only /recommendations queue below.
-      roles: [ROLES.PAP, ROLES.PAD],
+      // Approver execution sign-off (DICT only) for PAP. Administrator no
+      // longer gets a sidebar tab for it — oversight happens through Project
+      // Management instead.
+      roles: [ROLES.PAP],
       icon: ClipboardCheck,
     },
     {
@@ -72,9 +87,11 @@ export default function Project() {
       icon: History,
     },
     {
+      // Report generation (Word/Excel/PDF, individual and portfolio-wide) is
+      // Reviewer-only.
       label: 'Project Reports',
       url: '/reports',
-      roles: [ROLES.PAD, ROLES.PRV],
+      roles: [ROLES.PRV],
       icon: FileText,
     },
   ]

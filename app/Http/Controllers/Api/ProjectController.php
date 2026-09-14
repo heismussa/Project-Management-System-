@@ -8,15 +8,12 @@ use App\Models\ImplementationActivity;
 use App\Models\Project;
 use App\Models\Requirement;
 use App\Models\Review;
-use App\Services\ProjectArchiveSummaryBuilder;
 use App\Services\ProjectWorkflowService;
 use App\Support\Roles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProjectController extends Controller
 {
@@ -85,9 +82,37 @@ class ProjectController extends Controller
 
         $projects = $rows->map(fn ($row) => self::listRowToPayload($row));
 
+        $scope = $request->query('scope');
+        if ($scope) {
+            $projects = self::filterByScope($projects, $scope, $request->user()?->id)->values();
+        }
+
         return response()->json([
             'data' => $projects,
         ], 200);
+    }
+
+    /**
+     * Backs every role's Pending queue page and Project Management's
+     * Ongoing/Completed tabs. Filtering here (instead of fetching
+     * everything and letting the browser sort it out) is what makes those
+     * tabs genuinely lazy — only the active tab's rows ever cross the wire.
+     */
+    private static function filterByScope(\Illuminate\Support\Collection $projects, string $scope, ?int $userId): \Illuminate\Support\Collection
+    {
+        return $projects->filter(function (array $project) use ($scope, $userId) {
+            $queue = $project['workflow']['queue'];
+
+            return match ($scope) {
+                'ongoing' => $project['closed_at'] === null && $project['status'] !== 'Closed',
+                'completed' => $project['closed_at'] !== null || $project['status'] === 'Closed',
+                'planner_pending' => $queue === 'planning' && $userId !== null && (int) $project['planner_id'] === $userId,
+                'coordinator_pending' => $queue === 'recommendation',
+                'approver_pending' => $queue === 'execution_sign_off' && $project['workflow']['review_track'] === 'DICT',
+                'reviewer_pending' => in_array($queue, ['plan_review', 'closure_sign_off'], true),
+                default => true,
+            };
+        });
     }
 
     // datetime-cast columns keep whatever time-of-day is actually stored.
@@ -213,7 +238,7 @@ class ProjectController extends Controller
             'coordinator:id,name,email',
             'approver:id,name,email',
             'forwardedTo:id,name,email',
-            'implementationActivities',
+            'implementationActivities.responsiblePerson:id,name',
             'documents',
             'requirements',
         ]);
@@ -651,80 +676,6 @@ class ProjectController extends Controller
             'data' => $fresh,
             'workflow' => ProjectWorkflowService::workflowPayload($fresh),
         ]);
-    }
-
-    /**
-     * Everything about a finished project in one file: every current
-     * document plus a formatted Word summary of the activities, RTM, and
-     * key dates — for handover/archival once there's nothing left to change.
-     */
-    public function archive(Project $project): BinaryFileResponse|JsonResponse
-    {
-        if (! $project->closed_at) {
-            return response()->json(['message' => 'Only a closed project can be downloaded as an archive.'], 422);
-        }
-
-        $documents = $this->loadForSummary($project);
-
-        $tempDir = storage_path('app/private/tmp');
-        if (! is_dir($tempDir)) {
-            mkdir($tempDir, 0755, true);
-        }
-        $tempPath = $tempDir.'/project-'.$project->id.'-'.uniqid().'.zip';
-
-        $zip = new \ZipArchive();
-        $zip->open($tempPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
-        $zip->addFromString('Project Summary.docx', ProjectArchiveSummaryBuilder::build($project, $documents));
-
-        $usedNames = [];
-        foreach ($documents as $document) {
-            $localPath = Storage::disk('local')->path($document->file_url);
-            if (! is_file($localPath)) {
-                continue; // sample/demo rows have no real file behind them
-            }
-            $name = $document->file_name ?: ('document-'.$document->id);
-            while (in_array($name, $usedNames, true)) {
-                $name = pathinfo($name, PATHINFO_FILENAME).'-'.$document->id.'.'.pathinfo($name, PATHINFO_EXTENSION);
-            }
-            $usedNames[] = $name;
-            $zip->addFile($localPath, 'Documents/'.$name);
-        }
-        $zip->close();
-
-        $downloadName = str()->slug($project->name ?: 'project').'-archive.zip';
-
-        return response()->download($tempPath, $downloadName)->deleteFileAfterSend(true);
-    }
-
-    /**
-     * The same formatted Word summary the archive bundles, available for any
-     * project at any stage — not gated on closure like archive() is, since a
-     * planner or reviewer may want a snapshot of a project that's still open.
-     */
-    public function report(Project $project): \Illuminate\Http\Response
-    {
-        $documents = $this->loadForSummary($project);
-        $content = ProjectArchiveSummaryBuilder::build($project, $documents);
-        $downloadName = str()->slug($project->name ?: 'project').'-report.docx';
-
-        return response($content, 200, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'Content-Disposition' => 'attachment; filename="'.$downloadName.'"',
-        ]);
-    }
-
-    private function loadForSummary(Project $project): \Illuminate\Support\Collection
-    {
-        $project->load([
-            'implementationActivities.responsiblePerson:id,name',
-            'requirements',
-            'planner:id,name,email',
-            'reviewer:id,name,email',
-            'coordinator:id,name,email',
-            'approver:id,name,email',
-        ]);
-
-        return $project->documents()->where('is_current', true)->get();
     }
 
     private function allows(Request $request, array $permissions): bool

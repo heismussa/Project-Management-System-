@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\Requirement;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\ProjectDashboardMetrics;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\Test;
@@ -200,7 +201,7 @@ class Person3PlannerTest extends TestCase
         $this->assertTrue($project->fresh()->hasCompletedAllActivities());
         $this->assertTrue($project->fresh()->hasPassedAllUAT());
 
-        $metrics = Project::getPlannerMetrics($user->id);
+        $metrics = ProjectDashboardMetrics::getPlannerMetrics($user->id);
         $this->assertSame(1, $metrics['assigned_projects']);
         $this->assertSame(1, $metrics['active_activities']);
         $this->assertSame(0, $metrics['pending_matrix_items']);

@@ -78,9 +78,23 @@ export function getActiveNavItem(pathname) {
   return sorted[0] ?? NAV_ITEMS[0]
 }
 
-export function pathAllowedForRole(pathname, roleName) {
-  if (/^\/projects\/\d+/.test(pathname) || pathname === '/projects') {
+// Roles that can browse the full, unscoped project list ("Project
+// Management" — bare /projects, no ?detail=). Everyone else works out of
+// their own Pending/History queue page instead, and reaches a single
+// project only through the ?detail= deep link those pages already use —
+// that link still opens ProjectsPage, but in single-project mode (see
+// ProjectsPage.jsx's canBrowseAll), never the full portfolio table.
+const PROJECT_LIST_ROLES = [ROLES.PRV]
+
+export function pathAllowedForRole(pathname, roleName, search = '') {
+  if (/^\/projects\/\d+/.test(pathname)) {
     return true
+  }
+  if (pathname === '/projects') {
+    if (new URLSearchParams(search).has('detail')) {
+      return true
+    }
+    return PROJECT_LIST_ROLES.includes(roleName)
   }
   if (
     pathname.startsWith('/implementation-plan') ||
@@ -89,14 +103,24 @@ export function pathAllowedForRole(pathname, roleName) {
   ) {
     return true
   }
+  // Each of these is one role's own queue — Administrator no longer gets a
+  // backdoor into them either (no sidebar link to any of the four, and
+  // ReviewsPage's per-role scope lookup has nothing sensible to fall back
+  // to for a role that isn't the one it's built for).
   if (pathname.startsWith('/reviews')) {
-    return [ROLES.PAP, ROLES.PAD].includes(roleName)
+    return roleName === ROLES.PAP
   }
   if (pathname.startsWith('/recommendations')) {
-    return roleName === ROLES.PCO || roleName === ROLES.PAD
+    return roleName === ROLES.PCO
+  }
+  if (pathname.startsWith('/review-queue')) {
+    return roleName === ROLES.PRV
+  }
+  if (pathname.startsWith('/planning-queue')) {
+    return roleName === ROLES.PPL
   }
   if (pathname.startsWith('/reports')) {
-    return [ROLES.PAD, ROLES.PRV].includes(roleName)
+    return roleName === ROLES.PRV
   }
   if (pathname.startsWith('/notifications')) {
     return true

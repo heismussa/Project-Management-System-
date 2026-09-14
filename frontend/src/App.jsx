@@ -11,11 +11,17 @@ import { pathAllowedForRole } from './layouts/nav'
 
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'))
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'))
+const PlanningQueuePage = lazy(() => import('./pages/PlanningQueuePage'))
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'))
 const AuditLogPage = lazy(() => import('./pages/AuditLogPage'))
-const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const GenerateReportPage = lazy(() => import('./pages/GenerateReportPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
 const LegacyProjectRedirect = lazy(() => import('./pages/LegacyProjectRedirect'))
+
+// Module-level so it's the same array reference across renders — ReviewsPage
+// memoizes its queue filter off this prop, and a fresh array literal here
+// would defeat that every time App re-renders.
+const REVIEWER_QUEUES = ['plan_review', 'closure_sign_off']
 
 function PageFallback() {
   return (
@@ -44,7 +50,7 @@ function RolePageRoute({ children }) {
   const { user, activeRole, isLoadingAuth } = useAuth()
   if (isLoadingAuth) return null
   const roleName = activeRole?.name ?? user?.role ?? null
-  if (!pathAllowedForRole(location.pathname, roleName)) {
+  if (!pathAllowedForRole(location.pathname, roleName, location.search)) {
     return <Navigate to="/" replace />
   }
   return children
@@ -116,10 +122,26 @@ export default function App() {
                 }
               />
               <Route
+                path="/review-queue"
+                element={
+                  <RolePageRoute>
+                    <ReviewsPage queueFilter={REVIEWER_QUEUES} />
+                  </RolePageRoute>
+                }
+              />
+              <Route
+                path="/planning-queue"
+                element={
+                  <RolePageRoute>
+                    <PlanningQueuePage />
+                  </RolePageRoute>
+                }
+              />
+              <Route
                 path="/reports"
                 element={
                   <RolePageRoute>
-                    <ReportsPage />
+                    <GenerateReportPage />
                   </RolePageRoute>
                 }
               />

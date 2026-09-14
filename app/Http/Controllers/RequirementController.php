@@ -14,14 +14,19 @@ use Illuminate\Http\Request;
 
 class RequirementController extends Controller
 {
-    public function index($projectId): JsonResponse
+    public function index(Request $request, $projectId): JsonResponse
     {
-        $requirements = Requirement::where('project_id', $projectId)
-            ->with(['progressUpdates' => fn ($query) => $query->latest()->with('updater:id,name')])
-            ->orderBy('requirement_code')
-            ->get();
+        $query = Requirement::where('project_id', $projectId)->orderBy('requirement_code');
 
-        return response()->json(['data' => $requirements]);
+        // Report generation pulls this for every selected project at once
+        // and only reads native columns (implementation_status,
+        // test_result, etc.) — ?lite=1 skips progressUpdates (and its own
+        // nested updater eager load) since it never reads that either.
+        if (! $request->boolean('lite')) {
+            $query->with(['progressUpdates' => fn ($q) => $q->latest()->with('updater:id,name')]);
+        }
+
+        return response()->json(['data' => $query->get()]);
     }
 
     public function store(Request $request): JsonResponse

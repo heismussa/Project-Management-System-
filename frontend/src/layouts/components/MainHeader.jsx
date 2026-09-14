@@ -140,14 +140,12 @@ export default function MainHeader() {
                 <button
                   type="button"
                   onClick={() => setUserDrawerOpen(true)}
-                  className="flex items-center gap-2 rounded-full border border-white/40 py-1 pl-1 pr-3 transition-colors hover:bg-white/10 sm:gap-3 sm:pr-4"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/40 transition-colors hover:bg-white/10"
                   aria-label="Open user menu"
+                  title={fullName}
                 >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f9c000] text-sm font-bold text-[#902d30]">
                     {getInitials(fullName)}
-                  </span>
-                  <span className="hidden max-w-[180px] truncate text-sm font-semibold text-white lg:inline xl:max-w-none">
-                    {fullName}
                   </span>
                 </button>
               </div>
