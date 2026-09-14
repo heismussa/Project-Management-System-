@@ -14,12 +14,25 @@ use Illuminate\Http\Request;
 
 class RequirementController extends Controller
 {
-    public function index($projectId): JsonResponse
+    public function index($projectId, Request $request): JsonResponse
     {
-        $requirements = Requirement::where('project_id', $projectId)
-            ->with(['progressUpdates' => fn ($query) => $query->latest()->with('updater:id,name')])
-            ->orderBy('requirement_code')
-            ->get();
+        $query = Requirement::where('project_id', $projectId)->orderBy('requirement_code');
+
+        if ($request->boolean('lite')) {
+            $requirements = $query->get([
+                'id',
+                'project_id',
+                'requirement_code',
+                'description',
+                'implementation_status',
+                'test_result',
+            ]);
+            $requirements->each->setAppends([]);
+        } else {
+            $requirements = $query
+                ->with(['progressUpdates' => fn ($q) => $q->latest()->with('updater:id,name')])
+                ->get();
+        }
 
         return response()->json(['data' => $requirements]);
     }

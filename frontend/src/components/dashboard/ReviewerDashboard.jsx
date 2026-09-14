@@ -17,11 +17,11 @@ const RED = '#b3261e'
 
 const QUEUE_CARDS = [
   { key: 'new_registrations', label: 'New registrations', description: 'Initiation docs missing', path: '/projects?lifecycleStage=initiation', color: MAROON },
-  { key: 'plans_pending', label: 'Plans pending review', description: 'Awaiting your decision', path: '/reviews', color: AMBER },
+  { key: 'plans_pending', label: 'Plans pending review', description: 'Awaiting your decision', path: '/projects?q=Plan+Submitted', color: AMBER },
   { key: 'matrices_pending', label: 'Requirement matrices', description: 'Awaiting approval', path: '/projects', color: GREEN },
   { key: 'documents_pending', label: 'Documents for review', description: 'Pending your review', path: '/projects', color: DEEP_MAROON },
   { key: 'returned_unresolved', label: 'Returned items', description: 'Unresolved', path: '/projects', color: RED },
-  { key: 'closure_signoffs', label: 'Ready for closure', description: 'All gates passed', path: '/reviews', color: BLUE },
+  { key: 'closure_signoffs', label: 'Ready for closure', description: 'All gates passed', path: '/projects?q=closure', color: BLUE },
 ]
 
 const URGENT_ROWS = [

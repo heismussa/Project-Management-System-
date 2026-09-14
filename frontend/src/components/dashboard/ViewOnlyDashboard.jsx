@@ -95,13 +95,7 @@ function ViewOnlyDashboard() {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* 1 — view-only banner */}
-      <Alert
-        type="info"
-        showIcon
-        icon={<EyeOutlined />}
-        message="View-only access. No actions can be performed."
-      />
+    
 
       {/* 2 — four equal metric cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">

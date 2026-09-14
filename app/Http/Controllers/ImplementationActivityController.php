@@ -21,13 +21,33 @@ class ImplementationActivityController extends Controller
         'responsible_person_id',
     ];
 
-    public function index($projectId): JsonResponse
+    public function index($projectId, Request $request): JsonResponse
     {
-        $activities = ImplementationActivity::where('project_id', $projectId)
-            ->with(['responsiblePerson:id,name,email', 'responsiblePerson.activeRoles', 'documents'])
+        $query = ImplementationActivity::where('project_id', $projectId)
             ->orderBy('planned_start_date')
-            ->orderBy('id')
-            ->get();
+            ->orderBy('id');
+
+        // Report / export callers only need names, dates, and responsible person.
+        if ($request->boolean('lite')) {
+            $activities = $query
+                ->with(['responsiblePerson:id,name'])
+                ->get([
+                    'id',
+                    'project_id',
+                    'name',
+                    'expected_deliverable',
+                    'planned_start_date',
+                    'planned_end_date',
+                    'actual_start_date',
+                    'actual_end_date',
+                    'responsible_person_id',
+                    'status',
+                ]);
+        } else {
+            $activities = $query
+                ->with(['responsiblePerson:id,name,email', 'responsiblePerson.activeRoles', 'documents'])
+                ->get();
+        }
 
         return response()->json(['data' => $activities]);
     }

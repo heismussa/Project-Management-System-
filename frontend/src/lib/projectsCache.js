@@ -7,7 +7,7 @@ import api from './axios'
 // changed. This cache dedupes those calls for a few seconds and is cleared
 // automatically whenever a mutation touches /projects, so it never serves
 // stale data after an edit.
-const TTL_MS = 15000
+const TTL_MS = 90000
 
 let cache = new Map() // key -> { data, timestamp }
 let inFlight = new Map() // key -> Promise

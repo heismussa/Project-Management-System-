@@ -88,17 +88,21 @@ class User extends Authenticatable implements MustVerifyEmail
             'Project Administrator',
         ];
 
-        $usersByRole = collect($roleNames)
-            ->map(function (string $roleName) {
-                $count = static::whereHas('roles', function ($query) use ($roleName) {
-                    $query->where('roles.name', $roleName)
-                        ->where(function ($inner) {
-                            $inner->where('user_roles.is_active', true)->orWhereNull('user_roles.is_active');
-                        });
-                })->count();
-
-                return ['role' => $roleName, 'count' => $count];
+        $roleCounts = \Illuminate\Support\Facades\DB::table('user_roles')
+            ->join('roles', 'roles.id', '=', 'user_roles.role_id')
+            ->whereIn('roles.name', $roleNames)
+            ->where(function ($query) {
+                $query->where('user_roles.is_active', true)->orWhereNull('user_roles.is_active');
             })
+            ->selectRaw('roles.name as role, COUNT(DISTINCT user_roles.user_id) as count')
+            ->groupBy('roles.name')
+            ->pluck('count', 'role');
+
+        $usersByRole = collect($roleNames)
+            ->map(fn (string $roleName) => [
+                'role' => $roleName,
+                'count' => (int) ($roleCounts[$roleName] ?? 0),
+            ])
             ->sortByDesc('count')
             ->values()
             ->all();

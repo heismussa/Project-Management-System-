@@ -35,9 +35,19 @@ function DashboardPage() {
   const isIctSupport = activeRole?.name === ROLES.IS
   const isPlanner = activeRole?.name === ROLES.PPL
   const isCoordinator = activeRole?.name === ROLES.PCO
+  const isApprover = activeRole?.name === ROLES.PAP
+  const hasDedicatedDashboard =
+    isAdministrator || isReviewer || isPlanner || isCoordinator || isViewOnly || isIctSupport
   const [payload, setPayload] = useState(null)
 
+  // Dedicated role dashboards fetch their own /dashboard payload — skip the
+  // parent call so we don't double (or StrictMode-quadruple) the heavy query.
   useEffect(() => {
+    if (hasDedicatedDashboard) {
+      setPayload(null)
+      return
+    }
+
     let cancelled = false
     api
       .get('/dashboard', { params: { role: activeRole?.name } })
@@ -50,7 +60,7 @@ function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [activeRole?.name])
+  }, [activeRole?.name, hasDedicatedDashboard])
 
   const metrics = useMemo(() => {
     const counts = payload?.counts || {}
@@ -81,6 +91,10 @@ function DashboardPage() {
 
   if (isIctSupport) {
     return <IctSupportDashboard />
+  }
+
+  if (isApprover) {
+    // Approver has no dedicated dashboard component yet — fall through to metrics.
   }
 
   return (

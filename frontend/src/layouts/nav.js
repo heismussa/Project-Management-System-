@@ -79,8 +79,13 @@ export function getActiveNavItem(pathname) {
 }
 
 export function pathAllowedForRole(pathname, roleName) {
-  if (/^\/projects\/\d+/.test(pathname) || pathname === '/projects') {
+  // Project detail pages stay reachable from dashboards even when the role
+  // does not have the Project Management list tab (e.g. Administrator).
+  if (/^\/projects\/\d+/.test(pathname)) {
     return true
+  }
+  if (pathname === '/projects') {
+    return canAccessNavItem(getActiveNavItem(pathname), roleName)
   }
   if (
     pathname.startsWith('/implementation-plan') ||
@@ -90,13 +95,13 @@ export function pathAllowedForRole(pathname, roleName) {
     return true
   }
   if (pathname.startsWith('/reviews')) {
-    return [ROLES.PAP, ROLES.PAD].includes(roleName)
+    return roleName === ROLES.PAP
   }
   if (pathname.startsWith('/recommendations')) {
-    return roleName === ROLES.PCO || roleName === ROLES.PAD
+    return roleName === ROLES.PCO
   }
   if (pathname.startsWith('/reports')) {
-    return [ROLES.PAD, ROLES.PRV].includes(roleName)
+    return roleName === ROLES.PRV
   }
   if (pathname.startsWith('/notifications')) {
     return true

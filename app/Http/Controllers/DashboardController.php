@@ -17,29 +17,63 @@ class DashboardController extends Controller
         $user = $request->user();
         $role = $request->query('role') ?: data_get($user->toAuthArray(), 'role');
 
+        // Role-specific dashboards build their own payload — skip the shared
+        // portfolio COUNTs / pending_actions that those UIs never render.
+        if ($role === 'Project Reviewer') {
+            return response()->json([
+                'data' => [
+                    'role' => $role,
+                    'reviewer' => Project::reviewerDashboard(),
+                ],
+            ]);
+        }
+
+        if ($role === 'Project Administrator') {
+            return response()->json([
+                'data' => [
+                    'role' => $role,
+                    'admin' => Project::administratorDashboard(),
+                ],
+            ]);
+        }
+
+        if ($role === 'ICT Support') {
+            return response()->json([
+                'data' => [
+                    'role' => $role,
+                    'ict_support' => User::ictSupportDashboard(),
+                ],
+            ]);
+        }
+
+        if ($role === 'Project ViewOnly') {
+            return response()->json([
+                'data' => [
+                    'role' => $role,
+                    'view_only' => Project::viewOnlyDashboard(),
+                ],
+            ]);
+        }
+
+        if ($role === 'Project Planner') {
+            return response()->json([
+                'data' => [
+                    'role' => $role,
+                    'counts' => Project::getPlannerMetrics($user->id),
+                    'pending_actions' => [
+                        ['label' => 'Open assigned projects', 'path' => '/projects'],
+                    ],
+                ],
+            ]);
+        }
+
         $pendingActions = [];
         $metrics = Project::getReviewerMetrics();
 
-        if (in_array($role, ['Project Planner', 'Project Administrator'], true)) {
-            $plannerId = $role === 'Project Planner' ? $user->id : null;
-            $metrics = array_merge($metrics, Project::getPlannerMetrics($plannerId));
-            $pendingActions[] = [
-                'label' => 'Open assigned projects',
-                'path' => '/projects',
-            ];
-        }
-
-        if (in_array($role, ['Project Reviewer', 'Project Coordinator', 'Project Approver', 'Project Administrator'], true)) {
+        if (in_array($role, ['Project Coordinator', 'Project Approver'], true)) {
             $pendingActions[] = [
                 'label' => 'Open reviews queue',
-                'path' => '/reviews',
-            ];
-        }
-
-        if (in_array($role, ['ICT Support', 'Project Administrator'], true)) {
-            $pendingActions[] = [
-                'label' => 'Manage users and roles',
-                'path' => '/user-management',
+                'path' => $role === 'Project Coordinator' ? '/recommendations' : '/reviews',
             ];
         }
 
@@ -51,22 +85,6 @@ class DashboardController extends Controller
             'requirement_total' => Requirement::count(),
             'document_total' => Document::count(),
         ];
-
-        if ($role === 'Project Administrator') {
-            $payload['admin'] = Project::administratorDashboard();
-        }
-
-        if ($role === 'Project Reviewer') {
-            $payload['reviewer'] = Project::reviewerDashboard();
-        }
-
-        if ($role === 'Project ViewOnly') {
-            $payload['view_only'] = Project::viewOnlyDashboard();
-        }
-
-        if ($role === 'ICT Support') {
-            $payload['ict_support'] = User::ictSupportDashboard();
-        }
 
         return response()->json(['data' => $payload]);
     }

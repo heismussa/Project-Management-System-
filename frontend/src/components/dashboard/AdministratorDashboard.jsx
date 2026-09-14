@@ -10,10 +10,6 @@ const { Title, Text } = Typography
 const STATUS_COLORS = { ongoing: '#ffc20a', completed: '#068737', not_started: '#98A2B3' }
 const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', not_started: 'Not Started' }
 
-function projectsUrl(params) {
-  return `/projects?${new URLSearchParams(params).toString()}`
-}
-
 function ClickableStat({ label, value, onClick, accent }) {
   return (
     <Card
@@ -59,9 +55,9 @@ function AdministratorDashboard() {
     }
   }, [])
 
-  const goToProjectReview = (projectId) => {
+  const goToProject = (projectId) => {
     storeProjectId(projectId)
-    navigate(`/reviews?projectId=${projectId}`)
+    navigate(`/projects/${projectId}`)
   }
 
   if (loading || !admin) {
@@ -78,24 +74,24 @@ function AdministratorDashboard() {
     <div className="flex flex-col gap-3">
       {/* Row 1 — four equal metric cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <ClickableStat label="Total projects" value={statusCounts.total} onClick={() => navigate('/projects')} />
+        <ClickableStat label="Total projects" value={statusCounts.total} onClick={() => {}} />
         <ClickableStat
           label="Ongoing"
           value={statusCounts.ongoing}
           accent={STATUS_COLORS.ongoing}
-          onClick={() => navigate(projectsUrl({ derivedStatus: 'ongoing' }))}
+          onClick={() => {}}
         />
         <ClickableStat
           label="Completed"
           value={statusCounts.completed}
           accent={STATUS_COLORS.completed}
-          onClick={() => navigate(projectsUrl({ derivedStatus: 'completed' }))}
+          onClick={() => {}}
         />
         <ClickableStat
           label="Not started"
           value={statusCounts.not_started}
           accent={STATUS_COLORS.not_started}
-          onClick={() => navigate(projectsUrl({ derivedStatus: 'not_started' }))}
+          onClick={() => {}}
         />
       </div>
 
@@ -171,13 +167,7 @@ function AdministratorDashboard() {
             {['ongoing', 'completed', 'not_started'].map((key) => (
               <div
                 key={key}
-                className="flex cursor-pointer items-center justify-between rounded-lg px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800"
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate(projectsUrl({ derivedStatus: key }))}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') navigate(projectsUrl({ derivedStatus: key }))
-                }}
+                className="flex items-center justify-between rounded-lg px-2 py-2"
               >
                 <span className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: STATUS_COLORS[key] }} />
@@ -201,7 +191,7 @@ function AdministratorDashboard() {
             dataSource={admin.transition_blockers}
             locale={{ emptyText: 'No projects are currently stuck at a gate.' }}
             onRow={(record) => ({
-              onClick: () => goToProjectReview(record.project_id),
+              onClick: () => goToProject(record.project_id),
               className: 'cursor-pointer',
             })}
             columns={[
@@ -221,15 +211,7 @@ function AdministratorDashboard() {
         </Card>
 
         <Card className="page-shell-card" title="Overdue activities">
-          <div
-            className="cursor-pointer"
-            role="button"
-            tabIndex={0}
-            onClick={() => navigate('/projects')}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') navigate('/projects')
-            }}
-          >
+          <div>
             <div className="text-3xl font-semibold" style={{ color: BRAND_MAROON }}>
               {admin.overdue_activities.total}
             </div>
@@ -243,13 +225,7 @@ function AdministratorDashboard() {
             ].map((row) => (
               <div
                 key={row.key}
-                className="flex cursor-pointer items-center justify-between rounded-lg px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800"
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate('/projects')}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') navigate('/projects')
-                }}
+                className="flex items-center justify-between rounded-lg px-2 py-2"
               >
                 <span>{row.label}</span>
                 <span className="font-semibold">{admin.overdue_activities[row.key]}</span>
@@ -268,12 +244,12 @@ function AdministratorDashboard() {
           <ClickableStat
             label="New registrations"
             value={admin.awaiting_action.new_registrations}
-            onClick={() => navigate(projectsUrl({ q: 'Registration' }))}
+            onClick={() => {}}
           />
           <ClickableStat
             label="Plans pending review"
             value={admin.awaiting_action.plans_pending_review}
-            onClick={() => navigate('/reviews?tab=plan')}
+            onClick={() => {}}
           />
           <ClickableStat
             label="Matrices pending"
@@ -288,7 +264,7 @@ function AdministratorDashboard() {
           <ClickableStat
             label="Closure sign-offs"
             value={admin.awaiting_action.closure_signoffs}
-            onClick={() => navigate('/reviews?tab=closure')}
+            onClick={() => {}}
           />
         </div>
       </div>

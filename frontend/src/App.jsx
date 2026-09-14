@@ -13,7 +13,7 @@ const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'))
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'))
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'))
 const AuditLogPage = lazy(() => import('./pages/AuditLogPage'))
-const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const GenerateReportPage = lazy(() => import('./pages/GenerateReportPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
 const LegacyProjectRedirect = lazy(() => import('./pages/LegacyProjectRedirect'))
 
@@ -119,7 +119,7 @@ export default function App() {
                 path="/reports"
                 element={
                   <RolePageRoute>
-                    <ReportsPage />
+                    <GenerateReportPage />
                   </RolePageRoute>
                 }
               />
