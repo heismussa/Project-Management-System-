@@ -1,50 +1,43 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Col, Row, message } from 'antd'
-import { FolderKanban, RotateCcw, Clock } from 'lucide-react'
-import dayjs from 'dayjs'
+import { FolderKanban, RotateCcw, Clock, Layers } from 'lucide-react'
 import api from '../../lib/axios'
-import { fetchProjectsCached } from '../../lib/projectsCache'
-import { storeProjectId, unwrapItem, unwrapList } from '../../lib/apiHelpers'
+import { storeProjectId, unwrapItem } from '../../lib/apiHelpers'
 import { useAuth } from '../../context/AuthContext'
 import { ROLES } from '../../utility/Config.jsx'
 import DataTable from '../common/DataTable'
-import { DASHBOARD_CARD_THEMES } from './chartConstants'
+import TintedMetricCard from './shared/TintedMetricCard'
+import DashboardHeaderBanner from './shared/DashboardHeaderBanner'
+import DashboardSection from './shared/DashboardSection'
+import { DASHBOARD_CARD_THEMES } from './shared/chartConstants'
 
-// Tinted metric card: icon, figure, and label all share the theme's accent
-// colour so they read as one unit — never a coloured icon beside a
-// muted-grey label. Body text/captions stay DASHBOARD_CARD_BODY_TEXT.
-function TintedMetricCard({ icon: Icon, label, value, theme, linkLabel, onLinkClick }) {
+const STAGE_COLORS = { planning: '#ffc20a', execution: '#2E9E55', closure: '#C2410C' }
+const STAGE_LABELS = { planning: 'Planning', execution: 'Execution', closure: 'Closure' }
+
+function StageBar({ breakdown }) {
+  const total = Object.values(breakdown).reduce((sum, n) => sum + n, 0)
+  if (!total) return <div className="text-sm text-gray-500">No assigned projects yet.</div>
+
   return (
-    <div
-      style={{
-        background: theme.background,
-        border: `1px solid ${theme.border}`,
-        borderRadius: 12,
-        padding: 20,
-        height: '100%',
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <Icon size={20} color={theme.accent} />
-        <span style={{ color: theme.accent, fontWeight: 700, fontSize: 13 }}>{label}</span>
+    <div>
+      <div className="flex" style={{ height: 20, borderRadius: 6, overflow: 'hidden', gap: 2 }}>
+        {Object.entries(breakdown).map(([stage, count]) =>
+          count > 0 ? (
+            <div key={stage} style={{ width: `${(count / total) * 100}%`, background: STAGE_COLORS[stage] }} />
+          ) : null,
+        )}
       </div>
-      <div className="mt-2" style={{ color: theme.accent, fontSize: 30, fontWeight: 700, lineHeight: 1.2 }}>
-        {value}
+      <div className="mt-3 flex flex-wrap gap-5">
+        {Object.entries(breakdown).map(([stage, count]) => (
+          <span key={stage} className="flex items-center gap-1.5 text-xs">
+            <span
+              style={{ width: 9, height: 9, borderRadius: '50%', background: STAGE_COLORS[stage] }}
+              className="inline-block"
+            />
+            {STAGE_LABELS[stage]} <b>{count}</b>
+          </span>
+        ))}
       </div>
-      {linkLabel && (
-        <>
-          <div className="mt-3" style={{ borderTop: `1px solid ${theme.divider}` }} />
-          <button
-            type="button"
-            className="mt-3 text-sm font-semibold"
-            style={{ color: theme.link }}
-            onClick={onLinkClick}
-          >
-            {linkLabel}
-          </button>
-        </>
-      )}
     </div>
   )
 }
@@ -53,127 +46,111 @@ export default function PlannerDashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [payload, setPayload] = useState(null)
-  const [projects, setProjects] = useState([])
-  const [notifications, setNotifications] = useState([])
 
   useEffect(() => {
     api.get('/dashboard', { params: { role: ROLES.PPL } }).then((response) => {
       setPayload(unwrapItem(response.data))
     })
-    fetchProjectsCached({ planner_id: user?.id, role: ROLES.PPL })
-      .then((response) => setProjects(unwrapList(response.data)))
-      .catch(() => message.error('Could not load assigned projects.'))
-
-    const timer = window.setTimeout(() => {
-      api
-        .get('/notifications')
-        .then((response) => setNotifications(unwrapList(response.data)))
-        .catch(() => setNotifications([]))
-    }, 600)
-    return () => window.clearTimeout(timer)
   }, [user?.id])
 
-  const returned = useMemo(
-    () =>
-      projects.filter(
-        (project) =>
-          project.plan_review_status === 'changes_requested' || project.workflow?.closure_return_comment,
-      ),
-    [projects],
-  )
-
-  const open = (project, tab) => {
-    storeProjectId(project.id)
-    navigate(`/projects/${project.id}?tab=${tab}`)
+  const open = (projectId) => {
+    storeProjectId(projectId)
+    navigate(`/projects/${projectId}?tab=plan`)
   }
 
   const counts = payload?.counts || {}
+  const planner = payload?.planner || { overdue_activities: [], needs_rework: [], stage_breakdown: {} }
 
   return (
-    <div>
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={8}>
-          <TintedMetricCard
-            icon={FolderKanban}
-            label="Assigned projects"
-            value={counts.assigned_projects ?? projects.length}
-            theme={DASHBOARD_CARD_THEMES.amber}
-            linkLabel="View all projects"
-            onLinkClick={() => navigate('/projects')}
-          />
-        </Col>
-        <Col xs={24} sm={12} lg={8}>
-          <TintedMetricCard
-            icon={RotateCcw}
-            label="Plans returned"
-            value={counts.plans_returned ?? returned.length}
-            theme={DASHBOARD_CARD_THEMES.green}
-            linkLabel="View returned plans"
-            onLinkClick={() => document.getElementById('returned-for-revision')?.scrollIntoView({ behavior: 'smooth' })}
-          />
-        </Col>
-        <Col xs={24} sm={12} lg={8}>
-          <TintedMetricCard
-            icon={Clock}
-            label="Overdue activities"
-            value={counts.overdue_activities ?? 0}
-            theme={DASHBOARD_CARD_THEMES.amber}
-            linkLabel="View in projects"
-            onLinkClick={() => navigate('/projects')}
-          />
-        </Col>
-      </Row>
+    <div className="flex flex-col gap-3">
+      <DashboardHeaderBanner />
 
-      <Card id="returned-for-revision" className="page-shell-card mt-4" title="Returned for revision" styles={{ body: { padding: 0 } }}>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <TintedMetricCard
+          icon={Clock}
+          label="Overdue activities"
+          value={counts.overdue_activities ?? 0}
+          subtext="past their planned end date"
+          theme={DASHBOARD_CARD_THEMES.red}
+        />
+        <TintedMetricCard
+          icon={RotateCcw}
+          label="Needs rework"
+          value={planner.needs_rework.length}
+          subtext="rejected requirements / plan changes"
+          theme={DASHBOARD_CARD_THEMES.orange}
+        />
+        <TintedMetricCard
+          icon={FolderKanban}
+          label="Assigned projects"
+          value={counts.assigned_projects ?? 0}
+          theme={DASHBOARD_CARD_THEMES.neutral}
+        />
+      </div>
+
+      <DashboardSection icon={Clock} title="Overdue Activities" noPadding>
         <DataTable
-          rowKey="id"
-          data={returned}
-          searchPlaceholder="Search returned projects..."
-          emptyText="No returned plans or closure requests."
+          hideSearch
+          rowKey={(row) => `${row.project_id}-${row.activity}`}
+          data={planner.overdue_activities}
+          emptyText="Nothing overdue — you're caught up."
           columns={[
-            { title: 'Project Name', dataIndex: 'name', width: 220 },
             {
-              title: 'Reason',
-              render: (_, record) =>
-                record.plan_review_comment || record.workflow?.closure_return_comment || 'Returned',
-              searchValue: (record) =>
-                record.plan_review_comment || record.workflow?.closure_return_comment || 'Returned',
-            },
-            {
-              title: 'Open',
-              width: 100,
-              render: (_, record) => (
-                <button
-                  type="button"
-                  className="text-[#650018] underline"
-                  onClick={() => open(record, record.workflow?.closure_return_comment ? 'closure' : 'plan')}
-                >
-                  Fix
+              title: 'Project',
+              dataIndex: 'project_name',
+              render: (value, record) => (
+                <button type="button" className="font-medium text-[#650018] hover:opacity-80" onClick={() => open(record.project_id)}>
+                  {value}
                 </button>
               ),
             },
-          ]}
-        />
-      </Card>
-
-      <Card className="page-shell-card mt-4" title="Notifications" styles={{ body: { padding: 0 } }}>
-        <DataTable
-          rowKey="id"
-          data={notifications.slice(0, 8)}
-          searchPlaceholder="Search notifications..."
-          emptyText="No notifications."
-          columns={[
-            { title: 'Type', dataIndex: 'type', width: 160 },
-            { title: 'Message', dataIndex: 'message' },
+            { title: 'Activity', dataIndex: 'activity' },
             {
-              title: 'When',
-              dataIndex: 'created_at',
-              width: 140,
-              render: (value) => (value ? dayjs(value).format('MMM D, YYYY') : '—'),
+              title: 'Planned End',
+              dataIndex: 'planned_end_date',
+              width: 130,
+              render: (value) => (value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'),
             },
+            {
+              title: 'Days Overdue',
+              dataIndex: 'days_overdue',
+              width: 120,
+              render: (value) => <span style={{ color: '#C0392B', fontWeight: 700 }}>{value}</span>,
+            },
+            { title: 'Responsible', dataIndex: 'responsible', width: 160 },
           ]}
         />
-      </Card>
+      </DashboardSection>
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <DashboardSection icon={RotateCcw} title="Needs Rework" noPadding>
+          <DataTable
+            hideSearch
+            rowKey={(row) => `${row.project_id}-${row.label}`}
+            data={planner.needs_rework}
+            emptyText="Nothing rejected right now."
+            columns={[
+              {
+                title: 'Item',
+                render: (_, record) => (
+                  <div>
+                    <button type="button" className="font-medium text-[#650018] hover:opacity-80" onClick={() => open(record.project_id)}>
+                      {record.project_name}
+                    </button>
+                    <div className="text-xs text-gray-500">{record.label}</div>
+                  </div>
+                ),
+                searchValue: (record) => `${record.project_name} ${record.label}`,
+              },
+              { title: 'Reason', dataIndex: 'reason', render: (value) => value || '—' },
+            ]}
+          />
+        </DashboardSection>
+
+        <DashboardSection icon={Layers} title="Projects by Stage" bodyStyle={{ padding: 20 }}>
+          <StageBar breakdown={planner.stage_breakdown} />
+        </DashboardSection>
+      </div>
     </div>
   )
 }

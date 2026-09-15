@@ -390,7 +390,7 @@ export default function GenerateReportPage() {
 
   return (
     <div className="page-container flex flex-col gap-3">
-      <Card className="page-shell-card" styles={{ body: { padding: 16 } }}>
+      <Card className="page-shell-card" style={{ marginTop: 0 }}>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <Text type="secondary" className="mb-1 block text-xs uppercase tracking-wide">
@@ -414,7 +414,7 @@ export default function GenerateReportPage() {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
           <Checkbox checked={includeActivities} onChange={(event) => setIncludeActivities(event.target.checked)}>
             Implementation activities
           </Checkbox>
@@ -427,13 +427,15 @@ export default function GenerateReportPage() {
         </div>
       </Card>
 
-      <Card className="page-shell-card" styles={{ body: { padding: 16 } }}>
+      <Card className="page-shell-card" style={{ marginTop: 0, padding: 0 }}>
         {loading ? (
           <div className="flex min-h-[180px] items-center justify-center">
             <Spin />
           </div>
         ) : filteredProjects.length === 0 ? (
-          <Empty description="No projects match the current filters." />
+          <div className="p-3">
+            <Empty description="No projects match the current filters." />
+          </div>
         ) : (
           <Table
             className="pms-house-table"
@@ -450,7 +452,7 @@ export default function GenerateReportPage() {
         )}
       </Card>
 
-      <Card className="page-shell-card" styles={{ body: { padding: 16 } }}>
+      <Card className="page-shell-card" style={{ marginTop: 0 }}>
         <Space wrap>
           <Button
             type="primary"

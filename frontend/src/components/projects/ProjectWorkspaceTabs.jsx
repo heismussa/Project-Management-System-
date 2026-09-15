@@ -15,6 +15,7 @@ export default function ProjectWorkspaceTabs({
   onProjectChanged,
   onActivityReview,
   shouldShowActivityReview,
+  readOnlyBrowse = false,
 }) {
   useEffect(() => {
     if (projectId) storeProjectId(projectId)
@@ -32,12 +33,13 @@ export default function ProjectWorkspaceTabs({
       <ImplementationPlanPage
         embedded
         projectId={projectId}
-        onActivityReview={onActivityReview}
+        onActivityReview={readOnlyBrowse ? null : onActivityReview}
         onProjectChanged={onProjectChanged}
-        shouldShowActivityReview={shouldShowActivityReview}
+        shouldShowActivityReview={readOnlyBrowse ? null : shouldShowActivityReview}
         simplifiedPlannerView
         hideExpectedDeliverable
         hideReapprovalNotice
+        readOnlyBrowse={readOnlyBrowse}
       />
     </div>
   )

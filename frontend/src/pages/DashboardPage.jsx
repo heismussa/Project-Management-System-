@@ -11,7 +11,8 @@ import ViewOnlyDashboard from '../components/dashboard/ViewOnlyDashboard'
 import IctSupportDashboard from '../components/dashboard/IctSupportDashboard'
 import PlannerDashboard from '../components/dashboard/PlannerDashboard'
 import CoordinatorDashboard from '../components/dashboard/CoordinatorDashboard'
-import { DASHBOARD_CARD_STYLE } from '../components/dashboard/chartConstants'
+import ApproverDashboard from '../components/dashboard/ApproverDashboard'
+import { DASHBOARD_CARD_STYLE } from '../components/dashboard/shared/chartConstants'
 
 const METRIC_LABELS = {
   new_registrations: 'New registrations',
@@ -37,7 +38,7 @@ function DashboardPage() {
   const isCoordinator = activeRole?.name === ROLES.PCO
   const isApprover = activeRole?.name === ROLES.PAP
   const hasDedicatedDashboard =
-    isAdministrator || isReviewer || isPlanner || isCoordinator || isViewOnly || isIctSupport
+    isAdministrator || isReviewer || isPlanner || isCoordinator || isApprover || isViewOnly || isIctSupport
   const [payload, setPayload] = useState(null)
 
   // Dedicated role dashboards fetch their own /dashboard payload — skip the
@@ -85,6 +86,10 @@ function DashboardPage() {
     return <CoordinatorDashboard />
   }
 
+  if (isApprover) {
+    return <ApproverDashboard />
+  }
+
   if (isViewOnly) {
     return <ViewOnlyDashboard />
   }
@@ -93,16 +98,12 @@ function DashboardPage() {
     return <IctSupportDashboard />
   }
 
-  if (isApprover) {
-    // Approver has no dedicated dashboard component yet — fall through to metrics.
-  }
-
   return (
-    <div>
-      <Row gutter={[16, 16]}>
+    <div className="flex flex-col gap-3">
+      <Row gutter={[12, 12]}>
         {metrics.map((metric) => (
           <Col xs={24} sm={12} lg={8} key={metric.key}>
-            <Card className="page-shell-card" style={DASHBOARD_CARD_STYLE}>
+            <Card className="page-shell-card" style={{ ...DASHBOARD_CARD_STYLE, marginTop: 0 }}>
               <Statistic title={metric.label} value={metric.value} />
             </Card>
           </Col>
@@ -110,13 +111,13 @@ function DashboardPage() {
       </Row>
 
       {(payload?.pending_actions || []).length > 0 && (
-        <Card className="page-shell-card mt-4" title="Pending actions">
+        <Card className="page-shell-card" style={{ marginTop: 0 }} title="Pending actions">
           <ul className="m-0 list-disc space-y-2 pl-5">
             {payload.pending_actions.map((action) => (
               <li key={action.path}>
                 <button
                   type="button"
-                  className="text-[#650018] underline"
+                  className="text-[#650018] hover:opacity-80"
                   onClick={() => navigate(action.path)}
                 >
                   {action.label}

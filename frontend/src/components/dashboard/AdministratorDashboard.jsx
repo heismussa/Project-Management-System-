@@ -1,34 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Progress, Table, Typography, message } from 'antd'
+import { Button, Card, Tag, Typography, message } from 'antd'
+import { Users, UserCheck, UserX, KeyRound, ShieldAlert, History, ArrowRight, UserCog, ShieldCheck } from 'lucide-react'
 import api from '../../lib/axios'
-import { storeProjectId, unwrapItem } from '../../lib/apiHelpers'
-import { BRAND_MAROON, DASHBOARD_CARD_STYLE } from './chartConstants'
+import { unwrapItem } from '../../lib/apiHelpers'
+import TintedMetricCard from './shared/TintedMetricCard'
+import DashboardHeaderBanner from './shared/DashboardHeaderBanner'
+import DashboardSection from './shared/DashboardSection'
+import ActivityRow from './shared/ActivityRow'
+import RoleBar from './shared/RoleBar'
+import { relativeTime } from './shared/relativeTime'
+import { DASHBOARD_CARD_THEMES } from './shared/chartConstants'
 
-const { Title, Text } = Typography
+const { Text } = Typography
 
-const STATUS_COLORS = { ongoing: '#ffc20a', completed: '#068737', not_started: '#98A2B3' }
-const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', not_started: 'Not Started' }
-
-function ClickableStat({ label, value, onClick, accent }) {
-  return (
-    <Card
-      hoverable
-      className="page-shell-card" style={{ ...DASHBOARD_CARD_STYLE, marginTop: 0 }}
-      onClick={onClick}
-      styles={{ body: { padding: 20 } }}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') onClick()
-      }}
-    >
-      <Text type="secondary">{label}</Text>
-      <div className="mt-1 text-3xl font-semibold" style={accent ? { color: accent } : undefined}>
-        {value}
-      </div>
-    </Card>
-  )
+const SECURITY_LABELS = {
+  login_failed: 'Failed login',
+  access_denied: 'Access denied',
+  account_created: 'Account created',
 }
 
 function AdministratorDashboard() {
@@ -55,11 +44,6 @@ function AdministratorDashboard() {
     }
   }, [])
 
-  const goToProject = (projectId) => {
-    storeProjectId(projectId)
-    navigate(`/projects/${projectId}`)
-  }
-
   if (loading || !admin) {
     return (
       <Card className="page-shell-card" style={{ marginTop: 0 }} loading={loading}>
@@ -68,206 +52,98 @@ function AdministratorDashboard() {
     )
   }
 
-  const { status_counts: statusCounts } = admin
+  const {
+    metrics,
+    users_by_role: usersByRole,
+    users_without_roles: usersWithoutRoles,
+    recent_activity: recentActivity,
+    security_highlights: security,
+    notification_engine: notifications,
+  } = admin
+  const maxRoleCount = Math.max(1, ...usersByRole.map((row) => row.count))
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Row 1 — four equal metric cards */}
+      <DashboardHeaderBanner />
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <ClickableStat label="Total projects" value={statusCounts.total} onClick={() => {}} />
-        <ClickableStat
-          label="Ongoing"
-          value={statusCounts.ongoing}
-          accent={STATUS_COLORS.ongoing}
-          onClick={() => {}}
-        />
-        <ClickableStat
-          label="Completed"
-          value={statusCounts.completed}
-          accent={STATUS_COLORS.completed}
-          onClick={() => {}}
-        />
-        <ClickableStat
-          label="Not started"
-          value={statusCounts.not_started}
-          accent={STATUS_COLORS.not_started}
-          onClick={() => {}}
-        />
+        <TintedMetricCard icon={Users} label="Total users" value={metrics.total_users} theme={DASHBOARD_CARD_THEMES.neutral} />
+        <TintedMetricCard icon={UserCheck} label="Active accounts" value={metrics.active_accounts} theme={DASHBOARD_CARD_THEMES.green} />
+        <TintedMetricCard icon={UserX} label="Disabled accounts" value={metrics.disabled_accounts} theme={DASHBOARD_CARD_THEMES.red} />
+        <TintedMetricCard icon={KeyRound} label="Password resets" value={metrics.password_resets} theme={DASHBOARD_CARD_THEMES.amber} />
       </div>
 
-      {/* Row 2 — implementation score panel, one horizontal row */}
-      <Card className="page-shell-card" title="Implementation score">
-        <div className="relative grid grid-cols-2 items-center gap-y-6 sm:grid-cols-4">
-          <div className="flex flex-col items-center justify-center text-center">
-            <Progress
-              type="dashboard"
-              size={100}
-              strokeWidth={9}
-              percent={admin.implementation_score_average ?? 0}
-              strokeColor={STATUS_COLORS.completed}
-              format={() => (
-                <span style={{ fontSize: 20 }}>
-                  {admin.implementation_score_average != null ? `${admin.implementation_score_average}%` : '—'}
-                </span>
-              )}
+      {usersWithoutRoles > 0 && (
+        <Card
+          className="page-shell-card"
+          style={{ marginTop: 0, background: '#FFF8F3', borderColor: '#F4DCC7' }}
+          styles={{ body: { padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }}
+        >
+          <div className="flex items-center gap-3">
+            <ShieldAlert size={19} color="#C2410C" />
+            <Text style={{ color: '#C2410C', fontWeight: 600 }}>
+              {usersWithoutRoles} account{usersWithoutRoles === 1 ? '' : 's'} with no role assigned
+            </Text>
+          </div>
+          <Button size="small" onClick={() => navigate('/user-management')}>
+            Review <ArrowRight size={13} />
+          </Button>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <DashboardSection icon={UserCog} title="Users by Role" bodyStyle={{ padding: '18px 20px' }}>
+          <div className="flex flex-col gap-3">
+            {usersByRole.map((row) => (
+              <RoleBar key={row.role} label={row.role} count={row.count} maxCount={maxRoleCount} />
+            ))}
+          </div>
+        </DashboardSection>
+
+        <DashboardSection icon={Users} title="User Management — recent changes" bodyStyle={{ padding: '4px 20px 14px' }}>
+          {recentActivity.length === 0 ? (
+            <Text type="secondary">No recent account changes.</Text>
+          ) : (
+            recentActivity.map((event, index) => (
+              <ActivityRow key={index} label={event.action} sub={event.user} when={relativeTime(event.when)} severity="neutral" />
+            ))
+          )}
+        </DashboardSection>
+      </div>
+
+      <DashboardSection icon={ShieldCheck} title="Audit Log — recent highlights" bodyStyle={{ padding: '4px 20px 14px' }}>
+        {security.length === 0 ? (
+          <Text type="secondary">No recent security events.</Text>
+        ) : (
+          security.map((event, index) => (
+            <ActivityRow
+              key={index}
+              label={SECURITY_LABELS[event.action] || event.action}
+              sub={event.who}
+              when={relativeTime(event.when)}
+              severity={event.action === 'login_failed' || event.action === 'access_denied' ? 'danger' : 'neutral'}
             />
-            <Text type="secondary" className="mt-2" style={{ fontSize: 12 }}>
-              Overall score
-            </Text>
-          </div>
+          ))
+        )}
+      </DashboardSection>
 
-          <div className="flex flex-col items-center justify-center text-center">
-            <Progress
-              type="dashboard"
-              size={100}
-              strokeWidth={9}
-              percent={admin.uat_pass_rate}
-              strokeColor={STATUS_COLORS.ongoing}
-              format={() => <span style={{ fontSize: 20 }}>{admin.uat_pass_rate}%</span>}
-            />
-            <Text type="secondary" className="mt-2" style={{ fontSize: 12 }}>
-              UAT pass rate
+      <Card className="page-shell-card" style={{ marginTop: 0 }} styles={{ body: { padding: '16px 20px' } }}>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <History size={17} color="#6b7280" />
+            <Text type="secondary" className="text-sm">
+              Notification scheduler
             </Text>
+            <Tag color={notifications.scheduler_running ? 'green' : 'red'}>
+              {notifications.scheduler_running ? 'Running' : 'Stopped'}
+            </Tag>
           </div>
-
-          <div className="flex flex-col items-center justify-center text-center">
-            <div className="font-semibold" style={{ fontSize: 24 }}>
-              {admin.total_budget.toLocaleString(undefined, { style: 'currency', currency: 'TZS', maximumFractionDigits: 0 })}
-            </div>
-            <Text type="secondary" className="mt-1" style={{ fontSize: 12 }}>
-              Total budget
-            </Text>
-          </div>
-
-          <div
-            className="flex cursor-pointer flex-col items-center justify-center text-center"
-            role="button"
-            tabIndex={0}
-            onClick={() => navigate('/traceability-matrix')}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') navigate('/traceability-matrix')
-            }}
-          >
-            <div className="font-semibold underline decoration-dotted" style={{ fontSize: 24 }}>
-              {admin.requirement_total}
-            </div>
-            <Text type="secondary" className="mt-1" style={{ fontSize: 12 }}>
-              Requirements tracked
-            </Text>
-          </div>
-
-          <div className="absolute inset-y-2 left-1/2 hidden w-px -translate-x-1/2 bg-gray-200 dark:bg-gray-700 sm:block" />
+          <Text type="secondary" className="text-xs">
+            {notifications.alerts_sent_today} alert{notifications.alerts_sent_today === 1 ? '' : 's'} sent today
+            {notifications.last_run_at ? ` · last run ${relativeTime(notifications.last_run_at)}` : ''}
+          </Text>
         </div>
       </Card>
-
-      {/* Row 3 — status legend */}
-      <div className="grid grid-cols-1 gap-3">
-        <Card className="page-shell-card" title="By status">
-          <div className="flex flex-col gap-2">
-            {['ongoing', 'completed', 'not_started'].map((key) => (
-              <div
-                key={key}
-                className="flex items-center justify-between rounded-lg px-2 py-2"
-              >
-                <span className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: STATUS_COLORS[key] }} />
-                  {STATUS_LABELS[key]}
-                </span>
-                <span className="font-semibold">{statusCounts[key]}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {/* Row 4 — blockers table (1.35fr) beside overdue activities (1fr) */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.35fr_1fr]">
-        <Card className="page-shell-card" title="Transition blockers">
-          <Table
-            className="pms-house-table"
-            rowKey={(record) => `${record.project_id}-${record.reason}`}
-            size="small"
-            pagination={false}
-            dataSource={admin.transition_blockers}
-            locale={{ emptyText: 'No projects are currently stuck at a gate.' }}
-            onRow={(record) => ({
-              onClick: () => goToProject(record.project_id),
-              className: 'cursor-pointer',
-            })}
-            columns={[
-              { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
-              { title: 'Project Name', dataIndex: 'project_name' },
-              { title: 'Blocker', dataIndex: 'reason' },
-              {
-                title: 'Days',
-                dataIndex: 'days_stuck',
-                width: 90,
-                align: 'right',
-                sorter: (a, b) => a.days_stuck - b.days_stuck,
-                defaultSortOrder: 'descend',
-              },
-            ]}
-          />
-        </Card>
-
-        <Card className="page-shell-card" title="Overdue activities">
-          <div>
-            <div className="text-3xl font-semibold" style={{ color: BRAND_MAROON }}>
-              {admin.overdue_activities.total}
-            </div>
-            <Text type="secondary">Past planned start</Text>
-          </div>
-          <div className="mt-4 flex flex-col gap-2">
-            {[
-              { key: '1_day', label: '1 day' },
-              { key: '3_days', label: '3 days' },
-              { key: 'over_3_days', label: 'Over 3 days' },
-            ].map((row) => (
-              <div
-                key={row.key}
-                className="flex items-center justify-between rounded-lg px-2 py-2"
-              >
-                <span>{row.label}</span>
-                <span className="font-semibold">{admin.overdue_activities[row.key]}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {/* Row 5 — awaiting action heading, five equal cards */}
-      <div>
-        <Title level={5} className="!mb-3">
-          Awaiting action
-        </Title>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <ClickableStat
-            label="New registrations"
-            value={admin.awaiting_action.new_registrations}
-            onClick={() => {}}
-          />
-          <ClickableStat
-            label="Plans pending review"
-            value={admin.awaiting_action.plans_pending_review}
-            onClick={() => {}}
-          />
-          <ClickableStat
-            label="Matrices pending"
-            value={admin.awaiting_action.matrices_pending_approval}
-            onClick={() => navigate('/traceability-matrix')}
-          />
-          <ClickableStat
-            label="Docs pending review"
-            value={admin.awaiting_action.documents_pending_review}
-            onClick={() => navigate('/documents')}
-          />
-          <ClickableStat
-            label="Closure sign-offs"
-            value={admin.awaiting_action.closure_signoffs}
-            onClick={() => {}}
-          />
-        </div>
-      </div>
     </div>
   )
 }

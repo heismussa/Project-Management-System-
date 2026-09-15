@@ -70,7 +70,7 @@ export function isCompletedProject(project) {
   return Boolean(project?.closed_at) || project?.status === 'Closed'
 }
 
-function ProjectsPage() {
+function ProjectsPage({ mode = 'browse' } = {}) {
   const { user, activeRole } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [projects, setProjects] = useState([])
@@ -113,10 +113,14 @@ function ProjectsPage() {
 
   const isPlannerRole = activeRole?.name === ROLES.PPL
   const isReviewerRole = activeRole?.name === ROLES.PRV
+  // Reviewer: `/review-project` keeps full review actions; `/projects` is browse-only.
+  const isReviewWorkflow = isReviewerRole && mode === 'review'
+  const isBrowseMode = isReviewerRole && !isReviewWorkflow
   const canReassign =
     hasPermission(user, 'projects.assign_planner') || hasPermission(user, 'projects.reassign_planner')
   const isCompletedView = view === 'completed'
   const canRegister =
+    !isReviewWorkflow &&
     activeRole?.name !== ROLES.PPL &&
     (activeRole?.name === ROLES.PRV || activeRole?.name === ROLES.PAD) &&
     hasPermission(user, 'projects.register')
@@ -496,7 +500,7 @@ function ProjectsPage() {
   const detailInExecution = Boolean(detailTarget?.execution_started_at || detailWorkflow?.execution_started_at)
 
   const activityNeedsReview = (activityRecord) => {
-    if (!isReviewerRole) return false
+    if (!isReviewWorkflow) return false
     if (activityRecord.progress_review_status === 'pending') return true
     if (activityRecord.plan_change_status === 'pending') return true
     if (detailTarget?.plan_review_status === 'pending_review') return true
@@ -579,11 +583,11 @@ function ProjectsPage() {
         <Space size="small" wrap>
           <Button
             type="primary"
-            aria-label={isReviewerRole ? 'Review project' : 'View project details'}
+            aria-label={isReviewWorkflow ? 'Review project' : 'View project details'}
             style={{ backgroundColor: '#800000', borderColor: '#800000' }}
             onClick={() => openDetail(record)}
           >
-            {isReviewerRole ? 'Review' : 'View'}
+            {isReviewWorkflow ? 'Review' : 'View'}
           </Button>
         </Space>
       ),
@@ -703,7 +707,7 @@ function ProjectsPage() {
                 </Button>
               </Popconfirm>
             )}
-            {isReviewerRole && detailWorkflow?.can_approve_closure && (
+            {isReviewWorkflow && detailWorkflow?.can_approve_closure && (
               <>
                 <Popconfirm
                   title="Sign off and close this project?"
@@ -743,7 +747,7 @@ function ProjectsPage() {
               <Descriptions.Item label="Planner">
                 <span className="inline-flex items-center gap-2">
                   {detailTarget.planner?.name || 'Unassigned'}
-                  {isReviewerRole && canReassign && (
+                  {isReviewWorkflow && canReassign && (
                     <Button size="small" type="link" style={{ padding: 0 }} onClick={() => openReassign(detailTarget)}>
                       Reassign
                     </Button>
@@ -795,8 +799,9 @@ function ProjectsPage() {
               <ProjectWorkspaceTabs
                 projectId={detailTarget.id}
                 onProjectChanged={handleWorkspaceChanged}
-                onActivityReview={isReviewerRole ? openActivityReview : undefined}
-                shouldShowActivityReview={isReviewerRole ? activityNeedsReview : undefined}
+                readOnlyBrowse={isBrowseMode}
+                onActivityReview={isReviewWorkflow ? openActivityReview : undefined}
+                shouldShowActivityReview={isReviewWorkflow ? activityNeedsReview : undefined}
               />
             )}
           </div>

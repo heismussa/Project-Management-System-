@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Alert, Card, Progress, Table, Typography, message } from 'antd'
-import { EyeOutlined } from '@ant-design/icons'
+import { Card, Progress, Table, Typography, message } from 'antd'
+import { Gauge, ListChecks, FolderKanban } from 'lucide-react'
 import api from '../../lib/axios'
 import { unwrapItem } from '../../lib/apiHelpers'
-import { DASHBOARD_CARD_STYLE } from './chartConstants'
+import TintedMetricCard from './shared/TintedMetricCard'
+import DashboardHeaderBanner from './shared/DashboardHeaderBanner'
+import DashboardSection from './shared/DashboardSection'
+import { DASHBOARD_CARD_THEMES } from './shared/chartConstants'
 
 const { Text } = Typography
 
@@ -17,15 +20,6 @@ const REQUIREMENT_SEGMENTS = [
   { key: 'ongoing', label: 'Ongoing', color: AMBER },
   { key: 'completed', label: 'Completed', color: GREEN },
 ]
-
-function MetricCard({ label, value }) {
-  return (
-    <Card className="page-shell-card" style={{ ...DASHBOARD_CARD_STYLE, marginTop: 0 }} styles={{ body: { padding: 20 } }}>
-      <Text type="secondary">{label}</Text>
-      <div className="mt-1 text-3xl font-semibold">{value}</div>
-    </Card>
-  )
-}
 
 function RequirementStackedBar({ counts }) {
   const total = counts.pending + counts.ongoing + counts.completed
@@ -95,25 +89,27 @@ function ViewOnlyDashboard() {
 
   return (
     <div className="flex flex-col gap-3">
-    
+      {/* 1 — banner */}
+      <DashboardHeaderBanner subtitle="View-only access — the full project record, nothing you can change" />
 
       {/* 2 — four equal metric cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Total projects" value={statusCounts.total} />
-        <MetricCard label="Ongoing" value={statusCounts.ongoing} />
-        <MetricCard label="Completed" value={statusCounts.completed} />
-        <MetricCard
+        <TintedMetricCard label="Total projects" value={statusCounts.total} theme={DASHBOARD_CARD_THEMES.neutral} />
+        <TintedMetricCard label="Ongoing" value={statusCounts.ongoing} theme={DASHBOARD_CARD_THEMES.amber} />
+        <TintedMetricCard label="Completed" value={statusCounts.completed} theme={DASHBOARD_CARD_THEMES.green} />
+        <TintedMetricCard
           label="Total budget"
           value={viewOnly.total_budget.toLocaleString(undefined, {
             style: 'currency',
             currency: 'TZS',
             maximumFractionDigits: 0,
           })}
+          theme={DASHBOARD_CARD_THEMES.neutral}
         />
       </div>
 
       {/* 3 — implementation score panel */}
-      <Card className="page-shell-card" title="Implementation score">
+      <DashboardSection icon={Gauge} title="Implementation score">
         <div className="flex flex-wrap items-center gap-8">
           <div className="flex flex-col items-center">
             <Progress
@@ -144,11 +140,11 @@ function ViewOnlyDashboard() {
             <RequirementStackedBar counts={requirementCounts} />
           </div>
         </div>
-      </Card>
+      </DashboardSection>
 
       {/* 4 — status legend */}
       <div className="grid grid-cols-1 gap-3">
-        <Card className="page-shell-card" title="Projects by status">
+        <DashboardSection icon={ListChecks} title="Projects by status">
           <div className="flex flex-col gap-2">
             {['ongoing', 'completed', 'not_started'].map((key) => (
               <div key={key} className="flex items-center justify-between px-2 py-2">
@@ -160,11 +156,11 @@ function ViewOnlyDashboard() {
               </div>
             ))}
           </div>
-        </Card>
+        </DashboardSection>
       </div>
 
       {/* 5 — project progress table */}
-      <Card className="page-shell-card" title="Project progress">
+      <DashboardSection icon={FolderKanban} title="Project progress">
         <Table
           className="pms-house-table"
           rowKey="id"
@@ -184,7 +180,7 @@ function ViewOnlyDashboard() {
             },
           ]}
         />
-      </Card>
+      </DashboardSection>
     </div>
   )
 }

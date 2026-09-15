@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\Requirement;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\ProjectDashboardMetrics;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\Test;
@@ -102,8 +103,8 @@ class ViewOnlyDashboardTest extends TestCase
         Project::create(['name' => 'A', 'lifecycle_stage' => 'execution', 'actual_start_date' => now()->subDays(3)]);
         Project::create(['name' => 'B', 'lifecycle_stage' => 'initiation']);
 
-        $admin = Project::administratorDashboard();
-        $viewOnly = Project::viewOnlyDashboard();
+        $admin = ProjectDashboardMetrics::administratorDashboard();
+        $viewOnly = ProjectDashboardMetrics::viewOnlyDashboard();
 
         $this->assertSame($admin['status_counts'], $viewOnly['status_counts']);
         $this->assertSame($admin['phase_counts'], $viewOnly['phase_counts']);

@@ -57,11 +57,12 @@ function ImplementationPlanPage({
   simplifiedPlannerView = false,
   hideExpectedDeliverable = false,
   hideReapprovalNotice = false,
+  readOnlyBrowse = false,
 } = {}) {
   const { id: routeId } = useParams()
   const [searchParams] = useSearchParams()
   const roleName = useActiveRoleName()
-  const canAddActivity = !isSpecReadOnlyRole(roleName) && roleName !== ROLES.PRV
+  const canAddActivity = !readOnlyBrowse && !isSpecReadOnlyRole(roleName) && roleName !== ROLES.PRV
   const [projects, setProjects] = useState([])
   const [users, setUsers] = useState([])
   const [projectId, setProjectId] = useState(() => {
@@ -664,7 +665,7 @@ function ImplementationPlanPage({
   // locked for that track even after sign-off.
   const executionUnderway = Boolean(workflow?.execution_started_at)
   const canAddRtm = executionUnderway && canAddActivity
-  const canReviewRtm = executionUnderway && (roleName === ROLES.PRV || roleName === ROLES.PAD)
+  const canReviewRtm = !readOnlyBrowse && executionUnderway && (roleName === ROLES.PRV || roleName === ROLES.PAD)
   // Start / Record test result / Mark complete are the Planner's own
   // reporting of what actually happened — the Reviewer's role here is
   // Approve/Reject only, not doing the work.
@@ -838,7 +839,8 @@ function ImplementationPlanPage({
           useApprovalStatus={simplifiedPlannerView || hideExpectedDeliverable}
           planReviewStatus={workflow?.plan_review_status}
           people={people}
-          forceShowActions={Boolean(onActivityReview)}
+          forceShowActions={!readOnlyBrowse && Boolean(onActivityReview)}
+          hideActions={readOnlyBrowse}
           shouldShowReview={shouldShowActivityReview}
         />
       </Spin>
@@ -901,21 +903,25 @@ function ImplementationPlanPage({
                         <Tag style={{ fontSize: 14, padding: '2px 10px' }}>Not reviewed</Tag>
                       ),
                   },
-                  {
-                    title: 'Action',
-                    width: 90,
-                    onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
-                    render: (_, record) => (
-                      <Button
-                        type="primary"
-                        icon={<EyeOutlined />}
-                        style={{ backgroundColor: '#800000', borderColor: '#800000' }}
-                        onClick={() => openRtmView(record)}
-                      >
-                        View
-                      </Button>
-                    ),
-                  },
+                  ...(!readOnlyBrowse
+                    ? [
+                        {
+                          title: 'Action',
+                          width: 90,
+                          onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+                          render: (_, record) => (
+                            <Button
+                              type="primary"
+                              icon={<EyeOutlined />}
+                              style={{ backgroundColor: '#800000', borderColor: '#800000' }}
+                              onClick={() => openRtmView(record)}
+                            >
+                              View
+                            </Button>
+                          ),
+                        },
+                      ]
+                    : []),
                 ]}
               />
             )

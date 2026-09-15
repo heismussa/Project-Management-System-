@@ -7,13 +7,12 @@ import {
   Users,
   History,
   FileText,
+  FileSearch,
 } from 'lucide-react'
 
 /**
  * Minimalist sidebar: high-level queues/dashboards only.
- * Secondary tools (notifications, nested workspaces) live in header
- * overlays or row-level drawers — not as standalone menu links.
- * Generate Report is Reviewer-only (below Project Management).
+ * Reviewer gets Project Management (browse) + Review Project (workflow).
  * Administrator does not get Project Management or Generate Report.
  */
 export default function Project() {
@@ -26,6 +25,9 @@ export default function Project() {
     },
     {
       label: 'Project Management',
+      labelsByRole: {
+        [ROLES.PPL]: 'Plan Project',
+      },
       url: '/projects',
       // Administrator deliberately excluded — portfolio oversight is on the
       // Admin dashboard; day-to-day project work stays with other roles.
@@ -33,21 +35,31 @@ export default function Project() {
       icon: FolderKanban,
     },
     {
+      label: 'Review Project',
+      url: '/review-project',
+      roles: [ROLES.PRV],
+      icon: FileSearch,
+    },
+    {
       label: 'Generate Report',
       url: '/reports',
-      // Placed directly under Project Management so Reviewer sees:
-      // Main Dashboard → Project Management → Generate Report.
       roles: [ROLES.PRV],
       icon: FileText,
     },
     {
       label: 'Project Recommendations',
+      labelsByRole: {
+        [ROLES.PAP]: 'Approve Project',
+      },
       url: '/reviews',
       roles: [ROLES.PAP],
       icon: ClipboardCheck,
     },
     {
       label: 'Project Recommendations',
+      labelsByRole: {
+        [ROLES.PCO]: 'Recommend Project',
+      },
       url: '/recommendations',
       roles: [ROLES.PCO],
       icon: Inbox,

@@ -72,11 +72,12 @@ function ActivitiesTable({
   planReviewStatus = null,
   people = [],
   forceShowActions = false,
+  hideActions = false,
   shouldShowReview = null,
 }) {
   const roleName = useActiveRoleName()
   const { isDark } = useAppTheme()
-  const showActionColumn = forceShowActions || canShowActivityActionColumn(roleName)
+  const showActionColumn = !hideActions && (forceShowActions || canShowActivityActionColumn(roleName))
   const [selectedRowId, setSelectedRowId] = useState(null)
 
   const columns = useMemo(() => {

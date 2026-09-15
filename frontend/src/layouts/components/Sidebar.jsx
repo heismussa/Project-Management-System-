@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import Project from '../../utility/menu/project.jsx'
+import { resolveNavLabel } from '../nav'
 import SwitchRole from './SwitchRole'
 
 function navClassName(isActive) {
@@ -14,7 +15,8 @@ export default function Sidebar() {
   const { activeRole } = useAuth()
   const location = useLocation()
   const menuLinks = Project()
-  const myRoles = activeRole?.name ? [activeRole.name] : []
+  const roleName = activeRole?.name
+  const myRoles = roleName ? [roleName] : []
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -40,7 +42,7 @@ export default function Sidebar() {
                       className="nav-icon h-6 w-6 shrink-0 text-primary group-hover:text-white"
                       aria-hidden="true"
                     />
-                    <div className="truncate">{group.label}</div>
+                    <div className="truncate">{resolveNavLabel(group, roleName)}</div>
                   </NavLink>
                 </li>
               )

@@ -56,4 +56,13 @@ export const DASHBOARD_CARD_THEMES = {
     accent: '#1D4ED8',
     link: '#1D4ED8',
   },
+  // For a card that's just informational (a total, not an alert) — white,
+  // house maroon as the accent instead of a status colour.
+  neutral: {
+    background: '#fff',
+    border: '#f0eeee',
+    divider: '#f2f0f0',
+    accent: BRAND_MAROON,
+    link: BRAND_MAROON,
+  },
 }

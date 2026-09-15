@@ -68,6 +68,14 @@ return new class extends Migration
 
     private function indexExists(string $table, string $indexName): bool
     {
+        $driver = Schema::getConnection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            $rows = DB::select("PRAGMA index_list('{$table}')");
+
+            return collect($rows)->contains(fn ($row) => ($row->name ?? null) === $indexName);
+        }
+
         $database = DB::getDatabaseName();
         $row = DB::selectOne(
             'SELECT 1 AS ok FROM information_schema.statistics WHERE table_schema = ? AND table_name = ? AND index_name = ? LIMIT 1',
@@ -79,6 +87,24 @@ return new class extends Migration
 
     private function columnAlreadyIndexed(string $table, string $column): bool
     {
+        $driver = Schema::getConnection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            $indexes = DB::select("PRAGMA index_list('{$table}')");
+            foreach ($indexes as $index) {
+                $name = $index->name ?? null;
+                if (! $name) {
+                    continue;
+                }
+                $cols = DB::select("PRAGMA index_info('{$name}')");
+                if (collect($cols)->contains(fn ($col) => ($col->name ?? null) === $column)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         $database = DB::getDatabaseName();
         $row = DB::selectOne(
             'SELECT 1 AS ok FROM information_schema.statistics WHERE table_schema = ? AND table_name = ? AND column_name = ? LIMIT 1',

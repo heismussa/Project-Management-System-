@@ -50,7 +50,7 @@ class Person1AdminTest extends TestCase
         $this->getJson('/api/dashboard?role=ICT Support')
             ->assertOk()
             ->assertJsonPath('data.role', 'ICT Support')
-            ->assertJsonStructure(['data' => ['counts', 'pending_actions']]);
+            ->assertJsonStructure(['data' => ['ict_support' => ['metrics', 'users_by_role', 'recent_activity']]]);
     }
 
     #[Test]

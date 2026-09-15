@@ -77,9 +77,9 @@ function AppLayoutShell() {
   const isDesktop = useIsDesktop()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const { name: currentProjectName } = useCurrentProjectName()
-  const crumbs = getBreadcrumbCrumbs(location.pathname, currentProjectName)
+  const crumbs = getBreadcrumbCrumbs(location.pathname, currentProjectName, activeRole?.name)
   const sidebarOpen = sideBarShown === 1 && isDesktop
-  const isProjectsList = location.pathname === '/projects'
+  const isProjectsList = location.pathname === '/projects' || location.pathname === '/review-project'
   const isReviewer = activeRole?.name === ROLES.PRV
   const isPlanner = activeRole?.name === ROLES.PPL
   const useStackedProjectsHeader = isProjectsList && (isReviewer || isPlanner)

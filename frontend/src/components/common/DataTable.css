@@ -40,6 +40,8 @@
 .pms-datatable-scroll {
   width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 8px;
 }
 
 /* Compact embedding (e.g. the Planner's simplified workspace): trim the
@@ -52,6 +54,7 @@
 .pms-datatable-limited .pms-datatable-scroll {
   max-height: 205px;
   overflow-y: auto;
+  border-radius: 8px;
 }
 
 .pms-datatable-limited .pms-datatable thead th {
@@ -66,9 +69,12 @@
 
 .pms-datatable {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
   background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .pms-datatable thead tr {

@@ -132,6 +132,31 @@ body {
   background: #fafafa;
 }
 
+/* Soft rounded corners on every Ant Design table (pages + modals), matching
+   the Project Management card look. */
+.ant-table-wrapper .ant-table-container,
+.ant-modal .ant-table-wrapper .ant-table-container,
+.ant-drawer .ant-table-wrapper .ant-table-container {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ant-table-wrapper .ant-table,
+.ant-modal .ant-table-wrapper .ant-table,
+.ant-drawer .ant-table-wrapper .ant-table {
+  border-radius: 8px;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th:first-child,
+.ant-modal .ant-table-wrapper .ant-table-thead > tr > th:first-child {
+  border-top-left-radius: 8px;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th:last-child,
+.ant-modal .ant-table-wrapper .ant-table-thead > tr > th:last-child {
+  border-top-right-radius: 8px;
+}
+
 .nav-link.active {
   background-color: #962c30;
   color: #fff;
@@ -237,13 +262,74 @@ html.dark {
   box-shadow: inset 3px 0 0 #d9a323;
 }
 
-/* Hide the classic up/down scrollbar arrow buttons everywhere (Chromium).
-   The app relies on the draggable thumb + wheel/trackpad; the arrow
-   buttons just added visual noise on every scrollable panel. */
+/* Hide the classic up/down scrollbar arrow buttons everywhere (Chromium /
+   Edge). The thin “scroll menu” that sat under Support Desk was those
+   buttons on .pms-main — remove them system-wide. */
 *::-webkit-scrollbar-button {
-  display: none;
-  width: 0;
-  height: 0;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+*::-webkit-scrollbar-button:start:decrement,
+*::-webkit-scrollbar-button:end:increment,
+*::-webkit-scrollbar-button:single-button,
+*::-webkit-scrollbar-button:double-button,
+*::-webkit-scrollbar-button:vertical:start:decrement,
+*::-webkit-scrollbar-button:vertical:end:increment {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.pms-main::-webkit-scrollbar-button,
+.pms-sidebar::-webkit-scrollbar-button {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+}
+
+/* Keep a slim thumb only — no arrow “ladder” on the track ends. */
+.pms-main::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.pms-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pms-main::-webkit-scrollbar-thumb {
+  background: rgba(150, 44, 48, 0.35);
+  border-radius: 8px;
+}
+
+/* DashboardHeaderBanner greeting wave. Skipped for reduced motion. */
+.dashboard-banner-greeting {
+  display: inline;
+}
+
+.dashboard-banner-greeting__word {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(12px);
+  animation: dashboard-banner-wave 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes dashboard-banner-wave {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-banner-greeting__word {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .avatar {
@@ -286,3 +372,80 @@ html.dark {
 .dark .avatar-email {
   color: #9ca3af;
 }
+
+/* —— Login: Gradient Mesh + Blurred Blobs —— */
+.login-mesh {
+  background-color: #F5F7FA;
+}
+
+.login-mesh__wash {
+  background:
+    radial-gradient(at 18% 15%, rgba(139, 30, 42, 0.14), transparent 50%),
+    radial-gradient(at 85% 85%, rgba(249, 178, 51, 0.22), transparent 50%),
+    linear-gradient(180deg, #FDF6EC 0%, #F5F7FA 50%, #EDE8F5 100%);
+}
+
+.login-mesh__dots {
+  background-image: radial-gradient(#94A3B8 1px, transparent 1px);
+  background-size: 22px 22px;
+  opacity: 0.04;
+}
+
+.login-mesh__blob {
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.login-mesh__blob--maroon {
+  top: -80px;
+  left: -60px;
+  width: 520px;
+  height: 520px;
+  background: rgba(139, 30, 42, 0.09);
+  filter: blur(80px);
+}
+
+.login-mesh__blob--gold {
+  right: -100px;
+  bottom: -120px;
+  width: 640px;
+  height: 640px;
+  background: rgba(249, 178, 51, 0.14);
+  filter: blur(90px);
+}
+
+.login-mesh-card {
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(249, 178, 51, 0.3),
+    0 0 20px rgba(249, 178, 51, 0.4);
+  animation: login-mesh-glow 3.2s ease-in-out infinite;
+}
+
+@keyframes login-mesh-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.12),
+      0 0 0 1px rgba(249, 178, 51, 0.25),
+      0 0 16px rgba(249, 178, 51, 0.32);
+  }
+  50% {
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.12),
+      0 0 0 1px rgba(249, 178, 51, 0.4),
+      0 0 28px rgba(249, 178, 51, 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-mesh-card {
+    animation: none;
+  }
+}
+
+

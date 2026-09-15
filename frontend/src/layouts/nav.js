@@ -29,6 +29,15 @@ export function formatRoleLabel(name) {
 
 export const NAV_ITEMS = Project()
 
+/** Role-aware sidebar / breadcrumb label (falls back to item.label). */
+export function resolveNavLabel(item, roleName) {
+  if (!item) return ''
+  if (roleName && item.labelsByRole?.[roleName]) {
+    return item.labelsByRole[roleName]
+  }
+  return item.label
+}
+
 export function getAssignedRoles(user) {
   if (!user) return []
   const fromList = (user.roles || [])
@@ -73,19 +82,23 @@ export function getActiveNavItem(pathname) {
   if (/^\/projects\/\d+/.test(pathname)) {
     return NAV_ITEMS.find((item) => item.url === '/projects') ?? NAV_ITEMS[0]
   }
+  if (pathname.startsWith('/review-project')) {
+    return NAV_ITEMS.find((item) => item.url === '/review-project') ?? NAV_ITEMS[0]
+  }
   const matches = NAV_ITEMS.filter((item) => item.url !== '/' && pathname.startsWith(item.url))
   const sorted = [...matches].sort((a, b) => b.url.length - a.url.length)
   return sorted[0] ?? NAV_ITEMS[0]
 }
 
 export function pathAllowedForRole(pathname, roleName) {
-  // Project detail pages stay reachable from dashboards even when the role
-  // does not have the Project Management list tab (e.g. Administrator).
-  if (/^\/projects\/\d+/.test(pathname)) {
+  // Project list + detail stay reachable from dashboards even when the role
+  // does not have the Project Management sidebar tab (e.g. Administrator
+  // deep-links from metric cards into filtered /projects views).
+  if (/^\/projects(\/\d+)?$/.test(pathname) || pathname === '/projects') {
     return true
   }
-  if (pathname === '/projects') {
-    return canAccessNavItem(getActiveNavItem(pathname), roleName)
+  if (pathname.startsWith('/review-project')) {
+    return roleName === ROLES.PRV
   }
   if (
     pathname.startsWith('/implementation-plan') ||
@@ -120,11 +133,15 @@ export function formatUserRoles(user, activeRole = null) {
   return names.map((name) => formatRoleLabel(name)).join(', ')
 }
 
-export function getBreadcrumbCrumbs(pathname, projectName) {
+export function getBreadcrumbCrumbs(pathname, projectName, roleName = null) {
   const active = getActiveNavItem(pathname)
 
   const crumbs = [
-    { label: active.label, link: active.url, current: pathname === active.url || pathname === '/home' },
+    {
+      label: resolveNavLabel(active, roleName),
+      link: active.url,
+      current: pathname === active.url || pathname === '/home',
+    },
   ]
 
   if (/^\/projects\/\d+/.test(pathname)) {
