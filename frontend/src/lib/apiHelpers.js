@@ -58,7 +58,8 @@ export function datesToImplementationStatus({ actual_start_date, actual_end_date
 }
 
 export function documentFileUrl(documentId) {
-  return `http://localhost:8000/api/documents/${documentId}/file`
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+  return `${apiBaseUrl.replace(/\/$/, '')}/documents/${documentId}/file`
 }
 
 export async function fetchAuthorizedFileUrl(documentId) {

@@ -23,6 +23,7 @@ import {
 import { Plus, Search } from 'lucide-react'
 import api from '../lib/axios'
 import { unwrapList } from '../lib/apiHelpers'
+import { MODAL_WIDTH } from '../lib/modalSizes'
 
 const { Text } = Typography
 
@@ -320,6 +321,8 @@ function UserManagementPage() {
           </>
         )}
         destroyOnHidden
+        width={MODAL_WIDTH.md}
+        className="pms-modal-md"
       >
         <Form form={createForm} layout="vertical" onFinish={handleCreate} className="pt-2">
           <Form.Item name="name" label="Full name" rules={[{ required: true, message: 'Name is required' }]}>
@@ -374,6 +377,8 @@ function UserManagementPage() {
           </>
         )}
         destroyOnHidden
+        width={MODAL_WIDTH.md}
+        className="pms-modal-md"
       >
         <Form form={assignForm} layout="vertical" onFinish={handleAssign} className="pt-2">
           <Form.Item
@@ -412,6 +417,7 @@ function UserManagementPage() {
           </>
         )}
         destroyOnHidden
+        width={MODAL_WIDTH.sm}
       >
         <Form form={passwordForm} layout="vertical" onFinish={handlePassword} className="pt-2">
           <Form.Item

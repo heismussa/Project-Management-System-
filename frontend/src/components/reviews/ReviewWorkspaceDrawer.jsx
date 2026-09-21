@@ -17,6 +17,7 @@ import ClosurePanel from '../projects/ClosurePanel'
 import DataTable from '../common/DataTable'
 import api from '../../lib/axios'
 import { unwrapList } from '../../lib/apiHelpers'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 import { ROLES } from '../../utility/Config.jsx'
 import { useAuth } from '../../context/AuthContext'
 import { formatRoleLabel } from '../../layouts/nav.js'
@@ -426,7 +427,8 @@ export default function ReviewWorkspaceDrawer({ open, project, onClose, onComple
       open={open}
       onCancel={onClose}
       destroyOnHidden
-      width={720}
+      width={MODAL_WIDTH.lg}
+      className="pms-modal-lg"
       centered
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

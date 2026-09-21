@@ -5,6 +5,7 @@ import { formatDate } from '../../lib/dates'
 import { getPersonName } from '../../data/people'
 import StatusBadge from '../common/StatusBadge'
 import { deriveStatus } from '../../lib/status'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 const { Text } = Typography
 const MAROON = '#800000'
@@ -49,7 +50,8 @@ function ActivityDetailsModal({
       open={open}
       onCancel={onClose}
       destroyOnHidden
-      width={720}
+      width={MODAL_WIDTH.lg}
+      className="pms-modal-lg"
       centered
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

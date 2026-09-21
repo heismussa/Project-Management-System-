@@ -21,6 +21,7 @@ import { activityResponsibleName } from '../lib/activityPerson'
 import { formatDate } from '../lib/dates'
 import { exportExcel, exportReport } from '../lib/reportExport'
 import { PROJECT_CATEGORIES } from '../lib/projectCatalog'
+import { MODAL_WIDTH } from '../lib/modalSizes'
 import PortfolioReportView from '../components/reports/PortfolioReportView'
 
 const { Text } = Typography
@@ -484,7 +485,8 @@ export default function GenerateReportPage() {
           if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
           setPdfPreviewUrl(null)
         }}
-        width="90vw"
+        width={MODAL_WIDTH.xl}
+        className="pms-modal-xl"
         style={{ top: 24 }}
         footer={[
           <Button
@@ -517,7 +519,7 @@ export default function GenerateReportPage() {
           <iframe
             title="Generated PDF preview"
             src={pdfPreviewUrl}
-            style={{ width: '100%', height: '75vh', border: `1px solid ${PRIMARY}`, borderRadius: 8 }}
+            style={{ width: '100%', height: '100%', minHeight: '55vh', border: `1px solid ${PRIMARY}`, borderRadius: 8 }}
           />
         ) : null}
       </Modal>

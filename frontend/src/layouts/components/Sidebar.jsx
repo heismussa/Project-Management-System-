@@ -6,7 +6,8 @@ import SwitchRole from './SwitchRole'
 
 function navClassName(isActive) {
   return [
-    'nav-link group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-500 hover:bg-primary hover:text-white',
+    'nav-link group flex items-center gap-x-3 rounded-md px-3.5 py-3.5 text-[14px] font-medium leading-snug text-gray-700 transition-colors duration-150',
+    'hover:bg-[#fbeaea] hover:text-[#7b1e1e]',
     isActive ? 'active' : '',
   ].join(' ')
 }
@@ -20,10 +21,10 @@ export default function Sidebar() {
 
   return (
     <div className="flex h-full w-full flex-col">
-      <div className="flex min-h-0 grow flex-col gap-y-5 overflow-y-auto px-[10px]">
-        <nav className="flex flex-1 flex-col pt-2">
+      <div className="flex min-h-0 grow flex-col gap-y-5 overflow-y-auto px-3">
+        <nav className="flex flex-1 flex-col pt-3">
           <SwitchRole />
-          <ul className="mt-1 flex w-full flex-1 flex-col gap-y-1.5">
+          <ul className="mt-3 flex w-full flex-1 flex-col gap-y-1">
             {menuLinks.map((group) => {
               const groupRoles = group.roles || []
               const canSee =
@@ -36,10 +37,10 @@ export default function Sidebar() {
                   : location.pathname.startsWith(group.url)
 
               return (
-                <li key={group.url} className="-mx-2">
+                <li key={group.url}>
                   <NavLink to={group.url} end={group.url === '/'} className={() => navClassName(active)}>
                     <group.icon
-                      className="nav-icon h-6 w-6 shrink-0 text-primary group-hover:text-white"
+                      className="nav-icon h-5 w-5 shrink-0 text-[#7b1e1e] group-hover:text-[#7b1e1e]"
                       aria-hidden="true"
                     />
                     <div className="truncate">{resolveNavLabel(group, roleName)}</div>

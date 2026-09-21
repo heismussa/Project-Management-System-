@@ -4,6 +4,7 @@ import { EyeOutlined } from '@ant-design/icons'
 import api from '../../lib/axios'
 import { fetchAuthorizedFileUrl, unwrapList } from '../../lib/apiHelpers'
 import { formatDate } from '../../lib/dates'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 const MAROON = '#800000'
 const PRIMARY_BTN = { backgroundColor: MAROON, borderColor: MAROON }
@@ -90,9 +91,10 @@ export default function ApproverSignOffModal({ open, project, onClose, onComplet
         open={open}
         onCancel={onClose}
         destroyOnHidden
-        width={860}
+        width={MODAL_WIDTH.xl}
+        className="pms-modal-xl"
         centered
-        styles={{ body: { maxHeight: '78vh', overflowY: 'auto', paddingRight: 4 } }}
+        styles={{ body: { overflowY: 'auto', paddingRight: 4 } }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button type="primary" style={PRIMARY_BTN} disabled={!canSignOff} onClick={() => setConfirmOpen(true)}>
@@ -221,7 +223,7 @@ export default function ApproverSignOffModal({ open, project, onClose, onComplet
         destroyOnHidden
         centered
         zIndex={1100}
-        width={480}
+        width={MODAL_WIDTH.sm}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button type="primary" style={PRIMARY_BTN} loading={saving} onClick={submitSignOff}>

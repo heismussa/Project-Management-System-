@@ -115,6 +115,34 @@ class ProjectController extends Controller
         // Project Planners only see projects assigned to them.
         if ($role === Roles::PLANNER_ROLE && $request->user()) {
             $query->where('projects.planner_id', $request->user()->id);
+        } elseif ($role === 'Project Approver' && $request->user()) {
+            // History: projects this Approver has signed off (ongoing + completed).
+            $approverId = $request->user()->id;
+            $query->where(function ($scoped) use ($approverId) {
+                $scoped->where('projects.approver_id', $approverId)
+                    ->orWhereExists(function ($reviews) use ($approverId) {
+                        $reviews->select(DB::raw(1))
+                            ->from('reviews')
+                            ->whereColumn('reviews.project_id', 'projects.id')
+                            ->where('reviews.reviewer_id', $approverId)
+                            ->where('reviews.entity_type', 'execution')
+                            ->where('reviews.decision', 'approved');
+                    });
+            });
+        } elseif ($role === 'Project Coordinator' && $request->user()) {
+            // History: projects this Coordinator has recommended (ongoing + completed).
+            $coordinatorId = $request->user()->id;
+            $query->where(function ($scoped) use ($coordinatorId) {
+                $scoped->where('projects.coordinator_id', $coordinatorId)
+                    ->orWhereExists(function ($reviews) use ($coordinatorId) {
+                        $reviews->select(DB::raw(1))
+                            ->from('reviews')
+                            ->whereColumn('reviews.project_id', 'projects.id')
+                            ->where('reviews.reviewer_id', $coordinatorId)
+                            ->where('reviews.entity_type', 'recommendation')
+                            ->where('reviews.decision', 'recommended');
+                    });
+            });
         } elseif ($plannerId) {
             $query->where('projects.planner_id', $plannerId);
         }
@@ -450,6 +478,8 @@ class ProjectController extends Controller
         }
 
         $updated = ProjectWorkflowService::recommendAndMoveToExecution($project);
+        $updated->update(['coordinator_id' => $request->user()->id]);
+        $updated = $updated->fresh();
 
         Review::create([
             'project_id' => $updated->id,
@@ -480,6 +510,8 @@ class ProjectController extends Controller
         $this->guardOpen($project);
 
         $updated = ProjectWorkflowService::approveExecution($project);
+        $updated->update(['approver_id' => $request->user()->id]);
+        $updated = $updated->fresh();
 
         Review::create([
             'project_id' => $updated->id,

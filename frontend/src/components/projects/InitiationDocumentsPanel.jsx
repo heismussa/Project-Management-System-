@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons'
 import api from '../../lib/axios'
 import { fetchAuthorizedFileUrl, storeProjectId, unwrapItem } from '../../lib/apiHelpers'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 const { Text } = Typography
 
@@ -274,7 +275,8 @@ export default function InitiationDocumentsPanel({ projectId, hideProceed = fals
         open={previewDoc !== null}
         onCancel={closePreview}
         destroyOnHidden
-        width={860}
+        width={MODAL_WIDTH.xl}
+        className="pms-modal-xl"
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button icon={<DownloadOutlined />} onClick={downloadPreview}>
@@ -292,7 +294,7 @@ export default function InitiationDocumentsPanel({ projectId, hideProceed = fals
           <iframe
             src={previewUrl}
             title={previewDoc.file_name}
-            style={{ width: '100%', height: '70vh', border: 'none' }}
+            style={{ width: '100%', height: '100%', minHeight: '55vh', border: 'none' }}
           />
         ) : previewUrl ? (
           <div className="py-16 text-center text-sm text-gray-500">

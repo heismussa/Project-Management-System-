@@ -32,7 +32,7 @@ export default function SwitchRole() {
   const button = (
     <button
       type="button"
-      className="flex w-full justify-between gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 transition-colors duration-200 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-100 dark:ring-gray-600 dark:hover:bg-gray-600"
+      className="flex w-full justify-between gap-x-1.5 rounded-md bg-white px-3.5 py-3 text-[14px] font-medium text-gray-900 ring-1 ring-inset ring-gray-300 transition-colors duration-200 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-100 dark:ring-gray-600 dark:hover:bg-gray-600"
     >
       <span className="truncate">{formatRoleLabel(activeRole?.name)}</span>
       {otherRoles.length > 0 && (

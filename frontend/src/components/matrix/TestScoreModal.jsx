@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Modal, Form, Radio, Input } from 'antd'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 function TestScoreModal({ open, requirement, onCancel, onSave }) {
   const [form] = Form.useForm()
@@ -40,6 +41,8 @@ function TestScoreModal({ open, requirement, onCancel, onSave }) {
           <CancelBtn />
         </>
       )}
+      width={MODAL_WIDTH.md}
+      className="pms-modal-md"
       destroyOnHidden
     >
       <Form form={form} layout="vertical" className="mt-4">

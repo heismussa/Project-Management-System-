@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Modal, Form, Input, Button, Space } from 'antd'
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 const BLANK_ROW = { requirement_code: '', description: '' }
 
@@ -39,7 +40,8 @@ function BulkRequirementForm({ open, onCancel, onSubmit }) {
           <CancelBtn />
         </>
       )}
-      width={640}
+      width={MODAL_WIDTH.lg}
+      className="pms-modal-lg"
       destroyOnHidden
     >
       <p className="mb-3 text-sm text-gray-600">

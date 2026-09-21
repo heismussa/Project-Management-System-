@@ -4,6 +4,7 @@ import { InboxOutlined, MinusCircleOutlined, PlusOutlined } from '@ant-design/ic
 import api from '../../lib/axios'
 import { extractUploadFile } from '../../lib/projectDocuments'
 import { unwrapItem } from '../../lib/apiHelpers'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -89,7 +90,8 @@ function AddRtmModal({ open, projectId, onClose, onAdded }) {
       open={open}
       onCancel={handleClose}
       destroyOnHidden
-      width={720}
+      width={MODAL_WIDTH.lg}
+      className="pms-modal-lg"
       centered
       confirmLoading={saving}
       footer={

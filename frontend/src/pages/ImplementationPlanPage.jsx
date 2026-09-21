@@ -7,6 +7,7 @@ import { Plus } from 'lucide-react'
 import dayjs from 'dayjs'
 import { deriveStatus } from '../lib/status'
 import { formatDate } from '../lib/dates'
+import { MODAL_WIDTH } from '../lib/modalSizes'
 import ActivityFormModal from '../components/activities/ActivityFormModal'
 import ActivityReviewDrawer from '../components/activities/ActivityReviewDrawer'
 import ActivityDetailsModal from '../components/activities/ActivityDetailsModal'
@@ -57,7 +58,11 @@ function ImplementationPlanPage({
   simplifiedPlannerView = false,
   hideExpectedDeliverable = false,
   hideReapprovalNotice = false,
+  hideWorkflowBar = false,
+  hideInlineAddActions = false,
+  registerActions = null,
   readOnlyBrowse = false,
+  workspaceSection = null,
 } = {}) {
   const { id: routeId } = useParams()
   const [searchParams] = useSearchParams()
@@ -671,6 +676,17 @@ function ImplementationPlanPage({
   // Approve/Reject only, not doing the work.
   const canUpdateRtmProgress = executionUnderway && canAddActivity
 
+  useEffect(() => {
+    if (!registerActions) return undefined
+    registerActions({
+      openAddActivity: () => setFormTarget(BLANK_ACTIVITY),
+      openAddRequirement: () => setRtmModalOpen(true),
+      canAddActivity: Boolean(canAddActivity && projectId && planStatus !== 'pending_review'),
+      canAddRequirement: Boolean(canAddRtm),
+    })
+    return () => registerActions(null)
+  }, [registerActions, canAddActivity, canAddRtm, projectId, planStatus])
+
   const openRtmView = (requirement) => {
     setRtmViewTarget(requirement)
     setRtmViewDocs([])
@@ -789,12 +805,19 @@ function ImplementationPlanPage({
     return true
   })
 
+  const showActivities = workspaceSection !== 'requirements'
+  const showRequirements =
+    workspaceSection === 'requirements' ||
+    (workspaceSection == null && simplifiedPlannerView && (canAddRtm || requirements.length > 0))
+  const showToolbar = workspaceSection !== 'requirements' && !hideInlineAddActions
+  const showInlineAddRequirement = canAddRtm && !hideInlineAddActions
+
   const toolbar = (
     <Space wrap size="middle" className="ms-auto justify-end">
       {!embedded && (
         <ProjectPicker projects={projects} value={projectId} onChange={handleProjectChange} />
       )}
-      {canAddActivity && (
+      {canAddActivity && showToolbar && (
         <PreventMutation fallback={null}>
           <button
             type="button"
@@ -815,54 +838,60 @@ function ImplementationPlanPage({
 
   return (
     <div className="flex flex-col gap-3">
-      {toolbarContainer ? (
-        createPortal(toolbar, toolbarContainer)
-      ) : (
-        <div className="flex w-full flex-wrap items-center justify-end gap-3">{toolbar}</div>
-      )}
+      {showToolbar &&
+        (toolbarContainer ? (
+          createPortal(toolbar, toolbarContainer)
+        ) : (
+          <div className="flex w-full flex-wrap items-center justify-end gap-3">{toolbar}</div>
+        ))}
 
-      <WorkflowBar projectId={projectId} workflow={workflow} hideReapprovalNotice={hideReapprovalNotice} />
+      {!hideWorkflowBar && (
+        <WorkflowBar projectId={projectId} workflow={workflow} hideReapprovalNotice={hideReapprovalNotice} />
+      )}
 
       {error && <Alert type="error" showIcon message={error} />}
 
-      <Spin spinning={loading}>
-        <ActivitiesTable
-          activities={activities}
-          visibleActivities={visibleActivities}
-          filteredInfo={filteredInfo}
-          onTableChange={(_pagination, filters) => setFilteredInfo(filters)}
-          onReview={openReview}
-          onEdit={!simplifiedPlannerView && canAddActivity ? openEdit : null}
-          onView={simplifiedPlannerView ? openDetails : null}
-          editDisabled={!projectId || planStatus === 'pending_review'}
-          hideExpectedDeliverable={hideExpectedDeliverable}
-          useApprovalStatus={simplifiedPlannerView || hideExpectedDeliverable}
-          planReviewStatus={workflow?.plan_review_status}
-          people={people}
-          forceShowActions={!readOnlyBrowse && Boolean(onActivityReview)}
-          hideActions={readOnlyBrowse}
-          shouldShowReview={shouldShowActivityReview}
-        />
-      </Spin>
+      {showActivities && (
+        <Spin spinning={loading}>
+          <ActivitiesTable
+            activities={activities}
+            visibleActivities={visibleActivities}
+            filteredInfo={filteredInfo}
+            onTableChange={(_pagination, filters) => setFilteredInfo(filters)}
+            onReview={openReview}
+            onEdit={!simplifiedPlannerView && canAddActivity ? openEdit : null}
+            onView={simplifiedPlannerView ? openDetails : null}
+            editDisabled={!projectId || planStatus === 'pending_review'}
+            hideExpectedDeliverable={hideExpectedDeliverable}
+            useApprovalStatus={simplifiedPlannerView || hideExpectedDeliverable}
+            planReviewStatus={workflow?.plan_review_status}
+            people={people}
+            forceShowActions={!readOnlyBrowse && Boolean(onActivityReview)}
+            hideActions={readOnlyBrowse}
+            shouldShowReview={shouldShowActivityReview}
+          />
+        </Spin>
+      )}
 
-      {simplifiedPlannerView && (canAddRtm || requirements.length > 0) && (
-        <div className="mt-2">
-          <div className="mb-2" style={{ color: '#800000', fontWeight: 800 }}>
-            RTM Requirements
-          </div>
+      {showRequirements && (
+        <div className={workspaceSection === 'requirements' ? undefined : 'mt-2'}>
+          {workspaceSection !== 'requirements' && (
+            <div className="mb-2" style={{ color: '#800000', fontWeight: 800 }}>
+              RTM Requirements
+            </div>
+          )}
 
           {requirementsLoading ? (
             <Spin size="small" />
           ) : (
-            requirements.length > 0 && (
-              <Table
-                className="mb-3"
-                size="small"
-                rowKey="id"
-                pagination={false}
-                dataSource={requirements}
-                locale={{ emptyText: 'No requirements added yet.' }}
-                columns={[
+            <Table
+              className="mb-3"
+              size="small"
+              rowKey="id"
+              pagination={false}
+              dataSource={requirements}
+              locale={{ emptyText: 'No requirements added yet.' }}
+              columns={[
                   { title: 'SN', width: 56, align: 'center', render: (_, __, index) => index + 1 },
                   {
                     title: 'Code',
@@ -923,11 +952,10 @@ function ImplementationPlanPage({
                       ]
                     : []),
                 ]}
-              />
-            )
+            />
           )}
 
-          {canAddRtm && (
+          {showInlineAddRequirement && (
             <div className="flex justify-end">
               <Button
                 type="primary"
@@ -1022,7 +1050,8 @@ function ImplementationPlanPage({
           setRtmRejectComment('')
         }}
         destroyOnHidden
-        width={760}
+        width={MODAL_WIDTH.xl}
+        className="pms-modal-xl"
         footer={
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
             {rtmRejecting ? (
@@ -1225,6 +1254,8 @@ function ImplementationPlanPage({
         open={rtmEditTarget !== null}
         onCancel={() => setRtmEditTarget(null)}
         destroyOnHidden
+        width={MODAL_WIDTH.md}
+        className="pms-modal-md"
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button

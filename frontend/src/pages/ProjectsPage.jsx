@@ -27,7 +27,8 @@ import { ROLES } from '../utility/Config.jsx'
 import { deriveStatus } from '../lib/status'
 import { formatDate } from '../lib/dates'
 import InitiationDocumentsPanel from '../components/projects/InitiationDocumentsPanel'
-import ProjectWorkspaceTabs from '../components/projects/ProjectWorkspaceTabs'
+import ProjectDetailsView from '../components/projects/ProjectDetailsView'
+import { MODAL_WIDTH } from '../lib/modalSizes'
 
 const ProjectRegistration = lazy(() => import('./ProjectRegistration'))
 
@@ -109,10 +110,13 @@ function ProjectsPage({ mode = 'browse' } = {}) {
   const [saving, setSaving] = useState(false)
   const [registerOpen, setRegisterOpen] = useState(false)
   const [registerLoaded, setRegisterLoaded] = useState(false)
+  const [detailFooterAction, setDetailFooterAction] = useState(null)
   const [form] = Form.useForm()
 
   const isPlannerRole = activeRole?.name === ROLES.PPL
   const isReviewerRole = activeRole?.name === ROLES.PRV
+  const isApproverRole = activeRole?.name === ROLES.PAP
+  const isCoordinatorRole = activeRole?.name === ROLES.PCO
   // Reviewer: `/review-project` keeps full review actions; `/projects` is browse-only.
   const isReviewWorkflow = isReviewerRole && mode === 'review'
   const isBrowseMode = isReviewerRole && !isReviewWorkflow
@@ -132,6 +136,12 @@ function ProjectsPage({ mode = 'browse' } = {}) {
       if (isPlannerRole && user?.id) {
         projectParams.planner_id = user.id
         projectParams.role = ROLES.PPL
+      } else if (isApproverRole) {
+        // History of projects this Approver has signed off.
+        projectParams.role = ROLES.PAP
+      } else if (isCoordinatorRole) {
+        // History of projects this Coordinator has recommended.
+        projectParams.role = ROLES.PCO
       }
 
       const projectsRes = await fetchProjectsCached(projectParams)
@@ -147,7 +157,7 @@ function ProjectsPage({ mode = 'browse' } = {}) {
     } finally {
       setLoading(false)
     }
-  }, [isPlannerRole, user])
+  }, [isPlannerRole, isApproverRole, isCoordinatorRole, user])
 
   const loadUsersForReassign = useCallback(async () => {
     if (users.length) return
@@ -602,7 +612,7 @@ function ProjectsPage({ mode = 'browse' } = {}) {
           <Tabs
             type="card"
             activeKey={view}
-            className="!mb-0"
+            className="pms-view-tabs !mb-0"
             tabBarStyle={{ marginBottom: 0 }}
             onChange={(key) => {
               const next = new URLSearchParams(searchParams)
@@ -619,8 +629,7 @@ function ProjectsPage({ mode = 'browse' } = {}) {
             <Button
               type="primary"
               icon={<PlusOutlined />}
-              // 40px matches the card-type tab strip's height so the two line up.
-              style={{ backgroundColor: '#800000', borderColor: '#800000', height: 40 }}
+              style={{ backgroundColor: '#800000', borderColor: '#800000', height: 42 }}
               onClick={() => {
                 setRegisterLoaded(true)
                 setRegisterOpen(true)
@@ -683,18 +692,29 @@ function ProjectsPage({ mode = 'browse' } = {}) {
       )}
 
       <Modal
-        title={<span style={{ color: '#800000', fontWeight: 800 }}>Details</span>}
+        title={null}
         open={Boolean(detailTarget)}
         onCancel={() => {
           setDetailTarget(null)
+          setDetailFooterAction(null)
           closeActivityReview()
         }}
         destroyOnHidden
-        width={1320}
+        width={MODAL_WIDTH.xl}
+        className="pms-modal-xl"
         centered
-        styles={{ body: { maxHeight: '82vh', overflowY: 'auto', paddingRight: 4 } }}
+        styles={{ body: { overflowY: 'auto', paddingTop: 20, paddingRight: 16, paddingLeft: 16 } }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            {detailFooterAction && (
+              <Button
+                type="primary"
+                style={{ backgroundColor: '#7A0C22', borderColor: '#7A0C22' }}
+                onClick={detailFooterAction.onClick}
+              >
+                {detailFooterAction.label}
+              </Button>
+            )}
             {isPlannerRole && detailWorkflow?.can_request_closure && (
               <Popconfirm
                 title="Request closure?"
@@ -727,66 +747,60 @@ function ProjectsPage({ mode = 'browse' } = {}) {
                 Download project
               </Button>
             )}
-            <Button type="default" onClick={() => setDetailTarget(null)}>
+            <Button
+              type="default"
+              onClick={() => {
+                setDetailTarget(null)
+                setDetailFooterAction(null)
+              }}
+            >
               Close
             </Button>
           </div>
         }
       >
         {detailTarget && (
-          <div>
-            <Descriptions column={1} size="small" bordered>
-              <Descriptions.Item label="Name">{detailTarget.name || 'â€”'}</Descriptions.Item>
-              <Descriptions.Item label="Category">{detailTarget.category || 'â€”'}</Descriptions.Item>
-              <Descriptions.Item label="Type">{detailTarget.project_type || 'â€”'}</Descriptions.Item>
-              <Descriptions.Item label="Date">
-                {detailTarget.planned_start_date || detailTarget.planned_end_date
-                  ? `${formatDate(detailTarget.planned_start_date)} — ${formatDate(detailTarget.planned_end_date)}`
-                  : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Planner">
-                <span className="inline-flex items-center gap-2">
-                  {detailTarget.planner?.name || 'Unassigned'}
-                  {isReviewWorkflow && canReassign && (
-                    <Button size="small" type="link" style={{ padding: 0 }} onClick={() => openReassign(detailTarget)}>
-                      Reassign
-                    </Button>
+          <ProjectDetailsView
+            project={detailTarget}
+            onProjectChanged={handleWorkspaceChanged}
+            readOnlyBrowse={isBrowseMode}
+            onActivityReview={isReviewWorkflow ? openActivityReview : undefined}
+            shouldShowActivityReview={isReviewWorkflow ? activityNeedsReview : undefined}
+            canReassign={isReviewWorkflow && canReassign}
+            onReassign={openReassign}
+            onFooterActionChange={setDetailFooterAction}
+            alerts={
+              <>
+                {detailWorkflow?.closure_return_comment &&
+                  !detailWorkflow?.closure_requested_at &&
+                  !detailWorkflow?.closed_at && (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      message="Closure returned"
+                      description={detailWorkflow.closure_return_comment}
+                    />
                   )}
-                </span>
-              </Descriptions.Item>
-              <Descriptions.Item label="Status">
-                <Tag color={STATUS_COLOR[detailTarget.status] || 'default'}>{statusLabel(detailTarget.status)}</Tag>
-              </Descriptions.Item>
-            </Descriptions>
-
-            {detailWorkflow?.closure_return_comment && !detailWorkflow?.closure_requested_at && !detailWorkflow?.closed_at && (
-              <Alert
-                className="mt-4"
-                type="warning"
-                showIcon
-                message="Closure returned"
-                description={detailWorkflow.closure_return_comment}
-              />
-            )}
-
-            {detailTarget.plan_review_status === 'approved' && !detailInExecution && detailWorkflow?.execution_blockers?.length > 0 && (
-              <Alert
-                className="mt-4"
-                type="info"
-                showIcon
-                message="Next step: move to execution"
-                description={
-                  <ul className="mb-0 mt-1 list-disc pl-5">
-                    {detailWorkflow.execution_blockers.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                }
-              />
-            )}
-
-            {detailTarget.lifecycle_stage === 'initiation' && canRegister ? (
-              <div className="mt-4 rounded border border-gray-200 p-3">
+                {detailTarget.plan_review_status === 'approved' &&
+                  !detailInExecution &&
+                  detailWorkflow?.execution_blockers?.length > 0 && (
+                    <Alert
+                      type="info"
+                      showIcon
+                      message="Next step: move to execution"
+                      description={
+                        <ul className="mb-0 mt-1 list-disc pl-5">
+                          {detailWorkflow.execution_blockers.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      }
+                    />
+                  )}
+              </>
+            }
+            initiationPanel={
+              detailTarget.lifecycle_stage === 'initiation' && canRegister ? (
                 <InitiationDocumentsPanel
                   projectId={detailTarget.id}
                   onProceeded={() => {
@@ -794,17 +808,9 @@ function ProjectsPage({ mode = 'browse' } = {}) {
                     load()
                   }}
                 />
-              </div>
-            ) : (
-              <ProjectWorkspaceTabs
-                projectId={detailTarget.id}
-                onProjectChanged={handleWorkspaceChanged}
-                readOnlyBrowse={isBrowseMode}
-                onActivityReview={isReviewWorkflow ? openActivityReview : undefined}
-                shouldShowActivityReview={isReviewWorkflow ? activityNeedsReview : undefined}
-              />
-            )}
-          </div>
+              ) : null
+            }
+          />
         )}
       </Modal>
 
@@ -814,7 +820,8 @@ function ProjectsPage({ mode = 'browse' } = {}) {
         onCancel={closeActivityReview}
         destroyOnHidden
         centered
-        width={760}
+        width={MODAL_WIDTH.lg}
+        className="pms-modal-lg"
         zIndex={1100}
         maskClosable={false}
         footer={
@@ -929,7 +936,7 @@ function ProjectsPage({ mode = 'browse' } = {}) {
       </Modal>
 
       <Modal
-        title={reassignTarget ? `Reassign planner â€” ${reassignTarget.name}` : 'Reassign planner'}
+        title={reassignTarget ? `Reassign planner — ${reassignTarget.name}` : 'Reassign planner'}
         open={Boolean(reassignTarget)}
         onCancel={() => {
           setReassignTarget(null)
@@ -937,6 +944,8 @@ function ProjectsPage({ mode = 'browse' } = {}) {
         }}
         onOk={() => form.submit()}
         confirmLoading={saving}
+        width={MODAL_WIDTH.md}
+        className="pms-modal-md"
         footer={(_, { OkBtn, CancelBtn }) => (
           <>
             <OkBtn />
@@ -1040,7 +1049,8 @@ function ProjectsPage({ mode = 'browse' } = {}) {
         open={previewDoc !== null}
         onCancel={closePreview}
         destroyOnHidden
-        width={860}
+        width={MODAL_WIDTH.xl}
+        className="pms-modal-xl"
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button
@@ -1062,7 +1072,7 @@ function ProjectsPage({ mode = 'browse' } = {}) {
           <iframe
             src={previewUrl}
             title={previewDoc.file_name}
-            style={{ width: '100%', height: '70vh', border: 'none' }}
+            style={{ width: '100%', height: '100%', minHeight: '55vh', border: 'none' }}
           />
         ) : previewUrl ? (
           <div className="py-16 text-center text-sm text-gray-500">

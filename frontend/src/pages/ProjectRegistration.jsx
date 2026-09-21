@@ -13,6 +13,7 @@ import {
   optionsFrom,
 } from '../lib/projectCatalog'
 import InitiationDocumentsPanel from '../components/projects/InitiationDocumentsPanel'
+import { MODAL_WIDTH } from '../lib/modalSizes'
 
 const DETAIL_FIELDS = [
   'name',
@@ -163,10 +164,11 @@ export default function ProjectRegistration({ open, onClose, onRegistered }) {
       open={open}
       onCancel={closeRegistration}
       destroyOnHidden
-      width={960}
+      width={MODAL_WIDTH.xl}
+      className="pms-modal-xl"
       centered
       maskClosable={false}
-      styles={{ body: { maxHeight: '78vh', overflowY: 'auto', paddingRight: 4 } }}
+      styles={{ body: { overflowY: 'auto', paddingRight: 4 } }}
       footer={null}
     >
       {error && <Alert className="mb-4" type="error" showIcon message={error} />}

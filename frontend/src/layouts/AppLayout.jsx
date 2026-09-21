@@ -11,7 +11,7 @@ import { useAuth } from '../context/AuthContext'
 import { CurrentProjectProvider, useCurrentProjectName } from '../context/CurrentProjectContext'
 import './app-shell.css'
 
-const SIDEBAR_WIDTH = 288
+const SIDEBAR_WIDTH = 320
 
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(() =>

@@ -4,6 +4,7 @@ import { InboxOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { extractUploadFile } from '../../lib/projectDocuments'
 import { disabledActivityPlannedRange } from '../../lib/validation'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -108,10 +109,11 @@ function ActivityFormModal({
         </>
       )}
       destroyOnHidden
-      width={720}
+      width={MODAL_WIDTH.xl}
+      className="pms-modal-xl"
       centered
       zIndex={1100}
-      styles={{ body: { maxHeight: '75vh', overflowY: 'auto', paddingRight: 4 } }}
+      styles={{ body: { overflowY: 'auto', paddingRight: 4 } }}
     >
       <Form form={form} layout="vertical" className="mt-4" autoComplete="off">
         <Form.Item

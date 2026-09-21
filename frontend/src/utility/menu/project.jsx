@@ -27,11 +27,13 @@ export default function Project() {
       label: 'Project Management',
       labelsByRole: {
         [ROLES.PPL]: 'Plan Project',
+        [ROLES.PAP]: 'Project History',
+        [ROLES.PCO]: 'Project History',
       },
       url: '/projects',
-      // Administrator deliberately excluded — portfolio oversight is on the
-      // Admin dashboard; day-to-day project work stays with other roles.
-      roles: [ROLES.IS, ROLES.PRV, ROLES.PVO, ROLES.PCO, ROLES.PAP, ROLES.PPL],
+      // ICT Support and Administrator deliberately excluded — ICT manages
+      // users/audit only; Admin oversight lives on the dashboard.
+      roles: [ROLES.PRV, ROLES.PVO, ROLES.PCO, ROLES.PAP, ROLES.PPL],
       icon: FolderKanban,
     },
     {

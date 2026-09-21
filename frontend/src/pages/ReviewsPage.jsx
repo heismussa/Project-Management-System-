@@ -68,13 +68,15 @@ function ReviewsPage({ embedded = false, queueFilter = null } = {}) {
     return projects
       .filter((project) => {
         const queue = project.workflow?.queue
+        const track = project.workflow?.review_track || project.review_track
         if (!ACTIONABLE_QUEUES.has(queue)) return false
+        // Coordinator: only SDMM/IDMM projects waiting for recommendation.
+        if (queueFilter === 'recommendation') {
+          return queue === 'recommendation' && track !== 'DICT'
+        }
         if (queueFilter) return queue === queueFilter
-        // Approver only ever has something to do at DICT execution sign-off —
-        // plan review and closure sign-off are always the Reviewer's call,
-        // even for a DICT-track project, so those stages don't belong here.
+        // Approver: only Security/DICT projects waiting for execution sign-off.
         if (isApprover) {
-          const track = project.workflow?.review_track || project.review_track
           return track === 'DICT' && queue === 'execution_sign_off'
         }
         return true

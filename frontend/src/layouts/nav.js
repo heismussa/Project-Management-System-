@@ -93,9 +93,9 @@ export function getActiveNavItem(pathname) {
 export function pathAllowedForRole(pathname, roleName) {
   // Project list + detail stay reachable from dashboards even when the role
   // does not have the Project Management sidebar tab (e.g. Administrator
-  // deep-links from metric cards into filtered /projects views).
+  // deep-links). ICT Support is excluded — no project portfolio for that role.
   if (/^\/projects(\/\d+)?$/.test(pathname) || pathname === '/projects') {
-    return true
+    return roleName !== ROLES.IS
   }
   if (pathname.startsWith('/review-project')) {
     return roleName === ROLES.PRV

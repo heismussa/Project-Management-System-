@@ -16,10 +16,21 @@ import {
   storeProjectId,
   unwrapList,
 } from '../../lib/apiHelpers'
+import { FileText } from 'lucide-react'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 const DOCUMENT_ACCENT = '#962c30'
 
-function DocumentList({ embedded = false, projectId: projectIdProp = null, compact = false } = {}) {
+function FileTextIcon() {
+  return <FileText size={15} className="shrink-0 text-[#7b1e1e]" aria-hidden="true" />
+}
+
+function DocumentList({
+  embedded = false,
+  projectId: projectIdProp = null,
+  compact = false,
+  detailStyle = false,
+} = {}) {
   const { id: routeId } = useParams()
   const readOnly = isSpecReadOnlyRole(useActiveRoleName())
   const [projects, setProjects] = useState([])
@@ -103,7 +114,52 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
     setViewTarget(null)
   }
 
-  const columns = [
+  const columns = detailStyle
+    ? [
+        {
+          title: 'File Name',
+          dataIndex: 'file_name',
+          key: 'file_name',
+          ellipsis: true,
+          render: (value) => (
+            <span className="inline-flex items-center gap-2 font-semibold text-[#1f2937]">
+              <FileTextIcon />
+              {value}
+            </span>
+          ),
+        },
+        {
+          title: 'Type',
+          key: 'ext',
+          width: 100,
+          render: (_, record) => {
+            const name = String(record.file_name || '')
+            const ext = name.includes('.') ? name.split('.').pop().toUpperCase() : 'FILE'
+            return <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">{ext}</span>
+          },
+        },
+        {
+          title: 'Uploaded',
+          dataIndex: 'uploaded_at',
+          width: 120,
+          render: (value) => (value ? dayjs(value).format('MMM DD, YYYY') : '—'),
+        },
+        {
+          title: 'Action',
+          key: 'actions',
+          width: 90,
+          render: (_, record) => (
+            <button
+              type="button"
+              className="border-0 bg-transparent p-0 text-sm font-bold text-[#7b1e1e] hover:underline"
+              onClick={() => setViewTarget(record)}
+            >
+              View
+            </button>
+          ),
+        },
+      ]
+    : [
     { title: 'File', dataIndex: 'file_name', key: 'file_name', width: 220 },
     { title: 'Document Type', dataIndex: 'document_type', key: 'document_type', width: 140 },
     {
@@ -221,6 +277,8 @@ function DocumentList({ embedded = false, projectId: projectIdProp = null, compa
         open={viewTarget !== null}
         onCancel={closeView}
         destroyOnHidden
+        width={MODAL_WIDTH.xl}
+        className="pms-modal-xl"
         footer={[
           <Button key="close" onClick={closeView}>
             Close

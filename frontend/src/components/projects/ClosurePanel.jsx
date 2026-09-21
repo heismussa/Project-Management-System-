@@ -4,6 +4,7 @@ import DataTable from '../common/DataTable'
 import RoleGuard, { useActiveRoleName } from '../common/RoleGuard'
 import { ROLES } from '../../utility/Config.jsx'
 import api from '../../lib/axios'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 export default function ClosurePanel({ projectId, closure, workflow, onChanged }) {
   const roleName = useActiveRoleName()
@@ -109,6 +110,7 @@ export default function ClosurePanel({ projectId, closure, workflow, onChanged }
             <CancelBtn />
           </>
         )}
+        width={MODAL_WIDTH.sm}
       >
         <Form form={form} layout="vertical">
           <Form.Item

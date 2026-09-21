@@ -157,13 +157,57 @@ body {
   border-top-right-radius: 8px;
 }
 
+.nav-link {
+  position: relative;
+  border-left: 3px solid transparent;
+}
+
 .nav-link.active {
-  background-color: #962c30;
-  color: #fff;
+  background-color: #fbeaea;
+  color: #7b1e1e !important;
+  border-left-color: #7b1e1e;
+  font-weight: 600;
 }
 
 .nav-link.active .nav-icon {
-  color: #fff;
+  color: #7b1e1e !important;
+}
+
+.nav-link:hover .nav-icon {
+  color: #7b1e1e;
+}
+
+.dark .nav-link {
+  color: #d1d5db !important;
+}
+
+.dark .nav-link:hover,
+.dark .nav-link.active {
+  background-color: rgba(123, 30, 30, 0.35);
+  color: #fecaca !important;
+}
+
+.dark .nav-link.active .nav-icon,
+.dark .nav-link:hover .nav-icon {
+  color: #fecaca !important;
+}
+
+/* Ongoing / Completed card tabs — ICTMS-sized */
+.pms-view-tabs.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab {
+  min-height: 42px;
+  padding: 10px 20px !important;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.pms-view-tabs.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active {
+  background: #7b1e1e !important;
+  border-color: #7b1e1e !important;
+}
+
+.pms-view-tabs.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #fff !important;
 }
 
 .navbar-drawer-item {
@@ -445,6 +489,101 @@ html.dark {
 @media (prefers-reduced-motion: reduce) {
   .login-mesh-card {
     animation: none;
+  }
+}
+
+/* Content modals: ~75% width, height fits in work area below the 100px header */
+.ant-modal-wrap:has(.pms-modal-xl),
+.ant-modal-wrap:has(.pms-modal-lg),
+.ant-modal-wrap:has(.pms-modal-md) {
+  padding: 108px 16px 20px !important;
+  align-items: flex-start !important;
+  overflow-y: auto;
+}
+
+.pms-modal-xl.ant-modal,
+.ant-modal.pms-modal-xl {
+  width: 75vw !important;
+  max-width: 75vw !important;
+  top: 0 !important;
+  padding-bottom: 0;
+  margin: 0 auto !important;
+}
+
+.pms-modal-lg.ant-modal,
+.ant-modal.pms-modal-lg {
+  width: 70vw !important;
+  max-width: 70vw !important;
+  top: 0 !important;
+  padding-bottom: 0;
+  margin: 0 auto !important;
+}
+
+.pms-modal-md.ant-modal,
+.ant-modal.pms-modal-md {
+  width: 55vw !important;
+  max-width: 55vw !important;
+  top: 0 !important;
+  padding-bottom: 0;
+  margin: 0 auto !important;
+}
+
+.pms-modal-xl .ant-modal-content,
+.pms-modal-lg .ant-modal-content,
+.pms-modal-md .ant-modal-content {
+  display: flex;
+  flex-direction: column;
+  /* 100px header + wrap padding — keep modal inside the work area */
+  height: calc(100vh - 140px);
+  max-height: calc(100vh - 140px);
+}
+
+.pms-modal-md .ant-modal-content {
+  height: calc(100vh - 200px);
+  max-height: calc(100vh - 200px);
+}
+
+.pms-modal-xl .ant-modal-body,
+.pms-modal-lg .ant-modal-body,
+.pms-modal-md .ant-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none !important;
+  height: auto !important;
+  overflow-y: auto;
+}
+
+.pms-modal-xl .ant-modal-header,
+.pms-modal-lg .ant-modal-header,
+.pms-modal-md .ant-modal-header,
+.pms-modal-xl .ant-modal-footer,
+.pms-modal-lg .ant-modal-footer,
+.pms-modal-md .ant-modal-footer {
+  flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .ant-modal-wrap:has(.pms-modal-xl),
+  .ant-modal-wrap:has(.pms-modal-lg),
+  .ant-modal-wrap:has(.pms-modal-md) {
+    padding: 12px 8px !important;
+  }
+
+  .pms-modal-xl.ant-modal,
+  .ant-modal.pms-modal-xl,
+  .pms-modal-lg.ant-modal,
+  .ant-modal.pms-modal-lg,
+  .pms-modal-md.ant-modal,
+  .ant-modal.pms-modal-md {
+    width: 96vw !important;
+    max-width: 96vw !important;
+  }
+
+  .pms-modal-xl .ant-modal-content,
+  .pms-modal-lg .ant-modal-content,
+  .pms-modal-md .ant-modal-content {
+    height: calc(100vh - 48px);
+    max-height: calc(100vh - 48px);
   }
 }
 

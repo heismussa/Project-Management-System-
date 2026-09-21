@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Modal, Form, DatePicker, Input } from 'antd'
 import dayjs from 'dayjs'
 import { disabledActualStartDate } from '../../lib/validation'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 /** Records when work on a requirement actually began. The end date isn't
  * captured here — like activities, it's auto-stamped by a separate
@@ -45,6 +46,8 @@ function RequirementStartModal({ open, requirement, plannedStartDate, plannedEnd
           <CancelBtn />
         </>
       )}
+      width={MODAL_WIDTH.md}
+      className="pms-modal-md"
       destroyOnHidden
     >
       <Form form={form} layout="vertical" className="mt-4">

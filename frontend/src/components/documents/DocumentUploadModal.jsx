@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Modal, Upload, Typography, Select, message } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
 import api from '../../lib/axios'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -63,6 +64,8 @@ function DocumentUploadModal({ open, projectId, activityId = null, onCancel, onU
       }}
       footer={null}
       destroyOnHidden
+      width={MODAL_WIDTH.md}
+      className="pms-modal-md"
     >
       <div className="mb-3">
         <Text strong className="mb-1 block">Document type</Text>

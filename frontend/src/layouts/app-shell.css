@@ -8,7 +8,7 @@ body,
 .pms-shell {
   display: grid !important;
   grid-template-rows: 100px minmax(0, 1fr) !important;
-  grid-template-columns: 288px minmax(0, 1fr) !important;
+  grid-template-columns: 320px minmax(0, 1fr) !important;
   width: 100% !important;
   height: 100% !important;
   min-height: 100vh !important;

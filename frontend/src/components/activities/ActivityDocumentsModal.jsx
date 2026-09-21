@@ -6,6 +6,7 @@ import DocumentUploadModal from '../documents/DocumentUploadModal'
 import DataTable from '../common/DataTable'
 import api from '../../lib/axios'
 import { unwrapList } from '../../lib/apiHelpers'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 
 function ActivityDocumentsModal({ open, activity, projectId, onCancel }) {
   const [documents, setDocuments] = useState([])
@@ -38,7 +39,8 @@ function ActivityDocumentsModal({ open, activity, projectId, onCancel }) {
         open={open}
         onCancel={onCancel}
         footer={null}
-        width={800}
+        width={MODAL_WIDTH.xl}
+        className="pms-modal-xl"
       >
         <div className="mb-3 flex justify-end">
           <Button type="primary" onClick={() => setUploadOpen(true)}>

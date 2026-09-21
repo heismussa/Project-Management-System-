@@ -21,6 +21,7 @@ import { getRequirementStatus } from './requirementStatus'
 import RequirementProgressModal from './RequirementProgressModal'
 import TestScoreModal from './TestScoreModal'
 import api from '../../lib/axios'
+import { MODAL_WIDTH } from '../../lib/modalSizes'
 import { fetchProjectsCached } from '../../lib/projectsCache'
 import {
   apiStatusToUi,
@@ -402,7 +403,8 @@ function TraceabilityTable({ embedded = false, projectId: projectIdProp = null }
         open={viewTarget !== null}
         onCancel={() => setViewTarget(null)}
         destroyOnHidden
-        width={560}
+        width={MODAL_WIDTH.lg}
+        className="pms-modal-lg"
         footer={
           readOnly
             ? [
@@ -499,6 +501,8 @@ function TraceabilityTable({ embedded = false, projectId: projectIdProp = null }
             <CancelBtn />
           </>
         )}
+        width={MODAL_WIDTH.md}
+        className="pms-modal-md"
         destroyOnHidden
       >
         <Form form={addForm} layout="vertical" className="mt-4">
@@ -534,6 +538,7 @@ function TraceabilityTable({ embedded = false, projectId: projectIdProp = null }
             <CancelBtn />
           </>
         )}
+        width={MODAL_WIDTH.sm}
         destroyOnHidden
       >
         <p className="mb-3 text-sm text-gray-600">
